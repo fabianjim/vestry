@@ -291,7 +291,7 @@ export default function PortfolioChart() {
                 tickLine={false}
               />
               <YAxis 
-                domain={['dataMin - 5%', 'dataMax + 5%']}
+                domain={[(dataMin: number) => dataMin * 0.995, (dataMax: number) => dataMax * 1.005]}
                 stroke="#6c757d"
                 fontSize={12}
                 tickLine={false}
