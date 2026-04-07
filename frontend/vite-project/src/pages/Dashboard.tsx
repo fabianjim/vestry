@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { roundToMinute } from '../utils/dateUtils'
 import PortfolioChart from '../components/PortfolioChart'
+import TransactionHistory from '../components/TransactionHistory'
 
 type StockData = {
   stock: Stock | null
@@ -41,6 +42,10 @@ export default function Dashboard() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [newTicker, setNewTicker] = useState('')
   const [newShares, setNewShares] = useState('')
+  const [showSellModal, setShowSellModal] = useState(false)
+  const [sellTicker, setSellTicker] = useState('')
+  const [sellShares, setSellShares] = useState('')
+  const [maxShares, setMaxShares] = useState(0)
   const hasFetched = useRef(false)
   
   useEffect(() => {
@@ -156,20 +161,46 @@ export default function Dashboard() {
     }
   }
 
-  const removeHolding = async (ticker: string) => {
-    if (!confirm(`Are you sure you want to sell ${ticker}?`)) return
+  const openSellModal = (ticker: string, shares: number) => {
+    setSellTicker(ticker)
+    setMaxShares(shares)
+    setSellShares('')
+    setShowSellModal(true)
+  }
+
+  const closeSellModal = () => {
+    setShowSellModal(false)
+    setSellTicker('')
+    setSellShares('')
+    setMaxShares(0)
+    setError('')
+  }
+
+  const executeSell = async () => {
+    if (!sellShares || Number(sellShares) <= 0) {
+      setError('Please enter a valid number of shares')
+      return
+    }
+    if (Number(sellShares) > maxShares) {
+      setError(`Cannot sell more than ${maxShares} shares`)
+      return
+    }
 
     setLoading(true)
     try {
-      const response = await fetch('/api/portfolio/holdings/remove', {
+      const response = await fetch('/api/portfolio/holdings/sell', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticker }),
+        body: JSON.stringify({
+          ticker: sellTicker,
+          shares: Number(sellShares)
+        }),
         credentials: 'include',
       })
 
-      if (!response.ok) throw new Error('Failed to remove holding')
+      if (!response.ok) throw new Error('Failed to sell holding')
 
+      closeSellModal()
       await fetchPortfolioInfo()
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
@@ -177,6 +208,10 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const removeHolding = async (ticker: string, shares: number) => {
+    openSellModal(ticker, shares)
   }
 
   const calculatePortfolioValue = () => {
@@ -370,7 +405,7 @@ export default function Dashboard() {
 
                       <td style={{ border: '1px solid #ddd', padding: 8 }}>
                         <button
-                          onClick={() => removeHolding(r.ticker)}
+                          onClick={() => removeHolding(r.ticker, r.shares)}
                           disabled={loading}
                           style={{
                             padding: '4px 8px',
@@ -393,6 +428,12 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Transaction History Section */}
+      <div style={{ marginTop: 32, marginBottom: 32 }}>
+        <h3>Transaction History</h3>
+        <TransactionHistory />
+      </div>
 
       {/* Trending Stocks Section */}
       {trendingStocks.length > 0 && (
@@ -514,6 +555,63 @@ export default function Dashboard() {
                 style={{ backgroundColor: '#28a745', color: 'white' }}
               >
                 {loading ? 'Buying…' : 'Buy'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Sell Stock Modal */}
+      {showSellModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: '#d3d3d3',
+            padding: 24,
+            borderRadius: 8,
+            width: '90%',
+            maxWidth: 400
+          }}>
+            <h3 style={{ marginTop: 0, color: '#494949' }}>Sell {sellTicker}</h3>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 4, color: 'grey' }}>
+                Shares (max: {maxShares})
+              </label>
+              <input
+                type="number"
+                placeholder="Number of shares to sell"
+                value={sellShares}
+                onChange={(e) => setSellShares(e.target.value)}
+                min="0.01"
+                max={maxShares}
+                step="0.01"
+                style={{ 
+                  width: '100%', 
+                  padding: 8,
+                  boxSizing: 'border-box',
+                  fontSize: 16
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={closeSellModal}>
+                Cancel
+              </button>
+              <button 
+                onClick={executeSell}
+                disabled={loading || !sellShares || Number(sellShares) <= 0 || Number(sellShares) > maxShares}
+                style={{ backgroundColor: '#dc3545', color: 'white' }}
+              >
+                {loading ? 'Selling…' : 'Sell'}
               </button>
             </div>
           </div>
