@@ -32,17 +32,20 @@ public class PortfolioService {
     private final UserRepository userRepository;
     private final TrackedStockRepository trackedStockRepository;
     private final StockRepository stockRepository;
+    private final TransactionService transactionService;
 
     public PortfolioService(PortfolioRepository portfolioRepository,
                           StockService stockService,
                           UserRepository userRepository,
                           TrackedStockRepository trackedStockRepository,
-                          StockRepository stockRepository) {
+                          StockRepository stockRepository,
+                          TransactionService transactionService) {
         this.portfolioRepository = portfolioRepository;
         this.stockService = stockService;
         this.userRepository = userRepository;
         this.trackedStockRepository = trackedStockRepository;
         this.stockRepository = stockRepository;
+        this.transactionService = transactionService;
     }
 
     private Integer getCurrentUserId() {
@@ -115,6 +118,11 @@ public class PortfolioService {
             throw new RuntimeException("No portfolio found for current user");
         }
 
+        // Get current price for transaction
+        double currentPrice = stockService.getLatestStockData(ticker)
+            .map(Stock::getCurrentPrice)
+            .orElse(0.0);
+
         Holding newHolding = new Holding(ticker, shares);
         portfolio.getHoldings().add(newHolding);
         portfolioRepository.save(portfolio);
@@ -122,6 +130,9 @@ public class PortfolioService {
         // Start tracking and fetch initial data
         startTrackingStock(ticker);
         stockService.updateStockData(ticker, Stock.StockType.INITIAL);
+
+        // Record buy transaction
+        transactionService.recordBuyTransaction(ticker, shares, currentPrice);
     }
 
     /**
@@ -133,11 +144,65 @@ public class PortfolioService {
             throw new RuntimeException("No portfolio found for current user");
         }
 
+        // Get shares and current price for transaction before removing
+        double shares = portfolio.getHoldings().stream()
+            .filter(h -> h.getTicker().equals(ticker))
+            .findFirst()
+            .map(Holding::getShares)
+            .orElse(0.0);
+        
+        double currentPrice = stockService.getLatestStockData(ticker)
+            .map(Stock::getCurrentPrice)
+            .orElse(0.0);
+
         portfolio.getHoldings().removeIf(h -> h.getTicker().equals(ticker));
         portfolioRepository.save(portfolio);
 
         // Stop tracking this stock
         stopTrackingStock(ticker);
+
+        // Record sell transaction
+        if (shares > 0) {
+            transactionService.recordSellTransaction(ticker, shares, currentPrice);
+        }
+    }
+
+    /**
+     * Sell a portion of a holding (partial sell).
+     */
+    public void sellHolding(String ticker, double sharesToSell) {
+        Portfolio portfolio = getPortfolio();
+        if (portfolio == null) {
+            throw new RuntimeException("No portfolio found for current user");
+        }
+
+        Holding holding = portfolio.getHoldings().stream()
+            .filter(h -> h.getTicker().equals(ticker))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("Holding not found for ticker: " + ticker));
+
+        if (sharesToSell > holding.getShares()) {
+            throw new RuntimeException("Cannot sell more shares than owned");
+        }
+
+        double currentPrice = stockService.getLatestStockData(ticker)
+            .map(Stock::getCurrentPrice)
+            .orElse(0.0);
+
+        // Record sell transaction
+        transactionService.recordSellTransaction(ticker, sharesToSell, currentPrice);
+
+        // Update or remove holding
+        if (sharesToSell == holding.getShares()) {
+            // Selling all shares - remove the holding
+            portfolio.getHoldings().removeIf(h -> h.getTicker().equals(ticker));
+            stopTrackingStock(ticker);
+        } else {
+            // Partial sell - update shares
+            holding.setShares(holding.getShares() - sharesToSell);
+        }
+
+        portfolioRepository.save(portfolio);
     }
 
     public List<String> getTickersfromPortfolio(Portfolio portfolio) {

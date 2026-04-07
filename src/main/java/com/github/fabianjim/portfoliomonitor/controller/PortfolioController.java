@@ -3,8 +3,10 @@ package com.github.fabianjim.portfoliomonitor.controller;
 import com.github.fabianjim.portfoliomonitor.dto.PortfolioHistoryDTO;
 import com.github.fabianjim.portfoliomonitor.model.Holding;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;
+import com.github.fabianjim.portfoliomonitor.model.Transaction;
 import com.github.fabianjim.portfoliomonitor.model.TrackedStock;
 import com.github.fabianjim.portfoliomonitor.service.PortfolioService;
+import com.github.fabianjim.portfoliomonitor.service.TransactionService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,9 +17,11 @@ import java.util.Map;
 public class PortfolioController {
 
     private final PortfolioService portfolioService;
+    private final TransactionService transactionService;
 
-    public PortfolioController(PortfolioService portfolioService) {
+    public PortfolioController(PortfolioService portfolioService, TransactionService transactionService) {
         this.portfolioService = portfolioService;
+        this.transactionService = transactionService;
     }
     @PostMapping
     public void submitPortfolio(@RequestBody Portfolio portfolio) {
@@ -71,6 +75,18 @@ public class PortfolioController {
     @GetMapping("/history")
     public List<PortfolioHistoryDTO> getPortfolioHistory() {
         return portfolioService.getPortfolioHistory();
+    }
+
+    @GetMapping("/transactions")
+    public List<Transaction> getTransactionHistory() {
+        return transactionService.getTransactionHistory();
+    }
+
+    @PostMapping("/holdings/sell")
+    public void sellHolding(@RequestBody Map<String, Object> request) {
+        String ticker = (String) request.get("ticker");
+        double shares = ((Number) request.get("shares")).doubleValue();
+        portfolioService.sellHolding(ticker, shares);
     }
 
 }
