@@ -3,6 +3,10 @@
     {
       "source": "/api/:path*",
       "destination": "http://portfolio-monitor-api-env.eba-2mfreswk.us-east-1.elasticbeanstalk.com/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "index.html"
     }
   ]
 }
