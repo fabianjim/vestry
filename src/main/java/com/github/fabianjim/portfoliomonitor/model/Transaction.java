@@ -3,6 +3,8 @@ package com.github.fabianjim.portfoliomonitor.model;
 import jakarta.persistence.*;
 import java.time.Instant;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 @Entity
 @Table(name = "transactions")
 public class Transaction {
