@@ -67,11 +67,17 @@ public class PortfolioService {
         if (portfolio != null && portfolio.getHoldings() != null) {
             portfolioRepository.save(portfolio);
 
-            // Track all tickers in the new portfolio
+            // Track all tickers in the new portfolio and record buy transactions
             for (Holding holding : portfolio.getHoldings()) {
                 startTrackingStock(holding.getTicker());
                 // Fetch initial price data immediately
-                stockService.updateStockData(holding.getTicker(), Stock.StockType.INITIAL);
+                Stock stock = stockService.updateStockData(holding.getTicker(), Stock.StockType.INITIAL);
+                
+                // Record buy transaction for initial holding with actual price
+                double price = (stock != null) ? stock.getCurrentPrice() : 0.0;
+                if (price > 0.0) {
+                    transactionService.recordBuyTransaction(holding.getTicker(), holding.getShares(), price);
+                }
             }
         }
     }

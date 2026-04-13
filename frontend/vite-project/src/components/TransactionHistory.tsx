@@ -47,7 +47,7 @@ export default function TransactionHistory() {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
         <thead>
           <tr>
-            {['Date', 'Type', 'Ticker', 'Shares', 'Price', 'Total'].map((h) => (
+            {['Date', 'Type', 'Ticker', 'Shares', 'Share Price', 'Total'].map((h) => (
               <th
                 key={h}
                 style={{
@@ -66,7 +66,7 @@ export default function TransactionHistory() {
         </thead>
         <tbody>
           {transactions.map((t) => (
-            <tr key={t.id}>
+            <tr key={t.id} style = {{backgroundColor: 'white'}}>
               <td style={{ border: '1px solid #ddd', padding: '8px', color: '#6c757d' }}>
                 {formatDateTime(t.timestamp)}
               </td>
