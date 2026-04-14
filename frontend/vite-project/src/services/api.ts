@@ -75,6 +75,21 @@ export const stockApi = {
   },
 }
 
+// Journal API
+export const journalApi = {
+  createEntry: (entry: { entryType: string; body: string; ticker?: string | null }) =>
+    apiClient('/journal', { method: 'POST', body: entry }),
+
+  getEntries: () =>
+    apiClient('/journal'),
+
+  getEntriesForTicker: (ticker: string) =>
+    apiClient(`/journal/${ticker}`),
+
+  getEntriesInRange: (from: string, to: string) =>
+    apiClient(`/journal/range?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+}
+
 // Auth API
 export const authApi = {
   login: (username: string, password: string) =>
