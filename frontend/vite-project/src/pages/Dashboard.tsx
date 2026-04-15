@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { roundToMinute } from '../utils/dateUtils'
 import PortfolioChart from '../components/PortfolioChart'
 import TransactionHistory from '../components/TransactionHistory'
+import JournalPrompt from '../components/JournalPrompt'
+import JournalPanel from '../components/JournalPanel'
+import WatchlistPanel from '../components/WatchlistPanel'
+import { journalApi } from '../services/api'
 
 type StockData = {
   stock: Stock | null
@@ -46,6 +50,9 @@ export default function Dashboard() {
   const [sellTicker, setSellTicker] = useState('')
   const [sellShares, setSellShares] = useState('')
   const [maxShares, setMaxShares] = useState(0)
+  const [showJournalPrompt, setShowJournalPrompt] = useState(false)
+  const [journalPromptTicker, setJournalPromptTicker] = useState('')
+  const [journalPromptTradeType, setJournalPromptTradeType] = useState<'BUY' | 'SELL'>('BUY')
   const hasFetched = useRef(false)
   
   useEffect(() => {
@@ -149,10 +156,14 @@ export default function Dashboard() {
 
       if (!response.ok) throw new Error('Failed to add holding')
 
+      const boughtTicker = newTicker.trim().toUpperCase()
       setShowAddModal(false)
       setNewTicker('')
       setNewShares('')
       await fetchPortfolioInfo()
+      setJournalPromptTicker(boughtTicker)
+      setJournalPromptTradeType('BUY')
+      setShowJournalPrompt(true)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
       setError(message)
@@ -200,13 +211,36 @@ export default function Dashboard() {
 
       if (!response.ok) throw new Error('Failed to sell holding')
 
+      const soldTicker = sellTicker
       closeSellModal()
       await fetchPortfolioInfo()
+      setJournalPromptTicker(soldTicker)
+      setJournalPromptTradeType('SELL')
+      setShowJournalPrompt(true)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
       setError(message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const submitJournalPrompt = async (body: string) => {
+    if (!body) {
+      setShowJournalPrompt(false)
+      return
+    }
+    try {
+      await journalApi.createEntry({
+        entryType: journalPromptTradeType,
+        body,
+        ticker: journalPromptTicker,
+      })
+    } catch (e) {
+      console.error('Failed to save journal entry:', e)
+    } finally {
+      setShowJournalPrompt(false)
+      setJournalPromptTicker('')
     }
   }
 
@@ -435,6 +469,18 @@ export default function Dashboard() {
         <TransactionHistory />
       </div>
 
+      {/* Watchlist Section */}
+      <div style={{ marginTop: 32, marginBottom: 32, padding: 20, backgroundColor: 'white', borderRadius: 8, border: '1px solid #dee2e6' }}>
+        <h3 style={{ marginTop: 0 }}>Watchlist</h3>
+        <WatchlistPanel />
+      </div>
+
+      {/* Journal Section */}
+      <div style={{ marginTop: 32, marginBottom: 32, padding: 20, backgroundColor: 'white', borderRadius: 8, border: '1px solid #dee2e6' }}>
+        <h3 style={{ marginTop: 0 }}>Journal</h3>
+        <JournalPanel />
+      </div>
+
       {/* Trending Stocks Section */}
       {trendingStocks.length > 0 && (
         <div style={{ marginTop: 32 }}>
@@ -617,6 +663,15 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Journal Prompt Modal */}
+      <JournalPrompt
+        isOpen={showJournalPrompt}
+        onClose={() => setShowJournalPrompt(false)}
+        onSubmit={submitJournalPrompt}
+        ticker={journalPromptTicker}
+        tradeType={journalPromptTradeType}
+      />
     </div>
   )
 }

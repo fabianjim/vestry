@@ -75,6 +75,33 @@ export const stockApi = {
   },
 }
 
+// Journal API
+export const journalApi = {
+  createEntry: (entry: { entryType: string; body: string; ticker?: string | null }) =>
+    apiClient('/journal', { method: 'POST', body: entry }),
+
+  getEntries: () =>
+    apiClient('/journal'),
+
+  getEntriesForTicker: (ticker: string) =>
+    apiClient(`/journal/${ticker}`),
+
+  getEntriesInRange: (from: string, to: string) =>
+    apiClient(`/journal/range?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+}
+
+// Watchlist API
+export const watchlistApi = {
+  addToWatchlist: (ticker: string) =>
+    apiClient('/watchlist', { method: 'POST', body: { ticker } }),
+
+  getWatchlist: () =>
+    apiClient('/watchlist'),
+
+  removeFromWatchlist: (ticker: string) =>
+    apiClient(`/watchlist/${encodeURIComponent(ticker)}`, { method: 'DELETE' }),
+}
+
 // Auth API
 export const authApi = {
   login: (username: string, password: string) =>

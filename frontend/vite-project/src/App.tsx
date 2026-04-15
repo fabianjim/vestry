@@ -3,6 +3,7 @@ import './App.css'
 import Portfolio from './pages/Portfolio'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import Analysis from './pages/Analysis'
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
           <Route path="/portfolio" element={<Portfolio />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/analysis" element={<Analysis />} />
         </Routes>
       </div>
     </Router>
