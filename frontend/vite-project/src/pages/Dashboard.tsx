@@ -5,6 +5,7 @@ import PortfolioChart from '../components/PortfolioChart'
 import TransactionHistory from '../components/TransactionHistory'
 import JournalPrompt from '../components/JournalPrompt'
 import JournalPanel from '../components/JournalPanel'
+import WatchlistPanel from '../components/WatchlistPanel'
 import { journalApi } from '../services/api'
 
 type StockData = {
@@ -466,6 +467,12 @@ export default function Dashboard() {
       <div style={{ marginTop: 32, marginBottom: 32 }}>
         <h3>Transaction History</h3>
         <TransactionHistory />
+      </div>
+
+      {/* Watchlist Section */}
+      <div style={{ marginTop: 32, marginBottom: 32, padding: 20, backgroundColor: 'white', borderRadius: 8, border: '1px solid #dee2e6' }}>
+        <h3 style={{ marginTop: 0 }}>Watchlist</h3>
+        <WatchlistPanel />
       </div>
 
       {/* Journal Section */}
