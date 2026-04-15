@@ -1,7 +1,8 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import {
-  LineChart,
+  ComposedChart,
   Line,
+  Scatter,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -12,6 +13,7 @@ import type { JournalEntry } from '../types/journal'
 import type { StockMetadata } from '../types/watchlist'
 import { stockApi, journalApi } from '../services/api'
 import { formatDateTime } from '../utils/dateUtils'
+import { findNearestChartPoint, evaluateBuyPinOutcome } from '../utils/chartPins'
 
 type NodeDetailPanelProps = {
   ticker: string
@@ -30,6 +32,18 @@ type ChartPoint = {
   fullTimestamp: string
 }
 
+type PinPoint = ChartPoint & {
+  entryId: number
+  entryType: JournalEntry['entryType']
+  outcome: 'gain' | 'loss' | 'neutral'
+}
+
+type ScatterShapeProps = {
+  cx?: number
+  cy?: number
+  payload?: PinPoint
+}
+
 const SECTOR_COLORS: Record<string, string> = {
   Technology: '#007bff',
   'Health Care': '#28a745',
@@ -44,11 +58,70 @@ const SECTOR_COLORS: Record<string, string> = {
   Utilities: '#6c757d',
 }
 
+function CustomPin(props: ScatterShapeProps) {
+  const { cx, cy, payload } = props
+  if (cx == null || cy == null || !payload) return null
+
+  const size = 10
+  const half = size / 2
+
+  let fill = '#6c757d'
+  const stroke = '#333'
+
+  if (payload.entryType === 'BUY') {
+    fill = payload.outcome === 'gain' ? '#28a745' : payload.outcome === 'loss' ? '#dc3545' : '#007bff'
+  } else if (payload.entryType === 'SELL') {
+    fill = '#fd7e14'
+  } else if (payload.entryType === 'INSIGHT') {
+    fill = '#6f42c1'
+  } else if (payload.entryType === 'MARKET_EVENT') {
+    fill = '#adb5bd'
+  }
+
+  // Shapes
+  if (payload.entryType === 'BUY' && payload.outcome === 'gain') {
+    return (
+      <g transform={`translate(${cx},${cy})`}>
+        <polygon points={`0,-${half} ${half},${half} -${half},${half}`} fill={fill} stroke={stroke} strokeWidth={1} />
+      </g>
+    )
+  }
+  if (payload.entryType === 'BUY' && payload.outcome === 'loss') {
+    return (
+      <g transform={`translate(${cx},${cy})`}>
+        <polygon points={`0,${half} ${half},-${half} -${half},-${half}`} fill={fill} stroke={stroke} strokeWidth={1} />
+      </g>
+    )
+  }
+  if (payload.entryType === 'SELL') {
+    return (
+      <g transform={`translate(${cx},${cy})`}>
+        <rect x={-half} y={-half} width={size} height={size} fill={fill} stroke={stroke} strokeWidth={1} />
+      </g>
+    )
+  }
+  if (payload.entryType === 'INSIGHT') {
+    return (
+      <g transform={`translate(${cx},${cy})`}>
+        <polygon points={`0,-${half} ${half},0 0,${half} -${half},0`} fill={fill} stroke={stroke} strokeWidth={1} />
+      </g>
+    )
+  }
+  // Default circle for BUY neutral and MARKET_EVENT
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <circle r={half} fill={fill} stroke={stroke} strokeWidth={1} />
+    </g>
+  )
+}
+
 export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetailPanelProps) {
   const [history, setHistory] = useState<StockHistoryPoint[]>([])
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [highlightedEntryId, setHighlightedEntryId] = useState<number | null>(null)
+  const entryRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
   useEffect(() => {
     const load = async () => {
@@ -71,6 +144,12 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
     load()
   }, [ticker])
 
+  useEffect(() => {
+    if (highlightedEntryId != null && entryRefs.current[highlightedEntryId]) {
+      entryRefs.current[highlightedEntryId]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [highlightedEntryId])
+
   const chartData: ChartPoint[] = useMemo(() => {
     if (!history || history.length === 0) return []
     return history
@@ -86,6 +165,35 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
       }))
   }, [history])
 
+  const currentPrice = useMemo(() => {
+    if (chartData.length === 0) return 0
+    return chartData[chartData.length - 1].price
+  }, [chartData])
+
+  const pinData: PinPoint[] = useMemo(() => {
+    if (chartData.length === 0) return []
+    const pins: PinPoint[] = []
+
+    journalEntries.forEach((entry) => {
+      const nearest = findNearestChartPoint(entry.timestamp, chartData)
+      if (!nearest) return
+
+      let outcome: PinPoint['outcome'] = 'neutral'
+      if (entry.entryType === 'BUY') {
+        outcome = evaluateBuyPinOutcome(entry, journalEntries, currentPrice)
+      }
+
+      pins.push({
+        ...nearest,
+        entryId: entry.id,
+        entryType: entry.entryType,
+        outcome,
+      })
+    })
+
+    return pins
+  }, [journalEntries, chartData, currentPrice])
+
   const lineColor = metadata?.sector ? SECTOR_COLORS[metadata.sector] || '#6c757d' : '#6c757d'
 
   const formatCurrency = (value: number) => {
@@ -93,6 +201,10 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
       style: 'currency',
       currency: 'USD',
     }).format(value)
+  }
+
+  const handlePinClick = (entryId: number) => {
+    setHighlightedEntryId(entryId)
   }
 
   return (
@@ -158,9 +270,9 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
         ) : chartData.length === 0 ? (
           <div style={{ color: '#6c757d' }}>No price history available.</div>
         ) : (
-          <div style={{ height: 240 }}>
+          <div style={{ height: 260 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+              <ComposedChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e9ecef" />
                 <XAxis dataKey="time" stroke="#6c757d" fontSize={12} tickLine={false} />
                 <YAxis
@@ -171,7 +283,9 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
                   domain={[(dataMin: number) => dataMin * 0.99, (dataMax: number) => dataMax * 1.01]}
                 />
                 <Tooltip
-                  formatter={(value: number) => [formatCurrency(value), 'Price']}
+                  formatter={(value: number) => {
+                    return [formatCurrency(value), 'Price']
+                  }}
                   labelFormatter={(label) => `Date: ${label}`}
                   contentStyle={{
                     backgroundColor: 'white',
@@ -187,7 +301,22 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
                   dot={false}
                   activeDot={{ r: 5 }}
                 />
-              </LineChart>
+                <Scatter
+                  data={pinData}
+                  dataKey="price"
+                  fill="#8884d8"
+                  shape={(props: ScatterShapeProps) => (
+                    <g
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => {
+                        if (props.payload) handlePinClick(props.payload.entryId)
+                      }}
+                    >
+                      <CustomPin {...props} payload={props.payload} />
+                    </g>
+                  )}
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         )}
@@ -202,11 +331,13 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
             {journalEntries.map((entry) => (
               <div
                 key={entry.id}
+                ref={(el) => { entryRefs.current[entry.id] = el }}
                 style={{
                   padding: 12,
-                  backgroundColor: '#f8f9fa',
+                  backgroundColor: highlightedEntryId === entry.id ? '#e7f1ff' : '#f8f9fa',
                   borderRadius: 6,
-                  border: '1px solid #dee2e6',
+                  border: highlightedEntryId === entry.id ? '2px solid #007bff' : '1px solid #dee2e6',
+                  transition: 'background-color 0.2s, border 0.2s',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
