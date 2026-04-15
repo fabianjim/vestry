@@ -1,12 +1,32 @@
 package com.github.fabianjim.portfoliomonitor.model;
 
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "stock_metadata")
 public class StockMetadata {
-    
+
+    @Id
+    @Column(nullable = false)
     private String ticker;
+
+    @Column(nullable = true)
     private String name;
+
+    @Column(nullable = true)
     private String country;
+
+    @Column(nullable = true)
     private String sector;
+
+    @Column(nullable = true)
     private String industry;
+
+    @Column(name = "market_cap", nullable = true)
+    private Double marketCap;
+
+    @Column(name = "market_cap_tier", nullable = true)
+    private String marketCapTier;
 
     public StockMetadata() {}
 
@@ -56,5 +76,21 @@ public class StockMetadata {
 
     public void setIndustry(String industry) {
         this.industry = industry;
+    }
+
+    public Double getMarketCap() {
+        return marketCap;
+    }
+
+    public void setMarketCap(Double marketCap) {
+        this.marketCap = marketCap;
+    }
+
+    public String getMarketCapTier() {
+        return marketCapTier;
+    }
+
+    public void setMarketCapTier(String marketCapTier) {
+        this.marketCapTier = marketCapTier;
     }
 }
