@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import * as d3 from 'd3'
 
 export type GraphNode = d3.SimulationNodeDatum & {
@@ -34,7 +34,6 @@ export default function HoldingGraph({
   height = 500,
 }: HoldingGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null)
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null)
 
   useEffect(() => {
     if (!svgRef.current || nodes.length === 0) return
@@ -78,6 +77,15 @@ export default function HoldingGraph({
       .join('line')
       .attr('stroke-width', (d) => Math.max(1, d.strength * 1.5))
 
+    // Hover tooltip
+    const tooltip = g
+      .append('g')
+      .attr('class', 'tooltip')
+      .style('display', 'none')
+      .style('pointer-events', 'none')
+
+    tooltip.append('rect').attr('fill', 'white').attr('stroke', '#ccc').attr('rx', 4)
+
     // Node groups
     const node = g
       .append('g')
@@ -107,8 +115,37 @@ export default function HoldingGraph({
       .on('click', (_event, d) => {
         onNodeClick(d.ticker)
       })
-      .on('mouseenter', (_event, d) => setHoveredNode(d.id))
-      .on('mouseleave', () => setHoveredNode(null))
+      .on('mouseenter', (_event, d) => {
+        if (d.x == null || d.y == null) return
+        const lines = [
+          d.ticker,
+          d.metadata?.sector || 'Sector: -',
+          d.metadata?.country || 'Country: -',
+          d.metadata?.marketCapTier || 'Cap: -',
+        ]
+        tooltip.style('display', 'block')
+        tooltip.attr('transform', `translate(${d.x + d.radius + 8},${d.y - 40})`)
+
+        tooltip.selectAll('text').remove()
+        lines.forEach((line, i) => {
+          tooltip
+            .append('text')
+            .attr('x', 6)
+            .attr('y', 6 + i * 14)
+            .attr('font-size', 11)
+            .attr('fill', '#333')
+            .text(line)
+        })
+
+        const maxWidth = Math.max(...lines.map((l) => l.length)) * 6 + 12
+        tooltip
+          .select('rect')
+          .attr('width', maxWidth)
+          .attr('height', lines.length * 14 + 8)
+      })
+      .on('mouseleave', () => {
+        tooltip.style('display', 'none')
+      })
 
     // Circles
     node
@@ -130,20 +167,6 @@ export default function HoldingGraph({
       .attr('fill', '#333')
       .attr('pointer-events', 'none')
 
-    // Hover tooltip
-    const tooltip = g
-      .append('g')
-      .attr('class', 'tooltip')
-      .style('display', 'none')
-
-    tooltip.append('rect').attr('fill', 'white').attr('stroke', '#ccc').attr('rx', 4)
-
-    tooltip
-      .append('text')
-      .attr('font-size', 12)
-      .attr('dy', '1.2em')
-      .attr('dx', 8)
-
     simulation.on('tick', () => {
       link
         .attr('x1', (d) => (d.source as GraphNode).x ?? 0)
@@ -152,47 +175,12 @@ export default function HoldingGraph({
         .attr('y2', (d) => (d.target as GraphNode).y ?? 0)
 
       node.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`)
-
-      if (hoveredNode) {
-        const hovered = nodes.find((n) => n.id === hoveredNode)
-        if (hovered && hovered.x != null && hovered.y != null) {
-          const lines = [
-            hovered.ticker,
-            hovered.metadata?.sector || 'Sector: -',
-            hovered.metadata?.country || 'Country: -',
-            hovered.metadata?.marketCapTier || 'Cap: -',
-          ]
-          tooltip.style('display', 'block')
-          tooltip.attr('transform', `translate(${hovered.x + hovered.radius + 8},${hovered.y - 40})`)
-
-          tooltip.selectAll('text').remove()
-          lines.forEach((line, i) => {
-            tooltip
-              .append('text')
-              .attr('x', 6)
-              .attr('y', 6 + i * 14)
-              .attr('font-size', 11)
-              .attr('fill', '#333')
-              .text(line)
-          })
-
-          const maxWidth = Math.max(...lines.map((l) => l.length)) * 6 + 12
-          tooltip
-            .select('rect')
-            .attr('width', maxWidth)
-            .attr('height', lines.length * 14 + 8)
-        } else {
-          tooltip.style('display', 'none')
-        }
-      } else {
-        tooltip.style('display', 'none')
-      }
     })
 
     return () => {
       simulation.stop()
     }
-  }, [nodes, edges, width, height, hoveredNode, onNodeClick])
+  }, [nodes, edges, width, height, onNodeClick])
 
   return (
     <svg
