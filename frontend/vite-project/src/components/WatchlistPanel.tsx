@@ -64,7 +64,7 @@ export default function WatchlistPanel() {
   }
 
   return (
-    <div>
+    <div style={{ padding: 20, backgroundColor: 'white', borderRadius: 8, border: '1px solid #dee2e6' }}>
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <input
           type="text"

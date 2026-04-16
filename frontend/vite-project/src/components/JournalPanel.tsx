@@ -65,8 +65,8 @@ export default function JournalPanel() {
   }
 
   return (
-    <div>
-      <h4>New Journal Entry</h4>
+    <div style={{ padding: 20, backgroundColor: 'white', borderRadius: 8, border: '1px solid #dee2e6' }}>
+      <h4 style={{ color: '#6c757d', marginTop: 0 }}>New Journal Entry</h4>
       <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
         <select
           value={entryType}

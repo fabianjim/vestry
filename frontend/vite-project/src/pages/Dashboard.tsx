@@ -470,14 +470,14 @@ export default function Dashboard() {
       </div>
 
       {/* Watchlist Section */}
-      <div style={{ marginTop: 32, marginBottom: 32, padding: 20, backgroundColor: 'white', borderRadius: 8, border: '1px solid #dee2e6' }}>
-        <h3 style={{ marginTop: 0 }}>Watchlist</h3>
+      <div style={{ marginBottom: 32 }}>
+        <h3 style={{ marginTop: 16 }}>Watchlist</h3>
         <WatchlistPanel />
       </div>
 
       {/* Journal Section */}
-      <div style={{ marginTop: 32, marginBottom: 32, padding: 20, backgroundColor: 'white', borderRadius: 8, border: '1px solid #dee2e6' }}>
-        <h3 style={{ marginTop: 0 }}>Journal</h3>
+      <div style={{ marginBottom: 32 }}>
+        <h3 style={{ marginTop: 16 }}>Journal</h3>
         <JournalPanel />
       </div>
 
