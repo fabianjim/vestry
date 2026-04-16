@@ -344,13 +344,20 @@ export default function Dashboard() {
         <button type="button" onClick={fetchPortfolioInfo} disabled={loading}>
           {loading ? 'Loading…' : 'Refresh Portfolio'}
         </button>
-        <button 
-          type="button" 
+        <button
+          type="button"
           onClick={() => setShowAddModal(true)}
           disabled={loading}
           style={{ backgroundColor: '#28a745', color: 'white' }}
         >
           + Buy Stock
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/analysis')}
+          style={{ backgroundColor: '#6f42c1', color: 'white' }}
+        >
+          Analysis
         </button>
       </div>
 
