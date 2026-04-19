@@ -34,64 +34,220 @@ export default function HoldingGraph({
   height = 500,
 }: HoldingGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null)
+  const onNodeClickRef = useRef(onNodeClick)
+  const simulationRef = useRef<d3.Simulation<GraphNode, undefined> | null>(null)
+  const isFirstRender = useRef(true)
+  const prevNodeIds = useRef('')
+  const prevEdgeIds = useRef('')
 
+  // Keep callback ref up to date without restarting simulation
+  useEffect(() => {
+    onNodeClickRef.current = onNodeClick
+  }, [onNodeClick])
+
+  // Single effect handles both initial setup and data updates
   useEffect(() => {
     if (!svgRef.current || nodes.length === 0) return
 
+    const nodeIds = nodes.map((n) => n.id).join(',')
+    const edgeIds = edges.map((e) => `${e.source}-${e.target}`).join(',')
+
+    if (!isFirstRender.current) {
+      // Skip entirely if data hasn't actually changed
+      if (nodeIds === prevNodeIds.current && edgeIds === prevEdgeIds.current) {
+        return
+      }
+    }
+
+    prevNodeIds.current = nodeIds
+    prevEdgeIds.current = edgeIds
+
     const svg = d3.select(svgRef.current)
-    svg.selectAll('*').remove()
 
-    // Zoom group
-    const g = svg.append('g')
+    if (isFirstRender.current) {
+      // === FIRST MOUNT: Create everything from scratch ===
+      svg.selectAll('*').remove()
 
-    const zoom = d3
-      .zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.5, 4])
-      .on('zoom', (event) => {
-        g.attr('transform', event.transform.toString())
+      const g = svg.append('g')
+
+      const zoom = d3
+        .zoom<SVGSVGElement, unknown>()
+        .scaleExtent([0.5, 4])
+        .on('zoom', (event) => {
+          g.attr('transform', event.transform.toString())
+        })
+
+      svg.call(zoom)
+
+      const simulation = d3
+        .forceSimulation<GraphNode>(nodes)
+        .force(
+          'link',
+          d3
+            .forceLink<GraphNode, GraphEdge>(edges)
+            .id((d) => d.id)
+            .distance(120)
+            .strength((d) => d.strength * 0.5)
+        )
+        .force('charge', d3.forceManyBody<GraphNode>().strength(-300))
+        .force('center', d3.forceCenter<GraphNode>(width / 2, height / 2))
+        .force('collision', d3.forceCollide<GraphNode>().radius((d) => d.radius + 4))
+
+      simulationRef.current = simulation
+
+      // Edge lines
+      const link = g
+        .append('g')
+        .attr('stroke', '#999')
+        .attr('stroke-opacity', 0.6)
+        .selectAll('line')
+        .data(edges)
+        .join('line')
+        .attr('stroke-width', (d) => Math.max(1, d.strength * 1.5))
+
+      // Tooltip
+      const tooltip = g
+        .append('g')
+        .attr('class', 'tooltip')
+        .style('display', 'none')
+        .style('pointer-events', 'none')
+
+      tooltip.append('rect').attr('fill', 'white').attr('stroke', '#ccc').attr('rx', 4)
+
+      // Node groups
+      const node = g
+        .append('g')
+        .selectAll('g')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .data(nodes, (d: any) => d.id)
+        .join('g')
+        .style('cursor', 'pointer')
+        .call(
+          d3
+            .drag<Element, GraphNode>()
+            .on('start', (event, d) => {
+              if (!event.active) simulation.alphaTarget(0.3).restart()
+              d.fx = d.x ?? null
+              d.fy = d.y ?? null
+            })
+            .on('drag', (event, d) => {
+              d.fx = event.x
+              d.fy = event.y
+            })
+            .on('end', (event, d) => {
+              if (!event.active) simulation.alphaTarget(0)
+              d.fx = null
+              d.fy = null
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            }) as any
+        )
+        .on('click', (_event, d) => {
+          onNodeClickRef.current(d.ticker)
+        })
+        .on('mouseenter', (_event, d) => {
+          if (d.x == null || d.y == null) return
+          const lines = [
+            d.ticker,
+            d.metadata?.sector || 'Sector: -',
+            d.metadata?.country || 'Country: -',
+            d.metadata?.marketCapTier || 'Cap: -',
+          ]
+          tooltip.style('display', 'block')
+          tooltip.attr('transform', `translate(${d.x + d.radius + 8},${d.y - 40})`)
+
+          tooltip.selectAll('text').remove()
+          lines.forEach((line, i) => {
+            tooltip
+              .append('text')
+              .attr('x', 6)
+              .attr('y', 6 + i * 14)
+              .attr('font-size', 11)
+              .attr('fill', '#333')
+              .text(line)
+          })
+
+          const maxWidth = Math.max(...lines.map((l) => l.length)) * 6 + 12
+          tooltip.select('rect').attr('width', maxWidth).attr('height', lines.length * 14 + 8)
+        })
+        .on('mouseleave', () => {
+          tooltip.style('display', 'none')
+        })
+
+      // Circles
+      node
+        .append('circle')
+        .attr('r', (d) => d.radius)
+        .attr('fill', (d) => (d.type === 'holding' ? d.color : 'white'))
+        .attr('stroke', (d) => d.color)
+        .attr('stroke-width', (d) => (d.type === 'watchlist' ? 3 : 0))
+
+      // Labels
+      node
+        .append('text')
+        .text((d) => d.ticker)
+        .attr('x', 0)
+        .attr('y', (d) => d.radius + 14)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', 12)
+        .attr('font-weight', 'bold')
+        .attr('fill', '#333')
+        .attr('pointer-events', 'none')
+
+      simulation.on('tick', () => {
+        link
+          .attr('x1', (d) => (d.source as GraphNode).x ?? 0)
+          .attr('y1', (d) => (d.source as GraphNode).y ?? 0)
+          .attr('x2', (d) => (d.target as GraphNode).x ?? 0)
+          .attr('y2', (d) => (d.target as GraphNode).y ?? 0)
+
+        node.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`)
       })
 
-    svg.call(zoom)
+      simulation.alpha(1).restart()
+      isFirstRender.current = false
 
-    const simulation = d3
-      .forceSimulation<GraphNode>(nodes)
-      .force(
-        'link',
-        d3
-          .forceLink<GraphNode, GraphEdge>(edges)
-          .id((d) => d.id)
-          .distance(120)
-          .strength((d) => d.strength * 0.5)
-      )
-      .force('charge', d3.forceManyBody<GraphNode>().strength(-300))
-      .force('center', d3.forceCenter<GraphNode>(width / 2, height / 2))
-      .force('collision', d3.forceCollide<GraphNode>().radius((d) => d.radius + 4))
+      return () => {
+        simulation.stop()
+        simulationRef.current = null
+        isFirstRender.current = true
+      }
+    }
 
-    // Edge lines
+    // === SUBSEQUENT RENDERS: Data changed, update in place ===
+    const simulation = simulationRef.current
+    if (!simulation) return
+
+    const g = svg.select<SVGGElement>('g')
+    if (g.empty()) return
+
+    // Update links
     const link = g
-      .append('g')
-      .attr('stroke', '#999')
-      .attr('stroke-opacity', 0.6)
-      .selectAll('line')
-      .data(edges)
-      .join('line')
-      .attr('stroke-width', (d) => Math.max(1, d.strength * 1.5))
+      .selectAll<SVGLineElement, GraphEdge>('line')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .data(edges, (d: any) => `${d.source}-${d.target}`)
+    link.exit().remove()
+    const linkEnter = link.enter().append('line').attr('stroke-width', (d) => Math.max(1, d.strength * 1.5))
+    const linkMerged = linkEnter.merge(link)
+    linkMerged.attr('stroke-width', (d) => Math.max(1, d.strength * 1.5))
 
-    // Hover tooltip
-    const tooltip = g
-      .append('g')
-      .attr('class', 'tooltip')
-      .style('display', 'none')
-      .style('pointer-events', 'none')
+    // Update force link data
+    const linkForce = simulation.force<d3.ForceLink<GraphNode, GraphEdge>>('link')
+    if (linkForce) {
+      linkForce.links(edges)
+    }
 
-    tooltip.append('rect').attr('fill', 'white').attr('stroke', '#ccc').attr('rx', 4)
+    // Update nodes
+    const tooltip = g.select<SVGGElement>('.tooltip')
 
-    // Node groups
     const node = g
+      .selectAll<SVGGElement, GraphNode>('g:not(.tooltip)')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .data(nodes, (d: any) => d.id)
+    node.exit().remove()
+
+    const nodeEnter = node
+      .enter()
       .append('g')
-      .selectAll('g')
-      .data(nodes)
-      .join('g')
       .style('cursor', 'pointer')
       .call(
         d3
@@ -113,7 +269,7 @@ export default function HoldingGraph({
           }) as any
       )
       .on('click', (_event, d) => {
-        onNodeClick(d.ticker)
+        onNodeClickRef.current(d.ticker)
       })
       .on('mouseenter', (_event, d) => {
         if (d.x == null || d.y == null) return
@@ -138,25 +294,20 @@ export default function HoldingGraph({
         })
 
         const maxWidth = Math.max(...lines.map((l) => l.length)) * 6 + 12
-        tooltip
-          .select('rect')
-          .attr('width', maxWidth)
-          .attr('height', lines.length * 14 + 8)
+        tooltip.select('rect').attr('width', maxWidth).attr('height', lines.length * 14 + 8)
       })
       .on('mouseleave', () => {
         tooltip.style('display', 'none')
       })
 
-    // Circles
-    node
+    nodeEnter
       .append('circle')
       .attr('r', (d) => d.radius)
       .attr('fill', (d) => (d.type === 'holding' ? d.color : 'white'))
       .attr('stroke', (d) => d.color)
       .attr('stroke-width', (d) => (d.type === 'watchlist' ? 3 : 0))
 
-    // Labels
-    node
+    nodeEnter
       .append('text')
       .text((d) => d.ticker)
       .attr('x', 0)
@@ -167,20 +318,23 @@ export default function HoldingGraph({
       .attr('fill', '#333')
       .attr('pointer-events', 'none')
 
+    const nodeMerged = nodeEnter.merge(node)
+
+    // Update tick handler to use merged selections
     simulation.on('tick', () => {
-      link
+      linkMerged
         .attr('x1', (d) => (d.source as GraphNode).x ?? 0)
         .attr('y1', (d) => (d.source as GraphNode).y ?? 0)
         .attr('x2', (d) => (d.target as GraphNode).x ?? 0)
         .attr('y2', (d) => (d.target as GraphNode).y ?? 0)
 
-      node.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`)
+      nodeMerged.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`)
     })
 
-    return () => {
-      simulation.stop()
-    }
-  }, [nodes, edges, width, height, onNodeClick])
+    // Update simulation nodes and warm-restart
+    simulation.nodes(nodes)
+    simulation.alpha(0.1).restart()
+  }, [nodes, edges, width, height])
 
   return (
     <svg

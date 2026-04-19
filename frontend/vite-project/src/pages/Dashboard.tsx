@@ -341,9 +341,6 @@ export default function Dashboard() {
 
       {/* Action Buttons */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <button type="button" onClick={fetchPortfolioInfo} disabled={loading}>
-          {loading ? 'Loading…' : 'Refresh Portfolio'}
-        </button>
         <button
           type="button"
           onClick={() => setShowAddModal(true)}

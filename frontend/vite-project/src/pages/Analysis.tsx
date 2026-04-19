@@ -44,7 +44,6 @@ export default function Analysis() {
   const navigate = useNavigate()
   const [holdings, setHoldings] = useState<Holding[]>([])
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([])
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
 
@@ -53,7 +52,6 @@ export default function Analysis() {
   }, [])
 
   const fetchData = async () => {
-    setLoading(true)
     setError('')
     try {
       const [holdingsRes, watchlistRes] = await Promise.all([
@@ -78,8 +76,6 @@ export default function Analysis() {
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
       setError(message)
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -163,12 +159,7 @@ export default function Analysis() {
     <div style={{ maxWidth: 1200, margin: '24px auto', padding: '0 12px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h2 style={{ margin: 0 }}>Holding Analysis</h2>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button onClick={() => navigate('/dashboard')}>← Back to Dashboard</button>
-          <button onClick={fetchData} disabled={loading}>
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
-        </div>
+        <button onClick={() => navigate('/dashboard')}>← Back to Dashboard</button>
       </div>
 
       {error && <div style={{ color: '#dc3545', marginBottom: 16 }}>{error}</div>}
