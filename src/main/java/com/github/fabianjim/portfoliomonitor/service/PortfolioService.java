@@ -7,6 +7,7 @@ import com.github.fabianjim.portfoliomonitor.model.Stock;
 import com.github.fabianjim.portfoliomonitor.model.TrackedStock;
 import com.github.fabianjim.portfoliomonitor.model.User;
 import com.github.fabianjim.portfoliomonitor.repository.PortfolioRepository;
+import com.github.fabianjim.portfoliomonitor.repository.StockMetadataRepository;
 import com.github.fabianjim.portfoliomonitor.repository.StockRepository;
 import com.github.fabianjim.portfoliomonitor.repository.TrackedStockRepository;
 import com.github.fabianjim.portfoliomonitor.repository.UserRepository;
@@ -33,19 +34,25 @@ public class PortfolioService {
     private final TrackedStockRepository trackedStockRepository;
     private final StockRepository stockRepository;
     private final TransactionService transactionService;
+    private final StockMetadataRepository stockMetadataRepository;
+    private final NasdaqMetadataService nasdaqMetadataService;
 
     public PortfolioService(PortfolioRepository portfolioRepository,
                           StockService stockService,
                           UserRepository userRepository,
                           TrackedStockRepository trackedStockRepository,
                           StockRepository stockRepository,
-                          TransactionService transactionService) {
+                          TransactionService transactionService,
+                          StockMetadataRepository stockMetadataRepository,
+                          NasdaqMetadataService nasdaqMetadataService) {
         this.portfolioRepository = portfolioRepository;
         this.stockService = stockService;
         this.userRepository = userRepository;
         this.trackedStockRepository = trackedStockRepository;
         this.stockRepository = stockRepository;
         this.transactionService = transactionService;
+        this.stockMetadataRepository = stockMetadataRepository;
+        this.nasdaqMetadataService = nasdaqMetadataService;
     }
 
     private Integer getCurrentUserId() {
@@ -132,6 +139,13 @@ public class PortfolioService {
         Holding newHolding = new Holding(ticker, shares);
         portfolio.getHoldings().add(newHolding);
         portfolioRepository.save(portfolio);
+
+        // Fetch and store stock metadata if not already present
+        String normalizedTicker = ticker.trim().toUpperCase();
+        if (!stockMetadataRepository.existsByTicker(normalizedTicker)) {
+            nasdaqMetadataService.lookupMetadata(normalizedTicker)
+                .ifPresent(stockMetadataRepository::save);
+        }
 
         // Start tracking and fetch initial data
         startTrackingStock(ticker);
