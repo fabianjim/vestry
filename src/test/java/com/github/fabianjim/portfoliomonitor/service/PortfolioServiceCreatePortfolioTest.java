@@ -6,7 +6,6 @@ import com.github.fabianjim.portfoliomonitor.model.Stock;
 import com.github.fabianjim.portfoliomonitor.model.Transaction;
 import com.github.fabianjim.portfoliomonitor.model.User;
 import com.github.fabianjim.portfoliomonitor.repository.PortfolioRepository;
-import com.github.fabianjim.portfoliomonitor.repository.StockMetadataRepository;
 import com.github.fabianjim.portfoliomonitor.repository.StockRepository;
 import com.github.fabianjim.portfoliomonitor.repository.TrackedStockRepository;
 import com.github.fabianjim.portfoliomonitor.repository.UserRepository;
@@ -51,12 +50,6 @@ public class PortfolioServiceCreatePortfolioTest {
 
     @Mock
     private TransactionService transactionService;
-
-    @Mock
-    private StockMetadataRepository stockMetadataRepository;
-
-    @Mock
-    private NasdaqMetadataService nasdaqMetadataService;
 
     @Mock
     private SecurityContext securityContext;
