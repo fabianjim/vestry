@@ -98,21 +98,23 @@ export default function HoldingGraph({
       // Edge lines
       const link = g
         .append('g')
-        .attr('stroke', '#999')
+        .attr('stroke', 'rgba(255,255,255,0.15)')
         .attr('stroke-opacity', 0.6)
         .selectAll('line')
         .data(edges)
         .join('line')
         .attr('stroke-width', (d) => Math.max(1, d.strength * 1.5))
 
-      // Tooltip
       const tooltip = g
         .append('g')
         .attr('class', 'tooltip')
         .style('display', 'none')
         .style('pointer-events', 'none')
 
-      tooltip.append('rect').attr('fill', 'white').attr('stroke', '#ccc').attr('rx', 4)
+      tooltip.append('rect')
+        .attr('fill', '#32393d')
+        .attr('stroke', 'rgba(255,255,255,0.08)')
+        .attr('rx', 4)
 
       // Node groups
       const node = g
@@ -162,7 +164,7 @@ export default function HoldingGraph({
               .attr('x', 6)
               .attr('y', 6 + i * 14)
               .attr('font-size', 11)
-              .attr('fill', '#333')
+              .attr('fill', '#bdbdbd')
               .text(line)
           })
 
@@ -177,7 +179,7 @@ export default function HoldingGraph({
       node
         .append('circle')
         .attr('r', (d) => d.radius)
-        .attr('fill', (d) => (d.type === 'holding' ? d.color : 'white'))
+        .attr('fill', (d) => (d.type === 'holding' ? d.color : '#2d2d2d'))
         .attr('stroke', (d) => d.color)
         .attr('stroke-width', (d) => (d.type === 'watchlist' ? 3 : 0))
 
@@ -190,7 +192,7 @@ export default function HoldingGraph({
         .attr('text-anchor', 'middle')
         .attr('font-size', 12)
         .attr('font-weight', 'bold')
-        .attr('fill', '#333')
+        .attr('fill', '#bdbdbd')
         .attr('pointer-events', 'none')
 
       simulation.on('tick', () => {
@@ -213,7 +215,7 @@ export default function HoldingGraph({
       }
     }
 
-    // === SUBSEQUENT RENDERS: Data changed, update in place ===
+    // SUBSEQUENT RENDERS: Data changed, update in place
     const simulation = simulationRef.current
     if (!simulation) return
 
@@ -289,7 +291,7 @@ export default function HoldingGraph({
             .attr('x', 6)
             .attr('y', 6 + i * 14)
             .attr('font-size', 11)
-            .attr('fill', '#333')
+            .attr('fill', '#bdbdbd')
             .text(line)
         })
 
@@ -303,7 +305,7 @@ export default function HoldingGraph({
     nodeEnter
       .append('circle')
       .attr('r', (d) => d.radius)
-      .attr('fill', (d) => (d.type === 'holding' ? d.color : 'white'))
+      .attr('fill', (d) => (d.type === 'holding' ? d.color : '#2d2d2d'))
       .attr('stroke', (d) => d.color)
       .attr('stroke-width', (d) => (d.type === 'watchlist' ? 3 : 0))
 
@@ -315,7 +317,7 @@ export default function HoldingGraph({
       .attr('text-anchor', 'middle')
       .attr('font-size', 12)
       .attr('font-weight', 'bold')
-      .attr('fill', '#333')
+      .attr('fill', '#bdbdbd')
       .attr('pointer-events', 'none')
 
     const nodeMerged = nodeEnter.merge(node)
@@ -341,14 +343,8 @@ export default function HoldingGraph({
       ref={svgRef}
       width={width}
       height={height}
-      style={{
-        border: '1px solid #dee2e6',
-        borderRadius: 8,
-        backgroundColor: '#fafafa',
-        width: '100%',
-        height: 'auto',
-        aspectRatio: `${width} / ${height}`,
-      }}
+      className="w-full h-auto border border-border rounded-lg bg-surface"
+      style={{ aspectRatio: `${width} / ${height}` }}
     />
   )
 }

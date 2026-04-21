@@ -8,7 +8,7 @@ import Analysis from './pages/Analysis'
 export default function App() {
   return (
     <Router>
-      <div>
+      <div className="min-h-screen bg-background text-foreground">
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/portfolio" element={<Portfolio />} />

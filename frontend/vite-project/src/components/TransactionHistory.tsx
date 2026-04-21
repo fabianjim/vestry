@@ -31,33 +31,26 @@ export default function TransactionHistory() {
   }, [])
 
   if (loading) {
-    return <div style={{ color: '#6c757d' }}>Loading transactions...</div>
+    return <div className="text-muted">Loading transactions...</div>
   }
 
   if (error) {
-    return <div style={{ color: '#dc3545' }}>Error: {error}</div>
+    return <div className="text-error">Error: {error}</div>
   }
 
   if (transactions.length === 0) {
-    return <div style={{ color: '#6c757d', fontStyle: 'italic' }}>No transactions yet</div>
+    return <div className="text-muted italic">No transactions yet</div>
   }
 
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-sm">
         <thead>
-          <tr>
+          <tr className="bg-elevated">
             {['Date', 'Type', 'Ticker', 'Shares', 'Share Price', 'Total'].map((h) => (
               <th
                 key={h}
-                style={{
-                  border: '1px solid #ddd',
-                  padding: '8px',
-                  textAlign: 'left',
-                  background: '#808080',
-                  color: 'white',
-                  fontWeight: 'bold',
-                }}
+                className="border border-border p-2 text-left text-foreground font-130"
               >
                 {h}
               </th>
@@ -66,32 +59,19 @@ export default function TransactionHistory() {
         </thead>
         <tbody>
           {transactions.map((t) => (
-            <tr key={t.id} style = {{backgroundColor: 'white'}}>
-              <td style={{ border: '1px solid #ddd', padding: '8px', color: '#6c757d' }}>
+            <tr key={t.id} className="bg-surface hover:bg-surface-hover transition-colors text-secondary">
+              <td className="border border-border p-2">
                 {formatDateTime(t.timestamp)}
               </td>
               <td
-                style={{
-                  border: '1px solid #ddd',
-                  padding: '8px',
-                  fontWeight: 'bold',
-                  color: t.type === 'BUY' ? '#28a745' : '#dc3545',
-                }}
+                className={`border border-border p-2 font-130 ${t.type === 'BUY' ? 'text-gain' : 'text-loss'}`}
               >
                 {t.type}
               </td>
-              <td style={{ border: '1px solid #ddd', padding: '8px', color: '#6c757d' }}>
-                {t.ticker}
-              </td>
-              <td style={{ border: '1px solid #ddd', padding: '8px', color: '#6c757d' }}>
-                {t.shares}
-              </td>
-              <td style={{ border: '1px solid #ddd', padding: '8px', color: '#6c757d' }}>
-                ${t.price.toFixed(2)}
-              </td>
-              <td style={{ border: '1px solid #ddd', padding: '8px', color: '#6c757d' }}>
-                ${t.totalValue.toFixed(2)}
-              </td>
+              <td className="border border-border p-2">{t.ticker}</td>
+              <td className="border border-border p-2">{t.shares}</td>
+              <td className="border border-border p-2">${t.price.toFixed(2)}</td>
+              <td className="border border-border p-2">${t.totalValue.toFixed(2)}</td>
             </tr>
           ))}
         </tbody>

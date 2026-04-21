@@ -235,6 +235,19 @@ All colors are available as Tailwind utilities (e.g., `bg-background`, `text-for
 | `error` | `#ef4444` | Error messages, validation |
 | `overlay` | `rgba(0,0,0,0.85)` | Modal/dialog backdrops |
 
+### Font Weights (Tailwind Tokens)
+
+The `authentic-sans` font family uses non-standard weights. Tailwind utilities are mapped to the actual loaded font weights:
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `font-60` | `60` | Ultra-light, de-emphasized text |
+| `font-90` | `90` | Body text, default page weight |
+| `font-130` | `130` | Emphasis, headings, labels, table headers |
+| `font-150` | `150` | Maximum emphasis, hero numbers |
+
+Default body weight is `90`. Use `font-130` instead of standard `font-bold`.
+
 ### Component Patterns
 
 **Inputs**
