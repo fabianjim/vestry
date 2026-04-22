@@ -97,7 +97,7 @@ export default function WatchlistPanel() {
               <div>
                 <div className="text-lg font-130 text-foreground">{item.ticker}</div>
                 {item.metadata ? (
-                  <div className="mt-2 text-xs text-muted">
+                  <div className="mt-2 text-xs text-secondary">
                     <div><span className="font-semibold">Sector:</span> {item.metadata.sector || '-'}</div>
                     <div><span className="font-semibold">Industry:</span> {item.metadata.industry || '-'}</div>
                     <div><span className="font-semibold">Country:</span> {item.metadata.country || '-'}</div>

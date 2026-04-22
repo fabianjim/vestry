@@ -59,7 +59,7 @@ export default function JournalPanel() {
       case 'BUY': return 'text-gain'
       case 'SELL': return 'text-loss'
       case 'INSIGHT': return 'text-primary'
-      case 'MARKET_EVENT': return 'text-secondary'
+      case 'MARKET_EVENT': return 'text-event'
       default: return 'text-muted'
     }
   }

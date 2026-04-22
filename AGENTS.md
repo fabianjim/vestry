@@ -1,6 +1,6 @@
 # Vestry — Agent Guide
 
-> **Agent self-update rule**: When you implement a new feature, add a new route, introduce a new pattern, install a dependency, or make a meaningful architectural decision, you MUST update this file before ending the session. Update the relevant section — do not append a changelog to the bottom. This file should always reflect the current state of the codebase, not its history. If the change does not make a significant, meaningful impact for a future agent sessions to understand the context or current stage the project is it, it does not need to be added, althought this must be brought up to the user for confirmation.
+> **Agent self-update rule**: When you implement a new feature, add a new route, introduce a new pattern, or make a meaningful architectural decision, you MUST update this file before ending the session. Update the relevant section — do not append a changelog to the bottom. This file should always reflect the current state of the codebase, not its history. If the change does not make a significant, meaningful impact for a future agent sessions to understand the context or current stage the project is it, it does not need to be added, althought this must be brought up to the user for confirmation.
 
 ---
 
