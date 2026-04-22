@@ -276,11 +276,14 @@ export default function Dashboard() {
   return (
     <div className="max-w-6xl mx-auto mt-6 px-3">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-semibold m-0">Portfolio Dashboard</h2>
-        <button 
+        <h2 className="text-2xl font-150 m-0">Vestry Dashboard</h2>
+        <button
           onClick={handleLogout}
-          className="px-4 py-2 bg-error text-white border-none rounded cursor-pointer text-sm hover:bg-error/80 transition-colors"
+          className="flex items-center gap-1 px-4 py-2 bg-error text-white border-none rounded cursor-pointer text-sm hover:bg-error/80 transition-colors"
         >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
           Logout
         </button>
       </div>
@@ -330,14 +333,14 @@ export default function Dashboard() {
 
       {/* Portfolio History Chart */}
       <div className="mb-8">
-        <h3 className="text-xl font-semibold mb-4">Portfolio Performance</h3>
+        <h3 className="text-xl font-150 mb-4">Portfolio Performance</h3>
         <PortfolioChart />
       </div>
 
       {/* Holdings Table */}
       {results.length > 0 && (
         <div className="mt-4 mb-8">
-          <h3 className="text-xl font-semibold mb-4">Your Holdings</h3>
+          <h3 className="text-xl font-150 mb-4">Your Holdings</h3>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
@@ -414,26 +417,26 @@ export default function Dashboard() {
 
       {/* Transaction History Section */}
       <div className="mt-8 mb-8">
-        <h3 className="text-xl font-semibold mb-4">Transaction History</h3>
+        <h3 className="text-xl font-150 mb-4">Transaction History</h3>
         <TransactionHistory />
       </div>
 
       {/* Watchlist Section */}
       <div className="mb-8">
-        <h3 className="text-xl font-semibold mt-4 mb-4">Watchlist</h3>
+        <h3 className="text-xl font-150 mt-4 mb-4">Watchlist</h3>
         <WatchlistPanel />
       </div>
 
       {/* Journal Section */}
       <div className="mb-8">
-        <h3 className="text-xl font-semibold mt-4 mb-4">Journal</h3>
+        <h3 className="text-xl font-150 mt-4 mb-4">Journal</h3>
         <JournalPanel />
       </div>
 
       {/* Trending Stocks Section */}
       {trendingStocks.length > 0 && (
         <div className="mt-8">
-          <h3 className="text-xl font-semibold mb-4">Trending Stocks</h3>
+          <h3 className="text-xl font-150 mb-4">Trending Stocks</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {trendingStocks.map((stock, i) => (
               <div 
@@ -465,7 +468,7 @@ export default function Dashboard() {
       {showAddModal && (
         <div className="fixed inset-0 bg-overlay flex justify-center items-center z-50">
           <div className="bg-surface p-6 rounded-lg w-11/12 max-w-md border border-border">
-            <h3 className="text-xl font-semibold mt-0 mb-4">Buy Stock</h3>
+            <h3 className="text-xl font-150 mt-0 mb-4">Buy Stock</h3>
             <div className="mb-4">
               <label className="block mb-1 text-secondary">Ticker Symbol</label>
               <input
@@ -513,7 +516,7 @@ export default function Dashboard() {
       {showSellModal && (
         <div className="fixed inset-0 bg-overlay flex justify-center items-center z-50">
           <div className="bg-surface p-6 rounded-lg w-11/12 max-w-md border border-border">
-            <h3 className="text-xl font-semibold mt-0 mb-4">Sell {sellTicker}</h3>
+            <h3 className="text-xl font-150 mt-0 mb-4">Sell {sellTicker}</h3>
             <div className="mb-4">
               <label className="block mb-1 text-secondary">
                 Shares (max: {maxShares})

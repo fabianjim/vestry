@@ -158,7 +158,7 @@ export default function Analysis() {
   return (
     <div className="max-w-6xl mx-auto mt-6 px-3">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-semibold m-0">Holding Analysis</h2>
+        <h2 className="text-2xl font-150 m-0">Holding Analysis</h2>
         <button onClick={() => navigate('/dashboard')} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">← Back to Dashboard</button>
       </div>
 

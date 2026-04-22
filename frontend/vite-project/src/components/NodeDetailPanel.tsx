@@ -210,7 +210,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
   return (
     <div className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-surface border-l border-border shadow-[-4px_0_12px_rgba(0,0,0,0.15)] z-[1200] p-6 overflow-y-auto">
       <div className="flex justify-between items-center mb-5">
-        <h2 className="text-2xl font-semibold m-0">{ticker}</h2>
+        <h2 className="text-2xl font-150 m-0">{ticker}</h2>
         <button
           onClick={onClose}
           className="px-3 py-1.5 bg-elevated text-foreground rounded-md hover:bg-surface-hover transition-colors"
@@ -222,16 +222,16 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
       {metadata && (
         <div className="mb-6">
           <div className="text-sm text-muted mb-1">
-            <span className="font-semibold">Sector:</span> {metadata.sector || '-'}
+            <span className="font-150">Sector:</span> {metadata.sector || '-'}
           </div>
           <div className="text-sm text-muted mb-1">
-            <span className="font-semibold">Industry:</span> {metadata.industry || '-'}
+            <span className="font-150">Industry:</span> {metadata.industry || '-'}
           </div>
           <div className="text-sm text-muted mb-1">
-            <span className="font-semibold">Country:</span> {metadata.country || '-'}
+            <span className="font-150">Country:</span> {metadata.country || '-'}
           </div>
           <div className="text-sm text-muted">
-            <span className="font-semibold">Market Cap Tier:</span>{' '}
+            <span className="font-150">Market Cap Tier:</span>{' '}
             {metadata.marketCapTier
               ? metadata.marketCapTier.replace('_', ' ').toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())
               : '-'}
@@ -242,7 +242,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
       {error && <div className="text-error mb-4">{error}</div>}
 
       <div className="mb-6">
-        <h4 className="text-lg font-semibold mb-3">Price History</h4>
+        <h4 className="text-lg font-150 mb-3">Price History</h4>
         {loading && chartData.length === 0 ? (
           <div className="text-muted">Loading chart...</div>
         ) : chartData.length === 0 ? (
@@ -302,7 +302,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
       </div>
 
       <div>
-        <h4 className="text-lg font-semibold mb-3">Journal Entries</h4>
+        <h4 className="text-lg font-150 mb-3">Journal Entries</h4>
         {journalEntries.length === 0 ? (
           <div className="text-muted italic">No journal entries for {ticker}.</div>
         ) : (
