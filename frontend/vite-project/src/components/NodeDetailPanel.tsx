@@ -45,17 +45,17 @@ type ScatterShapeProps = {
 }
 
 const SECTOR_COLORS: Record<string, string> = {
-  Technology: '#007bff',
-  'Health Care': '#28a745',
-  Finance: '#ffc107',
-  Industrials: '#6f42c1',
-  'Consumer Discretionary': '#fd7e14',
-  'Consumer Staples': '#20c997',
-  'Communication Services': '#e83e8c',
-  Energy: '#dc3545',
-  Materials: '#17a2b8',
-  'Real Estate': '#795548',
-  Utilities: '#6c757d',
+  Technology: '#5e9ed6',
+  'Health Care': '#10b981',
+  Finance: '#f59e0b',
+  Industrials: '#8b5cf6',
+  'Consumer Discretionary': '#f97316',
+  'Consumer Staples': '#14b8a6',
+  'Communication Services': '#ec4899',
+  Energy: '#ef4444',
+  Materials: '#06b6d4',
+  'Real Estate': '#a78bfa',
+  Utilities: '#6b7280',
 }
 
 function CustomPin(props: ScatterShapeProps) {
@@ -65,17 +65,17 @@ function CustomPin(props: ScatterShapeProps) {
   const size = 10
   const half = size / 2
 
-  let fill = '#6c757d'
-  const stroke = '#333'
+  let fill = '#6b7280'
+  const stroke = '#2d2d2d'
 
   if (payload.entryType === 'BUY') {
-    fill = payload.outcome === 'gain' ? '#28a745' : payload.outcome === 'loss' ? '#dc3545' : '#007bff'
+    fill = payload.outcome === 'gain' ? '#10b981' : payload.outcome === 'loss' ? '#ef4444' : '#5e9ed6'
   } else if (payload.entryType === 'SELL') {
-    fill = '#fd7e14'
+    fill = '#f97316'
   } else if (payload.entryType === 'INSIGHT') {
-    fill = '#6f42c1'
+    fill = '#8b5cf6'
   } else if (payload.entryType === 'MARKET_EVENT') {
-    fill = '#adb5bd'
+    fill = '#6b7280'
   }
 
   // Shapes
@@ -194,7 +194,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
     return pins
   }, [journalEntries, chartData, currentPrice])
 
-  const lineColor = metadata?.sector ? SECTOR_COLORS[metadata.sector] || '#6c757d' : '#6c757d'
+  const lineColor = metadata?.sector ? SECTOR_COLORS[metadata.sector] || '#6b7280' : '#6b7280'
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -208,52 +208,30 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        right: 0,
-        bottom: 0,
-        width: '100%',
-        maxWidth: 420,
-        backgroundColor: 'white',
-        borderLeft: '1px solid #dee2e6',
-        boxShadow: '-4px 0 12px rgba(0,0,0,0.15)',
-        zIndex: 1200,
-        padding: 24,
-        overflowY: 'auto',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2 style={{ margin: 0 }}>{ticker}</h2>
+    <div className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-surface border-l border-border shadow-[-4px_0_12px_rgba(0,0,0,0.15)] z-[1200] p-6 overflow-y-auto">
+      <div className="flex justify-between items-center mb-5">
+        <h2 className="text-2xl font-150 m-0">{ticker}</h2>
         <button
           onClick={onClose}
-          style={{
-            padding: '6px 12px',
-            backgroundColor: '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: 4,
-            cursor: 'pointer',
-          }}
+          className="px-3 py-1.5 bg-elevated text-foreground rounded-md hover:bg-surface-hover transition-colors"
         >
           Close
         </button>
       </div>
 
       {metadata && (
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 14, color: '#6c757d', marginBottom: 4 }}>
-            <strong>Sector:</strong> {metadata.sector || '-'}
+        <div className="mb-6">
+          <div className="text-sm text-muted mb-1">
+            <span className="font-150">Sector:</span> {metadata.sector || '-'}
           </div>
-          <div style={{ fontSize: 14, color: '#6c757d', marginBottom: 4 }}>
-            <strong>Industry:</strong> {metadata.industry || '-'}
+          <div className="text-sm text-muted mb-1">
+            <span className="font-150">Industry:</span> {metadata.industry || '-'}
           </div>
-          <div style={{ fontSize: 14, color: '#6c757d', marginBottom: 4 }}>
-            <strong>Country:</strong> {metadata.country || '-'}
+          <div className="text-sm text-muted mb-1">
+            <span className="font-150">Country:</span> {metadata.country || '-'}
           </div>
-          <div style={{ fontSize: 14, color: '#6c757d' }}>
-            <strong>Market Cap Tier:</strong>{' '}
+          <div className="text-sm text-muted">
+            <span className="font-150">Market Cap Tier:</span>{' '}
             {metadata.marketCapTier
               ? metadata.marketCapTier.replace('_', ' ').toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())
               : '-'}
@@ -261,22 +239,22 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
         </div>
       )}
 
-      {error && <div style={{ color: '#dc3545', marginBottom: 16 }}>{error}</div>}
+      {error && <div className="text-error mb-4">{error}</div>}
 
-      <div style={{ marginBottom: 24 }}>
-        <h4 style={{ marginBottom: 12 }}>Price History</h4>
+      <div className="mb-6">
+        <h4 className="text-lg font-150 mb-3">Price History</h4>
         {loading && chartData.length === 0 ? (
-          <div style={{ color: '#6c757d' }}>Loading chart...</div>
+          <div className="text-muted">Loading chart...</div>
         ) : chartData.length === 0 ? (
-          <div style={{ color: '#6c757d' }}>No price history available.</div>
+          <div className="text-muted">No price history available.</div>
         ) : (
-          <div style={{ height: 260 }}>
+          <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e9ecef" />
-                <XAxis dataKey="time" stroke="#6c757d" fontSize={12} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                <XAxis dataKey="time" stroke="#6b7280" fontSize={12} tickLine={false} />
                 <YAxis
-                  stroke="#6c757d"
+                  stroke="#6b7280"
                   fontSize={12}
                   tickLine={false}
                   tickFormatter={(value) => `$${value}`}
@@ -288,9 +266,10 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
                   }}
                   labelFormatter={(label) => `Date: ${label}`}
                   contentStyle={{
-                    backgroundColor: 'white',
-                    border: '1px solid #dee2e6',
-                    borderRadius: 4,
+                    backgroundColor: '#32393d',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: '6px',
+                    color: '#bdbdbd',
                   }}
                 />
                 <Line
@@ -323,49 +302,43 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
       </div>
 
       <div>
-        <h4 style={{ marginBottom: 12 }}>Journal Entries</h4>
+        <h4 className="text-lg font-150 mb-3">Journal Entries</h4>
         {journalEntries.length === 0 ? (
-          <div style={{ color: '#6c757d', fontStyle: 'italic' }}>No journal entries for {ticker}.</div>
+          <div className="text-muted italic">No journal entries for {ticker}.</div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="flex flex-col gap-3">
             {journalEntries.map((entry) => (
               <div
                 key={entry.id}
                 ref={(el) => { entryRefs.current[entry.id] = el }}
-                style={{
-                  padding: 12,
-                  backgroundColor: highlightedEntryId === entry.id ? '#e7f1ff' : '#f8f9fa',
-                  borderRadius: 6,
-                  border: highlightedEntryId === entry.id ? '2px solid #007bff' : '1px solid #dee2e6',
-                  transition: 'background-color 0.2s, border 0.2s',
-                }}
+                className={`p-3 rounded-md transition-colors ${
+                  highlightedEntryId === entry.id
+                    ? 'bg-primary/10 border-2 border-primary'
+                    : 'bg-surface-hover border border-border'
+                }`}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <div className="flex justify-between mb-1">
                   <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 'bold',
-                      textTransform: 'uppercase',
-                      color:
-                        entry.entryType === 'BUY'
-                          ? '#28a745'
-                          : entry.entryType === 'SELL'
-                          ? '#dc3545'
-                          : entry.entryType === 'INSIGHT'
-                          ? '#6f42c1'
-                          : '#fd7e14',
-                    }}
+                    className={`text-xs font-130 uppercase ${
+                      entry.entryType === 'BUY'
+                        ? 'text-gain'
+                        : entry.entryType === 'SELL'
+                        ? 'text-loss'
+                        : entry.entryType === 'INSIGHT'
+                        ? 'text-primary'
+                        : 'text-secondary'
+                    }`}
                   >
                     {entry.entryType.replace('_', ' ')}
                   </span>
-                  <span style={{ fontSize: 11, color: '#6c757d' }}>{formatDateTime(entry.timestamp)}</span>
+                  <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
                 </div>
                 {entry.priceSnapshot != null && (
-                  <div style={{ fontSize: 12, color: '#6c757d', marginBottom: 4 }}>
+                  <div className="text-xs text-muted mb-1">
                     Snapshot: ${entry.priceSnapshot.toFixed(2)}
                   </div>
                 )}
-                <div style={{ fontSize: 14, color: '#495057', whiteSpace: 'pre-wrap' }}>{entry.body}</div>
+                <div className="text-sm text-foreground whitespace-pre-wrap">{entry.body}</div>
               </div>
             ))}
           </div>

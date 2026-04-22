@@ -56,104 +56,101 @@ export default function JournalPanel() {
 
   const getTypeColor = (type: JournalEntryType) => {
     switch (type) {
-      case 'BUY': return '#28a745'
-      case 'SELL': return '#dc3545'
-      case 'INSIGHT': return '#6f42c1'
-      case 'MARKET_EVENT': return '#fd7e14'
-      default: return '#6c757d'
+      case 'BUY': return 'text-gain'
+      case 'SELL': return 'text-loss'
+      case 'INSIGHT': return 'text-primary'
+      case 'MARKET_EVENT': return 'text-secondary'
+      default: return 'text-muted'
+    }
+  }
+
+  const getTypeBg = (type: JournalEntryType) => {
+    switch (type) {
+      case 'BUY': return 'bg-gain/10'
+      case 'SELL': return 'bg-loss/10'
+      case 'INSIGHT': return 'bg-primary/10'
+      case 'MARKET_EVENT': return 'bg-secondary/10'
+      default: return 'bg-muted/10'
     }
   }
 
   return (
-    <div style={{ padding: 20, backgroundColor: 'white', borderRadius: 8, border: '1px solid #dee2e6' }}>
-      <h4 style={{ color: '#6c757d', marginTop: 0 }}>New Journal Entry</h4>
-      <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+    <div className="p-5 bg-surface rounded-lg border border-border">
+      <h4 className="text-muted mt-0 mb-3">New Journal Entry</h4>
+      <div className="flex gap-3 mb-3 flex-wrap">
         <select
           value={entryType}
           onChange={(e) => setEntryType(e.target.value as JournalEntryType)}
-          style={{ padding: 8, fontSize: 14 }}
+          className="px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
         >
           <option value="INSIGHT">Insight</option>
           <option value="MARKET_EVENT">Market Event</option>
           <option value="BUY">Buy</option>
           <option value="SELL">Sell</option>
         </select>
+
         <input
           type="text"
           placeholder="Ticker (optional)"
           value={ticker}
           onChange={(e) => setTicker(e.target.value.toUpperCase())}
-          style={{ padding: 8, fontSize: 14, width: 120 }}
+          className="px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm w-32"
         />
       </div>
+
       <textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        placeholder="Write your note..."
+        placeholder="Write your thoughts..."
         rows={3}
-        style={{
-          width: '100%',
-          padding: 8,
-          boxSizing: 'border-box',
-          fontSize: 14,
-          resize: 'vertical',
-          marginBottom: 12
-        }}
+        className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-primary mb-3"
       />
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+
+      <div className="flex gap-2 mb-4">
         <button
           onClick={handleSubmit}
           disabled={loading || !body.trim()}
-          style={{ backgroundColor: '#007bff', color: 'white' }}
+          className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50"
         >
-          {loading ? 'Saving…' : 'Add Entry'}
+          {loading ? 'Saving…' : 'Save Entry'}
         </button>
-        <button onClick={fetchEntries} disabled={loading}>Refresh</button>
+        <button
+          onClick={fetchEntries}
+          disabled={loading}
+          className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors disabled:opacity-50"
+        >
+          Refresh
+        </button>
       </div>
 
-      {error && <div style={{ color: '#dc3545', marginBottom: 16 }}>{error}</div>}
+      {error && <div className="text-error mb-4">{error}</div>}
 
-      <h4>Recent Entries</h4>
       {entries.length === 0 ? (
-        <div style={{ color: '#6c757d', fontStyle: 'italic' }}>No journal entries yet.</div>
+        <div className="text-muted italic">No journal entries yet.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="flex flex-col gap-3">
           {entries.map((entry) => (
             <div
               key={entry.id}
-              style={{
-                padding: 12,
-                backgroundColor: '#f8f9fa',
-                borderRadius: 6,
-                border: '1px solid #dee2e6'
-              }}
+              className={`p-3 bg-surface-hover rounded-md border border-border ${getTypeBg(entry.entryType)}`}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 'bold',
-                    textTransform: 'uppercase',
-                    color: getTypeColor(entry.entryType)
-                  }}
-                >
-                  {entry.entryType.replace('_', ' ')}
-                </span>
-                <span style={{ fontSize: 12, color: '#6c757d' }}>
-                  {formatDateTime(entry.timestamp)}
-                </span>
-              </div>
-              {entry.ticker && (
-                <div style={{ fontSize: 14, fontWeight: 'bold', color: '#495057', marginBottom: 4 }}>
-                  {entry.ticker}
-                  {entry.priceSnapshot != null && (
-                    <span style={{ fontWeight: 'normal', color: '#6c757d', marginLeft: 8 }}>
-                      @ ${entry.priceSnapshot.toFixed(2)}
-                    </span>
+              <div className="flex justify-between items-start mb-1">
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-130 uppercase ${getTypeColor(entry.entryType)}`}>
+                    {entry.entryType.replace('_', ' ')}
+                  </span>
+                  {entry.ticker && (
+                    <span className="text-xs font-semibold text-foreground">{entry.ticker}</span>
                   )}
                 </div>
+                <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
+              </div>
+              {entry.priceSnapshot != null && (
+                <div className="text-xs text-muted mb-1">
+                  Snapshot: ${entry.priceSnapshot.toFixed(2)}
+                </div>
               )}
-              <div style={{ fontSize: 14, color: '#495057', whiteSpace: 'pre-wrap' }}>{entry.body}</div>
+              <div className="text-sm text-foreground whitespace-pre-wrap">{entry.body}</div>
             </div>
           ))}
         </div>

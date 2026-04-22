@@ -64,55 +64,47 @@ export default function WatchlistPanel() {
   }
 
   return (
-    <div style={{ padding: 20, backgroundColor: 'white', borderRadius: 8, border: '1px solid #dee2e6' }}>
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+    <div className="p-5 bg-surface rounded-lg border border-border">
+      <div className="flex gap-3 mb-4 flex-wrap">
         <input
           type="text"
           placeholder="Ticker (e.g. NVDA)"
           value={newTicker}
           onChange={(e) => setNewTicker(e.target.value.toUpperCase())}
-          style={{ padding: 8, fontSize: 14, width: 160 }}
+          className="px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm w-40"
         />
         <button
           onClick={handleAdd}
           disabled={loading || !newTicker.trim()}
-          style={{ backgroundColor: '#007bff', color: 'white' }}
+          className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50"
         >
           {loading ? 'Adding…' : 'Add to Watchlist'}
         </button>
-        <button onClick={fetchWatchlist} disabled={loading}>Refresh</button>
+        <button onClick={fetchWatchlist} disabled={loading} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors disabled:opacity-50">Refresh</button>
       </div>
 
-      {error && <div style={{ color: '#dc3545', marginBottom: 16 }}>{error}</div>}
+      {error && <div className="text-error mb-4">{error}</div>}
 
       {items.length === 0 ? (
-        <div style={{ color: '#6c757d', fontStyle: 'italic' }}>No watchlist items yet.</div>
+        <div className="text-muted italic">No watchlist items yet.</div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {items.map((item) => (
             <div
               key={item.id}
-              style={{
-                padding: 16,
-                backgroundColor: '#f8f9fa',
-                borderRadius: 8,
-                border: '1px solid #dee2e6',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start'
-              }}
+              className="p-4 bg-surface-hover rounded-lg border border-border flex justify-between items-start"
             >
               <div>
-                <div style={{ fontSize: 18, fontWeight: 'bold', color: '#495057' }}>{item.ticker}</div>
+                <div className="text-lg font-130 text-foreground">{item.ticker}</div>
                 {item.metadata ? (
-                  <div style={{ marginTop: 8, fontSize: 13, color: '#6c757d' }}>
-                    <div><strong>Sector:</strong> {item.metadata.sector || '-'}</div>
-                    <div><strong>Industry:</strong> {item.metadata.industry || '-'}</div>
-                    <div><strong>Country:</strong> {item.metadata.country || '-'}</div>
-                    <div><strong>Cap:</strong> {getTierLabel(item.metadata.marketCapTier)}</div>
+                  <div className="mt-2 text-xs text-muted">
+                    <div><span className="font-semibold">Sector:</span> {item.metadata.sector || '-'}</div>
+                    <div><span className="font-semibold">Industry:</span> {item.metadata.industry || '-'}</div>
+                    <div><span className="font-semibold">Country:</span> {item.metadata.country || '-'}</div>
+                    <div><span className="font-semibold">Cap:</span> {getTierLabel(item.metadata.marketCapTier)}</div>
                   </div>
                 ) : (
-                  <div style={{ marginTop: 8, fontSize: 13, color: '#6c757d', fontStyle: 'italic' }}>
+                  <div className="mt-2 text-xs text-muted italic">
                     Metadata not available
                   </div>
                 )}
@@ -120,15 +112,7 @@ export default function WatchlistPanel() {
               <button
                 onClick={() => handleRemove(item.ticker)}
                 disabled={loading}
-                style={{
-                  padding: '4px 10px',
-                  backgroundColor: '#dc3545',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  fontSize: 12
-                }}
+                className="px-2.5 py-1 bg-error text-white text-xs rounded hover:bg-error/80 transition-colors disabled:opacity-50"
               >
                 Remove
               </button>

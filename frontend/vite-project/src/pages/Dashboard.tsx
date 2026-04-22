@@ -274,109 +274,80 @@ export default function Dashboard() {
   }, [])
 
   return (
-    <div style={{ maxWidth: 1200, margin: '24px auto', padding: '0 12px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h2 style={{ margin: 0 }}>Portfolio Dashboard</h2>
-        <button 
+    <div className="max-w-6xl mx-auto mt-6 px-3">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-150 m-0">Vestry Dashboard</h2>
+        <button
           onClick={handleLogout}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#dc3545',
-            color: 'white',
-            border: 'none',
-            borderRadius: 4,
-            cursor: 'pointer',
-            fontSize: '14px'
-          }}
+          className="flex items-center gap-1 px-4 py-2 bg-error text-white border-none rounded cursor-pointer text-sm hover:bg-error/80 transition-colors"
         >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
           Logout
         </button>
       </div>
 
       {/* Portfolio Summary */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-        gap: 16,
-        marginBottom: 24 
-      }}>
-        <div style={{ 
-          padding: 16, 
-          backgroundColor: '#f8f9fa', 
-          borderRadius: 8,
-          border: '1px solid #dee2e6'
-        }}>
-          <div style={{ fontSize: 14, color: '#6c757d' }}>Total Portfolio Value</div>
-          <div style={{ fontSize: 24, color: '#6c757d', fontWeight: 'bold' }}>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="p-4 bg-surface rounded-lg border border-border">
+          <div className="text-sm text-muted">Total Portfolio Value</div>
+          <div className="text-2xl text-foreground font-130">
             ${calculatePortfolioValue().toFixed(2)}
           </div>
         </div>
-        <div style={{ 
-          padding: 16, 
-          backgroundColor: '#f8f9fa', 
-          borderRadius: 8,
-          border: '1px solid #dee2e6'
-        }}>
-          <div style={{ fontSize: 14, color: '#6c757d' }}>Day's Change</div>
-          <div style={{ 
-            fontSize: 24, 
-            fontWeight: 'bold',
-            color: calculateDayChange() >= 0 ? '#28a745' : '#dc3545'
-          }}>
+        <div className="p-4 bg-surface rounded-lg border border-border">
+          <div className="text-sm text-muted">Day's Change</div>
+          <div className={`text-2xl font-130 ${calculateDayChange() >= 0 ? 'text-gain' : 'text-loss'}`}>
             {calculateDayChange() >= 0 ? '+' : ''}{calculateDayChange().toFixed(2)}
           </div>
         </div>
-        <div style={{ 
-          padding: 16, 
-          backgroundColor: '#f8f9fa', 
-          borderRadius: 8,
-          border: '1px solid #dee2e6'
-        }}>
-          <div style={{ fontSize: 14, color: '#6c757d' }}>Total Holdings</div>
-          <div style={{ fontSize: 24, color: '#6c757d', fontWeight: 'bold' }}>
+        <div className="p-4 bg-surface rounded-lg border border-border">
+          <div className="text-sm text-muted">Total Holdings</div>
+          <div className="text-2xl text-foreground font-130">
             {results.length}
           </div>
         </div>
       </div>
 
       {/* Action Buttons */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      <div className="flex gap-2 mb-4">
         <button
           type="button"
           onClick={() => setShowAddModal(true)}
           disabled={loading}
-          style={{ backgroundColor: '#28a745', color: 'white' }}
+          className="px-3 py-2 bg-gain text-white rounded-md hover:bg-gain/80 transition-colors disabled:opacity-50"
         >
           + Buy Stock
         </button>
         <button
           type="button"
           onClick={() => navigate('/analysis')}
-          style={{ backgroundColor: '#6f42c1', color: 'white' }}
+          className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors"
         >
           Analysis
         </button>
       </div>
 
-      {error && <div style={{ color: '#b00020', marginTop: 8, marginBottom: 16 }}>{error}</div>}
+      {error && <div className="text-error mt-2 mb-4">{error}</div>}
 
       {/* Portfolio History Chart */}
-      <div style={{ marginBottom: 32 }}>
-        <h3 style={{ marginBottom: 16 }}>Portfolio Performance</h3>
+      <div className="mb-8">
+        <h3 className="text-xl font-150 mb-4">Portfolio Performance</h3>
         <PortfolioChart />
       </div>
 
       {/* Holdings Table */}
       {results.length > 0 && (
-        <div style={{ marginTop: 16, marginBottom: 32 }}>
-          <h3>Your Holdings</h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div className="mt-4 mb-8">
+          <h3 className="text-xl font-150 mb-4">Your Holdings</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
               <thead>
-                <tr>
+                <tr className="bg-elevated">
                   {['Ticker', 'Shares', 'Current Price', 'Day Change', 'Market Value', 'Last Updated', 'Actions'].map(
                     (h) => (
-                      <th key={h} style={{ border: '1px solid #ddd', padding: 8, textAlign: 'left', background: '#808080', color: 'white' }}>
+                      <th key={h} className="border border-border p-2 text-left text-foreground font-130">
                         {h}
                       </th>
                     ),
@@ -393,67 +364,44 @@ export default function Dashboard() {
                   const isStale = r.stockData?.stale ?? false
                   
                   return (
-                    <tr key={i} style={{ backgroundColor: isStale ? '#fff3cd' : 'white', color: '#6c757d' }}>
+                    <tr key={i} className={`${isStale ? 'bg-surface-hover' : 'bg-surface'} text-secondary hover:bg-surface-hover transition-colors`}>
                       {/* ticker*/}
-                      <td style={{ border: '1px solid #ddd', padding: 8, color: '#6c757d' }}>
+                      <td className="border border-border p-2">
                         {r.ticker}
                         {isStale && (
-                          <span style={{ 
-                            fontSize: 10, 
-                            color: '#856404',
-                            display: 'block',
-                            marginTop: 2
-                          }}>
+                          <span className="text-xs text-error block mt-0.5">
                             ⚠ Stale
                           </span>
                         )}
                       </td>
                       {/* shares */}
-
-                      <td style={{ border: '1px solid #ddd', padding: 8, color: '#6c757d' }}>{r.shares}</td>
-                      
+                      <td className="border border-border p-2">{r.shares}</td>
                       {/* current price */}
-                      <td style={{ border: '1px solid #ddd', padding: 8, color: '#6c757d' }}>
+                      <td className="border border-border p-2">
                         ${currentPrice.toFixed(2)}
                       </td>
-                      
                       {/* day change */}
-                      <td style={{ 
-                        border: '1px solid #ddd', 
-                        padding: 8,
-                        color: dayChange >= 0 ? '#28a745' : '#dc3545'
-                      }}>
+                      <td className={`border border-border p-2 ${dayChange >= 0 ? 'text-gain' : 'text-loss'}`}>
                         {dayChange >= 0 ? '+' : ''}{dayChange.toFixed(2)} ({dayChangePercent.toFixed(2)}%)
                       </td>
-
                       {/* market value */}
-                      <td style={{ border: '1px solid #ddd', padding: 8, color: '#6c757d' }}>
+                      <td className="border border-border p-2">
                         ${marketValue.toFixed(2)}
                       </td>
-
                       {/* last updated */}
-                      <td style={{ border: '1px solid #ddd', padding: 8, fontSize: 12, color: '#6c757d' }}>
+                      <td className="border border-border p-2 text-xs">
                         {r.stockData?.stock?.timestamp ? roundToMinute(r.stockData.stock.timestamp) : '-'}
                         {isStale && r.stockData?.staleWarning && (
-                          <div style={{ color: '#856404', marginTop: 2 }}>
+                          <div className="text-error mt-0.5">
                             {r.stockData.staleWarning}
                           </div>
                         )}
                       </td>
-
-                      <td style={{ border: '1px solid #ddd', padding: 8 }}>
+                      <td className="border border-border p-2">
                         <button
                           onClick={() => removeHolding(r.ticker, r.shares)}
                           disabled={loading}
-                          style={{
-                            padding: '4px 8px',
-                            backgroundColor: '#dc3545',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: 4,
-                            cursor: 'pointer',
-                            fontSize: '12px'
-                          }}
+                          className="px-2 py-1 bg-error text-white text-xs rounded hover:bg-error/80 transition-colors disabled:opacity-50"
                         >
                           Sell
                         </button>
@@ -468,48 +416,36 @@ export default function Dashboard() {
       )}
 
       {/* Transaction History Section */}
-      <div style={{ marginTop: 32, marginBottom: 32 }}>
-        <h3>Transaction History</h3>
+      <div className="mt-8 mb-8">
+        <h3 className="text-xl font-150 mb-4">Transaction History</h3>
         <TransactionHistory />
       </div>
 
       {/* Watchlist Section */}
-      <div style={{ marginBottom: 32 }}>
-        <h3 style={{ marginTop: 16 }}>Watchlist</h3>
+      <div className="mb-8">
+        <h3 className="text-xl font-150 mt-4 mb-4">Watchlist</h3>
         <WatchlistPanel />
       </div>
 
       {/* Journal Section */}
-      <div style={{ marginBottom: 32 }}>
-        <h3 style={{ marginTop: 16 }}>Journal</h3>
+      <div className="mb-8">
+        <h3 className="text-xl font-150 mt-4 mb-4">Journal</h3>
         <JournalPanel />
       </div>
 
       {/* Trending Stocks Section */}
       {trendingStocks.length > 0 && (
-        <div style={{ marginTop: 32 }}>
-          <h3>Trending Stocks </h3>
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-            gap: 16 
-          }}>
+        <div className="mt-8">
+          <h3 className="text-xl font-150 mb-4">Trending Stocks</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {trendingStocks.map((stock, i) => (
               <div 
                 key={stock.ticker}
-                style={{ 
-                  padding: 16, 
-                  backgroundColor: '#f8f9fa', 
-                  borderRadius: 8,
-                  border: '1px solid #dee2e6',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}
+                className="p-4 bg-surface rounded-lg border border-border flex justify-between items-center"
               >
                 <div>
-                  <div style={{ fontSize: 20, color: '#6c757d', fontWeight: 'bold' }}>#{i + 1} {stock.ticker}</div>
-                  <div style={{ fontSize: 12, color: '#6c757d' }}>
+                  <div className="text-xl text-foreground font-130">#{i + 1} {stock.ticker}</div>
+                  <div className="text-xs text-muted">
                     {stock.holderCount} {stock.holderCount === 1 ? 'investor' : 'investors'} holding
                   </div>
                 </div>
@@ -518,15 +454,7 @@ export default function Dashboard() {
                     setNewTicker(stock.ticker)
                     setShowAddModal(true)
                   }}
-                  style={{
-                    padding: '6px 12px',
-                    backgroundColor: '#007bff',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                    fontSize: '12px'
-                  }}
+                  className="px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded hover:bg-primary-hover transition-colors"
                 >
                   Buy
                 </button> */}
@@ -538,43 +466,21 @@ export default function Dashboard() {
 
       {/* Add Stock Modal */}
       {showAddModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: '#d3d3d3',
-            padding: 24,
-            borderRadius: 8,
-            width: '90%',
-            maxWidth: 400
-          }}>
-            <h3 style={{ marginTop: 0, color: '#494949' }}>Buy Stock</h3>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', marginBottom: 4, color: 'grey' }}>Ticker Symbol</label>
+        <div className="fixed inset-0 bg-overlay flex justify-center items-center z-50">
+          <div className="bg-surface p-6 rounded-lg w-11/12 max-w-md border border-border">
+            <h3 className="text-xl font-150 mt-0 mb-4">Buy Stock</h3>
+            <div className="mb-4">
+              <label className="block mb-1 text-secondary">Ticker Symbol</label>
               <input
                 type="text"
                 placeholder="e.g., AAPL"
                 value={newTicker}
                 onChange={(e) => setNewTicker(e.target.value.toUpperCase())}
-                style={{ 
-                  width: '100%', 
-                  padding: 8,
-                  boxSizing: 'border-box',
-                  fontSize: 16
-                }}
+                className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', marginBottom: 4, color: 'grey' }}>Shares</label>
+            <div className="mb-4">
+              <label className="block mb-1 text-secondary">Shares</label>
               <input
                 type="number"
                 placeholder="Number of shares"
@@ -582,27 +488,22 @@ export default function Dashboard() {
                 onChange={(e) => setNewShares(e.target.value)}
                 min="0.01"
                 step="0.01"
-                style={{ 
-                  width: '100%', 
-                  padding: 8,
-                  boxSizing: 'border-box',
-                  fontSize: 16
-                }}
+                className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <div className="flex gap-2 justify-end">
               <button onClick={() => {
                 setShowAddModal(false)
                 setNewTicker('')
                 setNewShares('')
                 setError('')
-              }}>
+              }} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">
                 Cancel
               </button>
               <button 
                 onClick={addHolding}
                 disabled={loading || !newTicker.trim() || !newShares}
-                style={{ backgroundColor: '#28a745', color: 'white' }}
+                className="px-3 py-2 bg-gain text-white rounded-md hover:bg-gain/80 transition-colors disabled:opacity-50"
               >
                 {loading ? 'Buying…' : 'Buy'}
               </button>
@@ -610,30 +511,14 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
       {/* Sell Stock Modal */}
       {showSellModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: '#d3d3d3',
-            padding: 24,
-            borderRadius: 8,
-            width: '90%',
-            maxWidth: 400
-          }}>
-            <h3 style={{ marginTop: 0, color: '#494949' }}>Sell {sellTicker}</h3>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', marginBottom: 4, color: 'grey' }}>
+        <div className="fixed inset-0 bg-overlay flex justify-center items-center z-50">
+          <div className="bg-surface p-6 rounded-lg w-11/12 max-w-md border border-border">
+            <h3 className="text-xl font-150 mt-0 mb-4">Sell {sellTicker}</h3>
+            <div className="mb-4">
+              <label className="block mb-1 text-secondary">
                 Shares (max: {maxShares})
               </label>
               <input
@@ -644,22 +529,17 @@ export default function Dashboard() {
                 min="0.01"
                 max={maxShares}
                 step="0.01"
-                style={{ 
-                  width: '100%', 
-                  padding: 8,
-                  boxSizing: 'border-box',
-                  fontSize: 16
-                }}
+                className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={closeSellModal}>
+            <div className="flex gap-2 justify-end">
+              <button onClick={closeSellModal} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">
                 Cancel
               </button>
               <button 
                 onClick={executeSell}
                 disabled={loading || !sellShares || Number(sellShares) <= 0 || Number(sellShares) > maxShares}
-                style={{ backgroundColor: '#dc3545', color: 'white' }}
+                className="px-3 py-2 bg-error text-white rounded-md hover:bg-error/80 transition-colors disabled:opacity-50"
               >
                 {loading ? 'Selling…' : 'Sell'}
               </button>

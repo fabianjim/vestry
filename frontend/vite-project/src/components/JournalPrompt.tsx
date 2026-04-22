@@ -24,55 +24,32 @@ export default function JournalPrompt({ isOpen, onClose, onSubmit, ticker, trade
   }
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1100
-    }}>
-      <div style={{
-        backgroundColor: '#d3d3d3',
-        padding: 24,
-        borderRadius: 8,
-        width: '90%',
-        maxWidth: 400
-      }}>
-        <h3 style={{ marginTop: 0, color: '#494949' }}>
+    <div className="fixed inset-0 bg-overlay flex justify-center items-center z-[1100]">
+      <div className="bg-surface p-6 rounded-lg w-11/12 max-w-sm border border-border">
+        <h3 className="text-xl font-semibold mt-0 mb-2 text-foreground">
           Journal this {tradeType === 'BUY' ? 'purchase' : 'sale'}?
         </h3>
-        <p style={{ color: '#6c757d', marginTop: -8, marginBottom: 16 }}>
+        <p className="text-muted mb-4">
           {ticker} — {tradeType}
         </p>
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', marginBottom: 4, color: 'grey' }}>Note (optional)</label>
+        <div className="mb-4">
+          <label className="block mb-1 text-secondary">Note (optional)</label>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder="Why did you make this trade?"
             rows={4}
-            style={{
-              width: '100%',
-              padding: 8,
-              boxSizing: 'border-box',
-              fontSize: 14,
-              resize: 'vertical'
-            }}
+            className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={handleClose}>
+        <div className="flex gap-2 justify-end">
+          <button onClick={handleClose} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">
             Skip
           </button>
           <button
             onClick={handleSubmit}
             disabled={!body.trim()}
-            style={{ backgroundColor: '#007bff', color: 'white' }}
+            className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50"
           >
             Save Entry
           </button>

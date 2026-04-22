@@ -42,7 +42,7 @@ export default function PortfolioChart() {
       if (!hasAnimatedRef.current && history && history.length > 0) {
         hasAnimatedRef.current = true
       }
-    } catch (err) {
+    } catch {
       setError('Failed to load portfolio history')
     } finally {
       setLoading(false)
@@ -110,7 +110,7 @@ export default function PortfolioChart() {
     return processedData[processedData.length - 1].value >= processedData[0].value
   }, [processedData])
 
-  const lineColor = isPositiveTrend ? '#28a745' : '#dc3545'
+  const lineColor = isPositiveTrend ? '#10b981' : '#ef4444'
 
   const handlePrevious = () => {
     const newDate = new Date(currentDate)
@@ -155,30 +155,15 @@ export default function PortfolioChart() {
 
   if (loading) {
     return (
-      <div style={{ 
-        height: 300, 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        backgroundColor: '#f8f9fa',
-        borderRadius: 8 
-      }}>
-        Loading chart...
+      <div className="h-72 flex items-center justify-center bg-surface rounded-lg border border-border">
+        <span className="text-muted">Loading chart...</span>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div style={{ 
-        height: 300, 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        backgroundColor: '#f8d7da',
-        color: '#721c24',
-        borderRadius: 8 
-      }}>
+      <div className="h-72 flex items-center justify-center bg-surface rounded-lg border border-border text-error">
         {error}
       </div>
     )
@@ -186,73 +171,48 @@ export default function PortfolioChart() {
 
   if (data.length === 0) {
     return (
-      <div style={{ 
-        height: 300, 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        backgroundColor: '#f8f9fa',
-        borderRadius: 8,
-        color: '#6c757d'
-      }}>
+      <div className="h-72 flex items-center justify-center bg-surface rounded-lg border border-border text-muted">
         No historical data available
       </div>
     )
   }
 
   return (
-    <div style={{ backgroundColor: 'white', padding: 20, borderRadius: 8, border: '1px solid #dee2e6' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+    <div className="bg-surface p-5 rounded-lg border border-border">
+      <div className="flex justify-between items-center mb-5">
         <div>
           <button
             onClick={() => setViewMode('hourly')}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: viewMode === 'hourly' ? '#007bff' : '#f8f9fa',
-              color: viewMode === 'hourly' ? 'white' : '#333',
-              border: '1px solid #dee2e6',
-              borderRadius: '4px 0 0 4px',
-              cursor: 'pointer',
-              fontSize: 14,
-            }}
+            className={`px-4 py-2 text-sm border border-border rounded-l-md cursor-pointer transition-colors ${
+              viewMode === 'hourly'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-elevated text-foreground hover:bg-elevated/75'
+            }`}
           >
             Hourly
           </button>
           <button
             onClick={() => setViewMode('daily')}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: viewMode === 'daily' ? '#007bff' : '#f8f9fa',
-              color: viewMode === 'daily' ? 'white' : '#333',
-              border: '1px solid #dee2e6',
-              borderLeft: 'none',
-              borderRadius: '0 4px 4px 0',
-              cursor: 'pointer',
-              fontSize: 14,
-            }}
+            className={`px-4 py-2 text-sm border border-border border-l-0 rounded-r-md cursor-pointer transition-colors ${
+              viewMode === 'daily'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-elevated text-foreground hover:bg-elevated/75'
+            }`}
           >
             Daily
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="flex gap-2 items-center">
           <button
             onClick={handlePrevious}
             aria-label="Previous period"
-            style={{
-              padding: '8px 12px',
-              backgroundColor: '#f8f9fa',
-              border: '1px solid #dee2e6',
-              borderRadius: 4,
-              cursor: 'pointer',
-              fontSize: 16,
-              color: '#333',
-            }}
+            className="px-3 py-2 bg-elevated border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-elevated/75 transition-colors"
           >
             ←
           </button>
           
-          <span style={{ fontSize: 14, color: '#6c757d', minWidth: 100, textAlign: 'center' }}>
+          <span className="text-sm text-muted min-w-[100px] text-center">
             {viewMode === 'hourly'
               ? currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
               : 'Last 5 Days'
@@ -263,16 +223,7 @@ export default function PortfolioChart() {
             onClick={handleNext}
             disabled={!canGoForward}
             aria-label="Next period"
-            style={{
-              padding: '8px 12px',
-              backgroundColor: canGoForward ? '#f8f9fa' : '#e9ecef',
-              border: '1px solid #dee2e6',
-              borderRadius: 4,
-              cursor: canGoForward ? 'pointer' : 'not-allowed',
-              fontSize: 16,
-              opacity: canGoForward ? 1 : 0.5,
-              color: '#333',
-            }}
+            className="px-3 py-2 bg-elevated border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-elevated/75 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             →
           </button>
@@ -280,19 +231,19 @@ export default function PortfolioChart() {
       </div>
 
       {processedData.length > 0 ? (
-        <div style={{ height: 300 }}>
+        <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={processedData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e9ecef" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
               <XAxis 
                 dataKey="time" 
-                stroke="#6c757d"
+                stroke="#6b7280"
                 fontSize={12}
                 tickLine={false}
               />
               <YAxis 
                 domain={[(dataMin: number) => dataMin * 0.995, (dataMax: number) => dataMax * 1.005]}
-                stroke="#6c757d"
+                stroke="#6b7280"
                 fontSize={12}
                 tickLine={false}
                 tickFormatter={(value) => formatCurrency(value)}
@@ -302,9 +253,10 @@ export default function PortfolioChart() {
                 formatter={(value: number) => [formatCurrency(value), 'Portfolio Value']}
                 labelFormatter={(label) => viewMode === 'hourly' ? `Time: ${label}` : `Date: ${label}`}
                 contentStyle={{
-                  backgroundColor: 'white',
-                  border: '1px solid #dee2e6',
-                  borderRadius: 4,
+                  backgroundColor: '#32393d',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '6px',
+                  color: '#bdbdbd',
                 }}
               />
               <Line
@@ -321,19 +273,10 @@ export default function PortfolioChart() {
           </ResponsiveContainer>
         </div>
       ) : (
-        <div style={{ 
-          height: 300, 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          backgroundColor: '#f8f9fa',
-          borderRadius: 8,
-          color: '#6c757d'
-        }}
-      >
-        <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 16, marginBottom: 8 }}>No data for this {viewMode === 'hourly' ? 'day' : 'period'}</div>
-            <div style={{ fontSize: 14 }}>Try navigating to a different period</div>
+        <div className="h-72 flex items-center justify-center bg-surface-hover rounded-lg text-muted">
+          <div className="text-center">
+            <div className="text-base mb-2">No data for this {viewMode === 'hourly' ? 'day' : 'period'}</div>
+            <div className="text-sm">Try navigating to a different period</div>
           </div>
         </div>
       )}

@@ -22,22 +22,22 @@ type WatchlistItem = {
 }
 
 const SECTOR_COLORS: Record<string, string> = {
-  Technology: '#007bff',
-  'Health Care': '#28a745',
-  Finance: '#ffc107',
-  Industrials: '#6f42c1',
-  'Consumer Discretionary': '#fd7e14',
-  'Consumer Staples': '#20c997',
-  'Communication Services': '#e83e8c',
-  Energy: '#dc3545',
-  Materials: '#17a2b8',
-  'Real Estate': '#795548',
-  Utilities: '#6c757d',
+  Technology: '#5e9ed6',
+  'Health Care': '#10b981',
+  Finance: '#f59e0b',
+  Industrials: '#8b5cf6',
+  'Consumer Discretionary': '#f97316',
+  'Consumer Staples': '#14b8a6',
+  'Communication Services': '#ec4899',
+  Energy: '#ef4444',
+  Materials: '#06b6d4',
+  'Real Estate': '#a78bfa',
+  Utilities: '#6b7280',
 }
 
 function getNodeColor(sector: string | null | undefined) {
-  if (!sector) return '#6c757d'
-  return SECTOR_COLORS[sector] || '#6c757d'
+  if (!sector) return '#6b7280'
+  return SECTOR_COLORS[sector] || '#6b7280'
 }
 
 export default function Analysis() {
@@ -156,31 +156,22 @@ export default function Analysis() {
   }, [selectedTicker, watchlist])
 
   return (
-    <div style={{ maxWidth: 1200, margin: '24px auto', padding: '0 12px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h2 style={{ margin: 0 }}>Holding Analysis</h2>
-        <button onClick={() => navigate('/dashboard')}>← Back to Dashboard</button>
+    <div className="max-w-6xl mx-auto mt-6 px-3">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-150 m-0">Holding Analysis</h2>
+        <button onClick={() => navigate('/dashboard')} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">← Back to Dashboard</button>
       </div>
 
-      {error && <div style={{ color: '#dc3545', marginBottom: 16 }}>{error}</div>}
+      {error && <div className="text-error mb-4">{error}</div>}
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 16, height: 16, borderRadius: '50%', backgroundColor: '#6c757d', display: 'inline-block' }}></span>
-          <span style={{ fontSize: 14, color: '#6c757d' }}>Holding (size = market value)</span>
+      <div className="mb-4 flex gap-6 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="w-4 h-4 rounded-full bg-muted inline-block"></span>
+          <span className="text-sm text-muted">Holding (size = market value)</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span
-            style={{
-              width: 16,
-              height: 16,
-              borderRadius: '50%',
-              border: '2px solid #6c757d',
-              backgroundColor: 'white',
-              display: 'inline-block',
-            }}
-          ></span>
-          <span style={{ fontSize: 14, color: '#6c757d' }}>Watchlist</span>
+        <div className="flex items-center gap-2">
+          <span className="w-4 h-4 rounded-full border-2 border-muted bg-background inline-block"></span>
+          <span className="text-sm text-muted">Watchlist</span>
         </div>
       </div>
 

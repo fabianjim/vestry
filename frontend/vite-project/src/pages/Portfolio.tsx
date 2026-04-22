@@ -60,7 +60,6 @@ export default function Portfolio() {
         })),
       }
       
-      // create portfolio with holdings
       const response = await fetch('/api/portfolio/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -81,20 +80,12 @@ export default function Portfolio() {
   }
 
   return (
-    <div style={{ maxWidth: 960, margin: '24px auto', padding: '0 12px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h2 style={{ margin: 0 }}>Portfolio</h2>
+    <div className="max-w-4xl mx-auto mt-6 px-3">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-150 m-0">Portfolio</h2>
         <button 
           onClick={handleLogout}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#dc3545',
-            color: 'white',
-            border: 'none',
-            borderRadius: 4,
-            cursor: 'pointer',
-            fontSize: '14px'
-          }}
+          className="px-4 py-2 bg-error text-white border-none rounded cursor-pointer text-sm hover:bg-error/80 transition-colors"
         >
           Logout
         </button>
@@ -102,35 +93,33 @@ export default function Portfolio() {
       
 
       {holdings.map((h, idx) => (
-        <div key={idx} style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+        <div key={idx} className="flex gap-3 items-center mb-2">
           <input
             placeholder="Ticker (e.g., AAPL)"
             value={h.ticker}
             onChange={(e) => updateHolding(idx, { ...h, ticker: e.target.value.toUpperCase() })}
             maxLength={10}
-            style={{ padding: 8, width: 160 }}
+            className="px-2 py-2 bg-surface border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary w-40"
           />
           <input
             placeholder="Shares"
             type="number"
             value={h.shares}
             onChange={(e) => updateHolding(idx, { ...h, shares: e.target.value })}
-            style={{ padding: 8, width: 120 }}
+            className="px-2 py-2 bg-surface border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary w-32"
           />
-          <button type="button" onClick={() => removeHolding(idx)}>Remove</button>
+          <button type="button" onClick={() => removeHolding(idx)} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">Remove</button>
         </div>
       ))}
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <button type="button" onClick={addHolding}>Add Holding</button>
-        <button type="button" onClick={createPortfolio} disabled={loading}>
+      <div className="flex gap-2 mt-3">
+        <button type="button" onClick={addHolding} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">Add Holding</button>
+        <button type="button" onClick={createPortfolio} disabled={loading} className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50">
           {loading ? 'Creating…' : 'Create Portfolio'}
         </button>
       </div>
 
-      {error && <div style={{ color: '#b00020', marginTop: 8 }}>{error}</div>}
+      {error && <div className="text-error mt-2">{error}</div>}
     </div>
   )
 }
-
-

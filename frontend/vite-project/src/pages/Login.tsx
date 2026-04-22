@@ -49,7 +49,7 @@ export default function Login() {
       } else {
         setError(data.message || 'Something went wrong')
       }
-    } catch (e) {
+    } catch {
       setError('Network error. Make sure the backend is running.')
     } finally {
       setLoading(false)
@@ -73,15 +73,15 @@ export default function Login() {
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: '50px auto', padding: '0 20px' }}>
-      <h2>{isLogin ? 'Login' : 'Register'}</h2>
+    <div className="max-w-sm mx-auto mt-12 px-5">
+      <h2 className="text-2xl font-semibold mb-4">{isLogin ? 'Login' : 'Register'}</h2>
 
-      <div style={{ marginBottom: 16 }}>
+      <div className="mb-4 space-y-2">
         <input
           placeholder="Username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          style={{ width: '100%', padding: 12, marginBottom: 8 }}
+          className="w-full px-3 py-2 bg-surface border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary"
         />
         
         <input
@@ -89,26 +89,15 @@ export default function Login() {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          style={{ width: '100%', padding: 12, marginBottom: 8 }}
+          className="w-full px-3 py-2 bg-surface border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary"
         />
-
-
       </div>
 
        {/* User is logging in */}
       <button
         onClick={handleSubmit}
         disabled={loading}
-        style={{
-          width: '100%',
-          padding: 12,
-          backgroundColor: '#007bff',
-          color: 'white',
-          border: 'none',
-          borderRadius: 4,
-          cursor: loading ? 'not-allowed' : 'pointer',
-          marginBottom: 16
-        }}
+        className="w-full px-3 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer disabled:cursor-not-allowed mb-4 hover:bg-primary-hover transition-colors"
       >
         {loading ? 'Loading...' : (isLogin ? 'Login' : 'Register')}
       </button>
@@ -120,27 +109,19 @@ export default function Login() {
           setError('')
           setSuccess('')
         }}
-        style={{
-          width: '100%',
-          padding: 8,
-          backgroundColor: 'transparent',
-          color: '#007bff',
-          border: '1px solid #007bff',
-          borderRadius: 4,
-          cursor: 'pointer'
-        }}
+        className="w-full px-2 py-2 bg-transparent text-primary border border-primary rounded-md cursor-pointer hover:bg-primary/10 transition-colors"
       >
         {isLogin ? 'Register' : 'Login'}
       </button>
 
       {error && (
-        <div style={{ color: '#dc3545', marginTop: 16, padding: 8 }}>
+        <div className="mt-4 p-2 text-error">
           {error}
         </div>
       )}
 
       {success && (
-        <div style={{ color: '#28a745', marginTop: 16, padding: 8 }}>
+        <div className="mt-4 p-2 text-success">
           {success}
         </div>
       )}
