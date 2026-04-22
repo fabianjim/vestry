@@ -140,7 +140,7 @@ export default function JournalPanel() {
                     {entry.entryType.replace('_', ' ')}
                   </span>
                   {entry.ticker && (
-                    <span className="text-xs font-150 text-foreground">{entry.ticker}</span>
+                    <span className="text-xs font-semibold text-foreground">{entry.ticker}</span>
                   )}
                 </div>
                 <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
