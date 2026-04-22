@@ -186,7 +186,7 @@ export default function PortfolioChart() {
             className={`px-4 py-2 text-sm border border-border rounded-l-md cursor-pointer transition-colors ${
               viewMode === 'hourly'
                 ? 'bg-primary text-primary-foreground'
-                : 'bg-surface-hover text-foreground hover:bg-surface'
+                : 'bg-elevated text-foreground hover:bg-elevated/75'
             }`}
           >
             Hourly
@@ -196,7 +196,7 @@ export default function PortfolioChart() {
             className={`px-4 py-2 text-sm border border-border border-l-0 rounded-r-md cursor-pointer transition-colors ${
               viewMode === 'daily'
                 ? 'bg-primary text-primary-foreground'
-                : 'bg-surface-hover text-foreground hover:bg-surface'
+                : 'bg-elevated text-foreground hover:bg-elevated/75'
             }`}
           >
             Daily
@@ -207,7 +207,7 @@ export default function PortfolioChart() {
           <button
             onClick={handlePrevious}
             aria-label="Previous period"
-            className="px-3 py-2 bg-surface-hover border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-surface transition-colors"
+            className="px-3 py-2 bg-elevated border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-elevated/75 transition-colors"
           >
             ←
           </button>
@@ -223,7 +223,7 @@ export default function PortfolioChart() {
             onClick={handleNext}
             disabled={!canGoForward}
             aria-label="Next period"
-            className="px-3 py-2 bg-surface-hover border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-surface transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-2 bg-elevated border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-elevated/75 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             →
           </button>
