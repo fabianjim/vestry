@@ -59,7 +59,7 @@ export default function JournalPanel() {
       case 'BUY': return 'text-gain'
       case 'SELL': return 'text-loss'
       case 'INSIGHT': return 'text-primary'
-      case 'MARKET_EVENT': return 'text-secondary'
+      case 'MARKET_EVENT': return 'text-event'
       default: return 'text-muted'
     }
   }
@@ -140,7 +140,7 @@ export default function JournalPanel() {
                     {entry.entryType.replace('_', ' ')}
                   </span>
                   {entry.ticker && (
-                    <span className="text-xs font-semibold text-foreground">{entry.ticker}</span>
+                    <span className="text-xs font-150 text-foreground">{entry.ticker}</span>
                   )}
                 </div>
                 <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>

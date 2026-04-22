@@ -98,10 +98,10 @@ export default function WatchlistPanel() {
                 <div className="text-lg font-130 text-foreground">{item.ticker}</div>
                 {item.metadata ? (
                   <div className="mt-2 text-xs text-muted">
-                    <div><span className="font-semibold">Sector:</span> {item.metadata.sector || '-'}</div>
-                    <div><span className="font-semibold">Industry:</span> {item.metadata.industry || '-'}</div>
-                    <div><span className="font-semibold">Country:</span> {item.metadata.country || '-'}</div>
-                    <div><span className="font-semibold">Cap:</span> {getTierLabel(item.metadata.marketCapTier)}</div>
+                    <div><span className="font-150">Sector:</span> {item.metadata.sector || '-'}</div>
+                    <div><span className="font-150">Industry:</span> {item.metadata.industry || '-'}</div>
+                    <div><span className="font-150">Country:</span> {item.metadata.country || '-'}</div>
+                    <div><span className="font-150">Cap:</span> {getTierLabel(item.metadata.marketCapTier)}</div>
                   </div>
                 ) : (
                   <div className="mt-2 text-xs text-muted italic">

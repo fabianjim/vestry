@@ -74,7 +74,7 @@ export default function Login() {
 
   return (
     <div className="max-w-sm mx-auto mt-12 px-5">
-      <h2 className="text-2xl font-semibold mb-4">{isLogin ? 'Login' : 'Register'}</h2>
+      <h2 className="text-2xl font-150 mb-4">{isLogin ? 'Login' : 'Register'}</h2>
 
       <div className="mb-4 space-y-2">
         <input
