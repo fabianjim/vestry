@@ -60,11 +60,6 @@ frontend/vite-project/src/
 ### Dashboard (Price Analysis)
 - Displays total portfolio value, day's change, total holdings count
 - Portfolio performance chart (hourly + daily toggle, date navigation)
-- **Portfolio history replay**: `PortfolioService.getPortfolioHistory()` replays transactions chronologically to compute holdings at each point in time. This fixes the after-hours buy bug and restores older history.
-- **Journal markers on chart**: BUY/SELL/INSIGHT/MARKET_EVENT entries appear as circle-outline markers on the portfolio value line during trading hours (10 AM–4 PM ET). Colors: green (BUY), red (SELL), blue (INSIGHT), gray (MARKET_EVENT).
-- **Dashed trade lines**: Segments between hourly fetches and journal markers render as dashed lines, visually distinguishing market movement from capital injection/removal.
-- **Click-to-journal**: Clicking a marker scrolls to the Journal section and highlights the corresponding entry for 3 seconds.
-- Daily mode no longer has a 5-day cap — full history is visible.
 - Holdings table with ticker, shares, current price, day change, market value, last updated
 - Buy and sell stock actions
 - Chart pin layer: journal entries rendered as typed pins directly on the performance chart. Pin color reflects outcome retroactively (green/red based on price movement after entry).

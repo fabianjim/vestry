@@ -1,14 +1,11 @@
 package com.github.fabianjim.portfoliomonitor.service;
 
+// troi oi
 import com.github.fabianjim.portfoliomonitor.dto.PortfolioHistoryDTO;
 import com.github.fabianjim.portfoliomonitor.model.Holding;
-import com.github.fabianjim.portfoliomonitor.model.JournalEntry;
-import com.github.fabianjim.portfoliomonitor.model.JournalEntryType;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;
 import com.github.fabianjim.portfoliomonitor.model.Stock;
-import com.github.fabianjim.portfoliomonitor.model.Transaction;
 import com.github.fabianjim.portfoliomonitor.model.User;
-import com.github.fabianjim.portfoliomonitor.repository.JournalEntryRepository;
 import com.github.fabianjim.portfoliomonitor.repository.PortfolioRepository;
 import com.github.fabianjim.portfoliomonitor.repository.StockRepository;
 import com.github.fabianjim.portfoliomonitor.repository.TrackedStockRepository;
@@ -26,16 +23,14 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,12 +50,6 @@ public class PortfolioServiceHistoryTest {
 
     @Mock
     private StockService stockService;
-
-    @Mock
-    private TransactionService transactionService;
-
-    @Mock
-    private JournalEntryRepository journalEntryRepository;
 
     @Mock
     private SecurityContext securityContext;
@@ -90,22 +79,29 @@ public class PortfolioServiceHistoryTest {
         when(authentication.getPrincipal()).thenReturn(mockUser);
     }
 
+    // no holdings returns empty history
     @Test
     void getPortfolioHistoryEmptyPortfolio() {
+        
         when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
 
+        
         List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
 
+        
         assertTrue(result.isEmpty());
     }
 
+    // one holding, mock hourly price data and check value at each hour
     @Test
     void getPortfolioHistorySingleHolding() {
+        
         Instant now = Instant.now();
         Holding holding = new Holding("AAPL", 10.0);
         holding.setBuyTimestamp(now.minus(1, ChronoUnit.DAYS));
         mockPortfolio.getHoldings().add(holding);
 
+        // 
         List<Stock> stockHistory = List.of(
             createStock("AAPL", now.minus(2, ChronoUnit.HOURS), 150.0),
             createStock("AAPL", now.minus(1, ChronoUnit.HOURS), 155.0),
@@ -114,19 +110,21 @@ public class PortfolioServiceHistoryTest {
 
         when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockRepository.findByTickerOrderByTimestampDesc("AAPL")).thenReturn(stockHistory);
-        when(transactionService.getTransactionHistory()).thenReturn(Collections.emptyList());
-        when(journalEntryRepository.findByUserIdOrderByTimestampDesc(1)).thenReturn(Collections.emptyList());
 
+        
         List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
 
+        
         assertEquals(3, result.size());
-        assertEquals(1500.0, result.get(0).getPortfolioValue(), 0.01);
-        assertEquals(1550.0, result.get(1).getPortfolioValue(), 0.01);
-        assertEquals(1600.0, result.get(2).getPortfolioValue(), 0.01);
+        assertEquals(1500.0, result.get(0).getPortfolioValue(), 0.01); // Oldest: 150 * 10
+        assertEquals(1550.0, result.get(1).getPortfolioValue(), 0.01); // Middle: 155 * 10
+        assertEquals(1600.0, result.get(2).getPortfolioValue(), 0.01); // Newest: 160 * 10
     }
 
+    // multiple holdings, mock hourly data for each
     @Test
     void getPortfolioHistoryMultipleHoldings() {
+        
         Instant now = Instant.now();
         Holding aaplHolding = new Holding("AAPL", 10.0);
         aaplHolding.setBuyTimestamp(now.minus(1, ChronoUnit.DAYS));
@@ -152,18 +150,22 @@ public class PortfolioServiceHistoryTest {
         when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockRepository.findByTickerOrderByTimestampDesc("AAPL")).thenReturn(aaplHistory);
         when(stockRepository.findByTickerOrderByTimestampDesc("GOOGL")).thenReturn(googlHistory);
-        when(transactionService.getTransactionHistory()).thenReturn(Collections.emptyList());
-        when(journalEntryRepository.findByUserIdOrderByTimestampDesc(1)).thenReturn(Collections.emptyList());
 
+        
         List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
 
+        
         assertEquals(2, result.size());
+        // First timestamp: 150 * 10 + 200 * 5 = 2500
         assertEquals(2500.0, result.get(0).getPortfolioValue(), 0.01);
+        // Second timestamp: 155 * 10 + 205 * 5 = 1550 + 1025 = 2575
         assertEquals(2575.0, result.get(1).getPortfolioValue(), 0.01);
     }
 
+    // multiple holdings, mock hourly data but one stock misses a timestamp
     @Test
-    void getPortfolioHistoryMissingPriceDataIncludesPartial() {
+    void getPortfolioHistoryMissingPriceData() {
+        
         Instant now = Instant.now();
         Holding aaplHolding = new Holding("AAPL", 10.0);
         aaplHolding.setBuyTimestamp(now.minus(1, ChronoUnit.DAYS));
@@ -176,11 +178,13 @@ public class PortfolioServiceHistoryTest {
         Instant timestamp1 = now.minus(2, ChronoUnit.HOURS);
         Instant timestamp2 = now.minus(1, ChronoUnit.HOURS);
 
+        // AAPL has data for both timestamps
         List<Stock> aaplHistory = List.of(
             createStock("AAPL", timestamp1, 150.0),
             createStock("AAPL", timestamp2, 155.0)
         );
 
+        // GOOGL only has data for timestamp2 (missing timestamp1)
         List<Stock> googlHistory = List.of(
             createStock("GOOGL", timestamp2, 205.0)
         );
@@ -188,191 +192,66 @@ public class PortfolioServiceHistoryTest {
         when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockRepository.findByTickerOrderByTimestampDesc("AAPL")).thenReturn(aaplHistory);
         when(stockRepository.findByTickerOrderByTimestampDesc("GOOGL")).thenReturn(googlHistory);
-        when(transactionService.getTransactionHistory()).thenReturn(Collections.emptyList());
-        when(journalEntryRepository.findByUserIdOrderByTimestampDesc(1)).thenReturn(Collections.emptyList());
 
+        
         List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
 
-        // Should include both timestamps with partial data for timestamp1
-        assertEquals(2, result.size());
-        assertEquals(timestamp1, result.get(0).getTimestamp());
-        assertEquals(1500.0, result.get(0).getPortfolioValue(), 0.01); // Only AAPL: 150 * 10
-        assertEquals(timestamp2, result.get(1).getTimestamp());
-        assertEquals(2575.0, result.get(1).getPortfolioValue(), 0.01); // Both: 155 * 10 + 205 * 5
+        // should only include timestamp2 where both stocks have data
+        assertEquals(1, result.size());
+        assertEquals(timestamp2, result.get(0).getTimestamp());
+        assertEquals(2575.0, result.get(0).getPortfolioValue(), 0.01);
     }
 
-    @Test
-    void getPortfolioHistoryIncludesEODData() {
-        Instant now = Instant.now();
-        Holding holding = new Holding("AAPL", 10.0);
-        holding.setBuyTimestamp(now.minus(1, ChronoUnit.DAYS));
-        mockPortfolio.getHoldings().add(holding);
-
-        Instant eodTime = now.minus(4, ChronoUnit.HOURS);
-        List<Stock> stockHistory = List.of(
-            createStock("AAPL", now.minus(2, ChronoUnit.HOURS), 150.0, Stock.StockType.INTRADAY),
-            createStock("AAPL", eodTime, 145.0, Stock.StockType.EOD)
-        );
-
-        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
-        when(stockRepository.findByTickerOrderByTimestampDesc("AAPL")).thenReturn(stockHistory);
-        when(transactionService.getTransactionHistory()).thenReturn(Collections.emptyList());
-        when(journalEntryRepository.findByUserIdOrderByTimestampDesc(1)).thenReturn(Collections.emptyList());
-
-        List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
-
-        // Should include both INTRADAY and EOD
-        assertEquals(2, result.size());
-        assertEquals(1450.0, result.get(0).getPortfolioValue(), 0.01); // EOD: 145 * 10
-        assertEquals(1500.0, result.get(1).getPortfolioValue(), 0.01); // Intraday: 150 * 10
-    }
-
-    @Test
-    void getPortfolioHistoryWithJournalMarkersDuringTradingHours() {
-        // Create a trading hours timestamp (2 PM ET)
-        ZonedDateTime tradingTime = ZonedDateTime.of(2024, 1, 15, 14, 20, 0, 0, ZoneId.of("America/New_York"));
-        Instant tradeInstant = tradingTime.toInstant();
-        
-        Holding holding = new Holding("AAPL", 10.0);
-        holding.setBuyTimestamp(tradeInstant.minus(1, ChronoUnit.DAYS));
-        mockPortfolio.getHoldings().add(holding);
-
-        List<Stock> stockHistory = List.of(
-            createStock("AAPL", tradeInstant.minus(30, ChronoUnit.MINUTES), 150.0),
-            createStock("AAPL", tradeInstant.plus(30, ChronoUnit.MINUTES), 155.0)
-        );
-
-        Transaction initialTransaction = new Transaction("AAPL", 10.0, 150.0, Transaction.TransactionType.BUY);
-        initialTransaction.setTimestamp(tradeInstant.minus(1, ChronoUnit.DAYS));
-        initialTransaction.setTotalValue(1500.0);
-
-        Transaction buyTransaction = new Transaction("AAPL", 5.0, 150.0, Transaction.TransactionType.BUY);
-        buyTransaction.setTimestamp(tradeInstant);
-        buyTransaction.setTotalValue(750.0);
-
-        JournalEntry journalEntry = new JournalEntry();
-        journalEntry.setId(42);
-        journalEntry.setEntryType(JournalEntryType.BUY);
-        journalEntry.setTicker("AAPL");
-        journalEntry.setTimestamp(tradeInstant);
-
-        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
-        when(stockRepository.findByTickerOrderByTimestampDesc("AAPL")).thenReturn(stockHistory);
-        when(transactionService.getTransactionHistory()).thenReturn(List.of(initialTransaction, buyTransaction));
-        when(journalEntryRepository.findByUserIdOrderByTimestampDesc(1)).thenReturn(List.of(journalEntry));
-
-        List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
-
-        // Should have 3 points: 2 history + 1 marker
-        assertEquals(3, result.size());
-        
-        // Find the marker
-        PortfolioHistoryDTO marker = result.stream()
-            .filter(PortfolioHistoryDTO::isMarker)
-            .findFirst()
-            .orElse(null);
-        
-        assertNotNull(marker);
-        assertEquals("BUY", marker.getMarkerType());
-        assertEquals(42, marker.getJournalEntryId());
-        // Portfolio was 1500 before, add 750 for buy = 2250
-        assertEquals(2250.0, marker.getPortfolioValue(), 0.01);
-    }
-
-    @Test
-    void getPortfolioHistoryAfterHoursBuyDoesNotBreakGraph() {
-        // Create after-hours timestamp (6 PM ET)
-        ZonedDateTime afterHours = ZonedDateTime.of(2024, 1, 15, 18, 0, 0, 0, ZoneId.of("America/New_York"));
-        Instant afterHoursInstant = afterHours.toInstant();
-        
-        Holding aaplHolding = new Holding("AAPL", 10.0);
-        aaplHolding.setBuyTimestamp(afterHoursInstant.minus(1, ChronoUnit.DAYS));
-        // New holding bought after hours
-        Holding msftHolding = new Holding("MSFT", 5.0);
-        msftHolding.setBuyTimestamp(afterHoursInstant);
-        
-        mockPortfolio.getHoldings().add(aaplHolding);
-        mockPortfolio.getHoldings().add(msftHolding);
-
-        // AAPL has data but MSFT has none (bought after hours, no fetch yet)
-        List<Stock> aaplHistory = List.of(
-            createStock("AAPL", afterHoursInstant.minus(2, ChronoUnit.HOURS), 150.0),
-            createStock("AAPL", afterHoursInstant.minus(1, ChronoUnit.HOURS), 155.0)
-        );
-
-        Transaction buyTransaction = new Transaction("MSFT", 5.0, 200.0, Transaction.TransactionType.BUY);
-        buyTransaction.setTimestamp(afterHoursInstant);
-        buyTransaction.setTotalValue(1000.0);
-
-        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
-        when(stockRepository.findByTickerOrderByTimestampDesc("AAPL")).thenReturn(aaplHistory);
-        when(stockRepository.findByTickerOrderByTimestampDesc("MSFT")).thenReturn(Collections.emptyList());
-        when(transactionService.getTransactionHistory()).thenReturn(List.of(buyTransaction));
-        when(journalEntryRepository.findByUserIdOrderByTimestampDesc(1)).thenReturn(Collections.emptyList());
-
-        List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
-
-        // Should still return history for AAPL, MSFT should not break it
-        assertEquals(2, result.size());
-        assertEquals(1500.0, result.get(0).getPortfolioValue(), 0.01); // 150 * 10
-        assertEquals(1550.0, result.get(1).getPortfolioValue(), 0.01); // 155 * 10
-    }
-
+    // filter history to only include data from buy timestamp onward
     @Test
     void getPortfolioHistoryFiltersByBuyTimestamp() {
+        
         Instant now = Instant.now();
         Holding holding = new Holding("AAPL", 10.0);
-        holding.setBuyTimestamp(now.minus(3, ChronoUnit.HOURS));
+        holding.setBuyTimestamp(now.minus(3, ChronoUnit.HOURS)); // Bought 3 hours ago
         mockPortfolio.getHoldings().add(holding);
 
         List<Stock> stockHistory = List.of(
+
+            // before buy time
             createStock("AAPL", now.minus(5, ChronoUnit.HOURS), 140.0),
-            createStock("AAPL", now.minus(4, ChronoUnit.HOURS), 145.0),
-            createStock("AAPL", now.minus(2, ChronoUnit.HOURS), 150.0),
+            createStock("AAPL", now.minus(4, ChronoUnit.HOURS), 145.0), 
+            
+            // after buy, these are included
+            createStock("AAPL", now.minus(2, ChronoUnit.HOURS), 150.0), 
             createStock("AAPL", now, 160.0)
         );
 
-        Transaction buyTransaction = new Transaction("AAPL", 10.0, 150.0, Transaction.TransactionType.BUY);
-        buyTransaction.setTimestamp(now.minus(3, ChronoUnit.HOURS));
-        buyTransaction.setTotalValue(1500.0);
-
         when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockRepository.findByTickerOrderByTimestampDesc("AAPL")).thenReturn(stockHistory);
-        when(transactionService.getTransactionHistory()).thenReturn(List.of(buyTransaction));
-        when(journalEntryRepository.findByUserIdOrderByTimestampDesc(1)).thenReturn(Collections.emptyList());
 
+        
         List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
 
-        // Should include all 4 points since AAPL existed before the buy (it's the same ticker)
-        // Actually with transaction replay, the holding didn't exist before buy time
+        // check scale vals on ui if fails
         assertEquals(2, result.size());
-        assertEquals(1500.0, result.get(0).getPortfolioValue(), 0.01);
-        assertEquals(1600.0, result.get(1).getPortfolioValue(), 0.01);
+        assertEquals(1500.0, result.get(0).getPortfolioValue(), 0.01); // 150 * 10
+        assertEquals(1600.0, result.get(1).getPortfolioValue(), 0.01); // 160 * 10
     }
 
     @Test
     void getPortfolioHistoryNoPortfolioReturnsEmptyList() {
         when(portfolioRepository.findByUserId(1)).thenReturn(Optional.empty());
-
         List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
         assertTrue(result.isEmpty());
     }
 
     private Stock createStock(String ticker, Instant timestamp, double price) {
-        return createStock(ticker, timestamp, price, Stock.StockType.INTRADAY);
-    }
-
-    private Stock createStock(String ticker, Instant timestamp, double price, Stock.StockType type) {
         Stock stock = new Stock();
         stock.setTicker(ticker);
         stock.setTimestamp(timestamp);
-        stock.setHourBucket(timestamp);
+        stock.setHourBucket(timestamp); // For test data, hour bucket matches timestamp
         stock.setCurrentPrice(price);
         stock.setOpen(price);
         stock.setPrevClose(price);
         stock.setHigh(price);
         stock.setLow(price);
-        stock.setType(type);
+        stock.setType(Stock.StockType.INTRADAY);
         return stock;
     }
 }
