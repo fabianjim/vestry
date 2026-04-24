@@ -1,15 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { JournalEntry, JournalEntryType } from '../types/journal'
 import { journalApi } from '../services/api'
 import { formatDateTime } from '../utils/dateUtils'
 
-export default function JournalPanel() {
+interface JournalPanelProps {
+  highlightedEntryId?: number | null
+}
+
+export default function JournalPanel({ highlightedEntryId }: JournalPanelProps) {
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [entryType, setEntryType] = useState<JournalEntryType>('INSIGHT')
   const [body, setBody] = useState('')
   const [ticker, setTicker] = useState('')
+  const [activeHighlight, setActiveHighlight] = useState<number | null>(null)
+  const entryRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
   const fetchEntries = async () => {
     setLoading(true)
@@ -28,6 +34,28 @@ export default function JournalPanel() {
   useEffect(() => {
     fetchEntries()
   }, [])
+
+  // Handle external highlight prop
+  useEffect(() => {
+    if (highlightedEntryId != null) {
+      setActiveHighlight(highlightedEntryId)
+      
+      // Scroll to the highlighted entry
+      setTimeout(() => {
+        const element = entryRefs.current[highlightedEntryId]
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 100)
+
+      // Clear highlight after 3 seconds
+      const timer = setTimeout(() => {
+        setActiveHighlight(null)
+      }, 3000)
+
+      return () => clearTimeout(timer)
+    }
+  }, [highlightedEntryId])
 
   const handleSubmit = async () => {
     if (!body.trim()) {
@@ -132,7 +160,12 @@ export default function JournalPanel() {
           {entries.map((entry) => (
             <div
               key={entry.id}
-              className={`p-3 bg-surface-hover rounded-md border border-border ${getTypeBg(entry.entryType)}`}
+              ref={(el) => { entryRefs.current[entry.id] = el }}
+              className={`p-3 rounded-md border transition-colors ${
+                activeHighlight === entry.id
+                  ? 'bg-primary/10 border-2 border-primary'
+                  : `bg-surface-hover border-border ${getTypeBg(entry.entryType)}`
+              }`}
             >
               <div className="flex justify-between items-start mb-1">
                 <div className="flex items-center gap-2">

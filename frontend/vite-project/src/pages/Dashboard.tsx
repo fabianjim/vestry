@@ -53,6 +53,8 @@ export default function Dashboard() {
   const [showJournalPrompt, setShowJournalPrompt] = useState(false)
   const [journalPromptTicker, setJournalPromptTicker] = useState('')
   const [journalPromptTradeType, setJournalPromptTradeType] = useState<'BUY' | 'SELL'>('BUY')
+  const [highlightedJournalEntryId, setHighlightedJournalEntryId] = useState<number | null>(null)
+  const journalPanelRef = useRef<HTMLDivElement>(null)
   const hasFetched = useRef(false)
   
   useEffect(() => {
@@ -266,6 +268,14 @@ export default function Dashboard() {
     return totalChange
   }
 
+  const handleMarkerClick = (journalEntryId: number) => {
+    setHighlightedJournalEntryId(journalEntryId)
+    // Scroll to journal section
+    if (journalPanelRef.current) {
+      journalPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
   useEffect(() => {
     if (!hasFetched.current) {
       hasFetched.current = true
@@ -334,7 +344,7 @@ export default function Dashboard() {
       {/* Portfolio History Chart */}
       <div className="mb-8">
         <h3 className="text-xl font-150 mb-4">Portfolio Performance</h3>
-        <PortfolioChart />
+        <PortfolioChart onMarkerClick={handleMarkerClick} />
       </div>
 
       {/* Holdings Table */}
@@ -430,7 +440,9 @@ export default function Dashboard() {
       {/* Journal Section */}
       <div className="mb-8">
         <h3 className="text-xl font-150 mt-4 mb-4">Journal</h3>
-        <JournalPanel />
+        <div ref={journalPanelRef}>
+          <JournalPanel highlightedEntryId={highlightedJournalEntryId} />
+        </div>
       </div>
 
       {/* Trending Stocks Section */}
