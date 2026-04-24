@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import {
-  LineChart,
+  ComposedChart,
   Line,
+  Scatter,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -13,15 +14,58 @@ import { portfolioApi } from '../services/api'
 interface HistoryData {
   timestamp: string
   portfolioValue: number
+  isMarker?: boolean
+  markerType?: string
+  journalEntryId?: number
 }
 
 interface ChartDataPoint {
   time: string
   value: number
   fullTimestamp: string
+  isMarker?: boolean
+  markerType?: string
+  journalEntryId?: number
 }
 
-export default function PortfolioChart() {
+interface ScatterShapeProps {
+  cx?: number
+  cy?: number
+  payload?: ChartDataPoint
+}
+
+const MARKER_COLORS: Record<string, string> = {
+  BUY: '#10b981',
+  SELL: '#ef4444',
+  INSIGHT: '#5e9ed6',
+  MARKET_EVENT: '#6b7280',
+}
+
+function CircleMarker(props: ScatterShapeProps) {
+  const { cx, cy, payload } = props
+  if (cx == null || cy == null || !payload?.isMarker) return null
+
+  const color = MARKER_COLORS[payload.markerType || ''] || '#6b7280'
+  const size = 12
+  const half = size / 2
+
+  return (
+    <g transform={`translate(${cx},${cy})`} style={{ cursor: 'pointer' }}>
+      <circle
+        r={half}
+        fill="none"
+        stroke={color}
+        strokeWidth={2.5}
+      />
+    </g>
+  )
+}
+
+interface PortfolioChartProps {
+  onMarkerClick?: (journalEntryId: number) => void
+}
+
+export default function PortfolioChart({ onMarkerClick }: PortfolioChartProps) {
   const [data, setData] = useState<HistoryData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -73,36 +117,65 @@ export default function PortfolioChart() {
           }),
           value: item.portfolioValue,
           fullTimestamp: item.timestamp,
+          isMarker: item.isMarker,
+          markerType: item.markerType,
+          journalEntryId: item.journalEntryId,
         }))
     } else {
-      // Show daily aggregation for last 5 trading days
-      // TODO: Only trading days
-      const dailyData: { [key: string]: HistoryData } = {}
+      // Show daily aggregation
+      const dailyData: { [key: string]: ChartDataPoint } = {}
 
       data.forEach((item) => {
         const date = new Date(item.timestamp)
         const dateKey = date.toDateString()
 
-        // Keep the latest value for each day
-        if (!dailyData[dateKey] || new Date(item.timestamp) > new Date(dailyData[dateKey].timestamp)) {
-          dailyData[dateKey] = item
+        // For daily mode, keep markers and the latest value for each day
+        const existing = dailyData[dateKey]
+        if (!existing || new Date(item.timestamp) > new Date(existing.fullTimestamp)) {
+          dailyData[dateKey] = {
+            time: date.toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+            }),
+            value: item.portfolioValue,
+            fullTimestamp: item.timestamp,
+            isMarker: item.isMarker,
+            markerType: item.markerType,
+            journalEntryId: item.journalEntryId,
+          }
         }
       })
 
       return Object.values(dailyData)
-        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-        .slice(-5) // Last 5 days
-        .map((item) => ({
-          time: new Date(item.timestamp).toLocaleDateString('en-US', {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-          }),
-          value: item.portfolioValue,
-          fullTimestamp: item.timestamp,
-        }))
+        .sort((a, b) => new Date(a.fullTimestamp).getTime() - new Date(b.fullTimestamp).getTime())
     }
   }, [data, viewMode, currentDate])
+
+  // Separate markers from regular data points
+  const { markerData, dashedSegments } = useMemo(() => {
+    const markers: ChartDataPoint[] = []
+    const lines: ChartDataPoint[] = []
+    const segments: ChartDataPoint[][] = []
+
+    processedData.forEach((point, index) => {
+      if (point.isMarker) {
+        markers.push(point)
+      } else {
+        lines.push(point)
+      }
+
+      // Check if this point and the next form a dashed segment
+      if (index < processedData.length - 1) {
+        const next = processedData[index + 1]
+        if (point.isMarker || next.isMarker) {
+          segments.push([point, next])
+        }
+      }
+    })
+
+    return { lineData: lines, markerData: markers, dashedSegments: segments }
+  }, [processedData])
 
   // Calculate trend for color
   const isPositiveTrend = useMemo(() => {
@@ -215,7 +288,7 @@ export default function PortfolioChart() {
           <span className="text-sm text-muted min-w-[100px] text-center">
             {viewMode === 'hourly'
               ? currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-              : 'Last 5 Days'
+              : 'Daily View'
             }
           </span>
           
@@ -233,7 +306,7 @@ export default function PortfolioChart() {
       {processedData.length > 0 ? (
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={processedData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+            <ComposedChart data={processedData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
               <XAxis 
                 dataKey="time" 
@@ -250,7 +323,13 @@ export default function PortfolioChart() {
                 tickCount={3}
               />
               <Tooltip 
-                formatter={(value: number) => [formatCurrency(value), 'Portfolio Value']}
+                formatter={(value: number, _name: string, props: any) => {
+                  const point = props?.payload as ChartDataPoint
+                  if (point?.isMarker) {
+                    return [formatCurrency(value), `${point.markerType} — Portfolio Value`]
+                  }
+                  return [formatCurrency(value), 'Portfolio Value']
+                }}
                 labelFormatter={(label) => viewMode === 'hourly' ? `Time: ${label}` : `Date: ${label}`}
                 contentStyle={{
                   backgroundColor: '#32393d',
@@ -259,17 +338,55 @@ export default function PortfolioChart() {
                   color: '#bdbdbd',
                 }}
               />
+              
+              {/* Solid line for all data points */}
               <Line
                 type="monotone"
                 dataKey="value"
                 stroke={lineColor}
                 strokeWidth={2}
-                dot={{ fill: lineColor, strokeWidth: 2, r: 4 }}
-                activeDot={{ r: 6, strokeWidth: 0 }}
+                dot={false}
+                activeDot={{ r: 5, strokeWidth: 0 }}
                 isAnimationActive={!hasAnimatedRef.current}
                 animationDuration={1000}
+                connectNulls
               />
-            </LineChart>
+              
+              {/* Dashed segments for marker-involved transitions */}
+              {dashedSegments.map((segment, index) => (
+                <Line
+                  key={`dashed-${index}`}
+                  type="monotone"
+                  data={segment}
+                  dataKey="value"
+                  stroke={lineColor}
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                  dot={false}
+                  activeDot={false}
+                  isAnimationActive={false}
+                  connectNulls={false}
+                />
+              ))}
+              
+              {/* Marker scatter points */}
+              <Scatter
+                data={markerData}
+                dataKey="value"
+                shape={(props: ScatterShapeProps) => (
+                  <g
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => {
+                      if (props.payload?.journalEntryId && onMarkerClick) {
+                        onMarkerClick(props.payload.journalEntryId)
+                      }
+                    }}
+                  >
+                    <CircleMarker {...props} />
+                  </g>
+                )}
+              />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       ) : (
