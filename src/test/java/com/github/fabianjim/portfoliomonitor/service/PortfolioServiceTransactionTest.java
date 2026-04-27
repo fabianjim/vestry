@@ -87,7 +87,8 @@ public class PortfolioServiceTransactionTest {
         double currentPrice = 150.0;
 
         when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
-        when(stockService.getLatestStockData(ticker)).thenReturn(Optional.of(createStock(ticker, currentPrice)));
+        when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
+            .thenReturn(createStock(ticker, currentPrice));
         when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
         when(transactionService.recordBuyTransaction(eq(ticker), eq(shares), eq(currentPrice)))
             .thenReturn(createTransaction(ticker, shares, currentPrice, TransactionType.BUY));
@@ -96,6 +97,7 @@ public class PortfolioServiceTransactionTest {
         portfolioService.addHolding(ticker, shares);
 
         // Then
+        verify(stockService).updateStockData(ticker, Stock.StockType.INITIAL);
         verify(transactionService).recordBuyTransaction(ticker, shares, currentPrice);
     }
 
@@ -110,7 +112,8 @@ public class PortfolioServiceTransactionTest {
         mockPortfolio.getHoldings().add(holding);
 
         when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
-        when(stockService.getLatestStockData(ticker)).thenReturn(Optional.of(createStock(ticker, currentPrice)));
+        when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
+            .thenReturn(createStock(ticker, currentPrice));
         when(transactionService.recordSellTransaction(eq(ticker), eq(shares), eq(currentPrice)))
             .thenReturn(createTransaction(ticker, shares, currentPrice, TransactionType.SELL));
 
@@ -118,7 +121,35 @@ public class PortfolioServiceTransactionTest {
         portfolioService.removeHolding(ticker);
 
         // Then
+        verify(stockService).updateStockData(ticker, Stock.StockType.INITIAL);
         verify(transactionService).recordSellTransaction(ticker, shares, currentPrice);
+    }
+
+    @Test
+    void sellHoldingRecordsSellTransactionWithLivePrice() {
+        // Given
+        String ticker = "MSFT";
+        double sharesOwned = 10.0;
+        double sharesToSell = 3.0;
+        double currentPrice = 250.0;
+
+        Holding holding = new Holding(ticker, sharesOwned);
+        mockPortfolio.getHoldings().add(holding);
+
+        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
+        when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
+            .thenReturn(createStock(ticker, currentPrice));
+        when(transactionService.recordSellTransaction(eq(ticker), eq(sharesToSell), eq(currentPrice)))
+            .thenReturn(createTransaction(ticker, sharesToSell, currentPrice, TransactionType.SELL));
+
+        // When
+        portfolioService.sellHolding(ticker, sharesToSell);
+
+        // Then
+        verify(stockService).updateStockData(ticker, Stock.StockType.INITIAL);
+        verify(transactionService).recordSellTransaction(ticker, sharesToSell, currentPrice);
+        assertEquals(sharesOwned - sharesToSell, holding.getShares());
     }
 
     private Stock createStock(String ticker, double price) {

@@ -124,21 +124,19 @@ public class PortfolioService {
             throw new RuntimeException("No portfolio found for current user");
         }
 
-        // Get current price for transaction
-        double currentPrice = stockService.getLatestStockData(ticker)
-            .map(Stock::getCurrentPrice)
-            .orElse(0.0);
-
         Holding newHolding = new Holding(ticker, shares);
         portfolio.getHoldings().add(newHolding);
         portfolioRepository.save(portfolio);
 
-        // Start tracking and fetch initial data
+        // Start tracking and fetch live price data
         startTrackingStock(ticker);
-        stockService.updateStockData(ticker, Stock.StockType.INITIAL);
+        Stock stock = stockService.updateStockData(ticker, Stock.StockType.INITIAL);
 
-        // Record buy transaction
-        transactionService.recordBuyTransaction(ticker, shares, currentPrice);
+        // Record buy transaction with live price
+        double currentPrice = (stock != null) ? stock.getCurrentPrice() : 0.0;
+        if (currentPrice > 0.0) {
+            transactionService.recordBuyTransaction(ticker, shares, currentPrice);
+        }
     }
 
     /**
@@ -150,16 +148,16 @@ public class PortfolioService {
             throw new RuntimeException("No portfolio found for current user");
         }
 
-        // Get shares and current price for transaction before removing
+        // Get shares for transaction before removing
         double shares = portfolio.getHoldings().stream()
             .filter(h -> h.getTicker().equals(ticker))
             .findFirst()
             .map(Holding::getShares)
             .orElse(0.0);
-        
-        double currentPrice = stockService.getLatestStockData(ticker)
-            .map(Stock::getCurrentPrice)
-            .orElse(0.0);
+
+        // Fetch live price data before recording transaction
+        Stock stock = stockService.updateStockData(ticker, Stock.StockType.INITIAL);
+        double currentPrice = (stock != null) ? stock.getCurrentPrice() : 0.0;
 
         portfolio.getHoldings().removeIf(h -> h.getTicker().equals(ticker));
         portfolioRepository.save(portfolio);
@@ -167,8 +165,8 @@ public class PortfolioService {
         // Stop tracking this stock
         stopTrackingStock(ticker);
 
-        // Record sell transaction
-        if (shares > 0) {
+        // Record sell transaction with live price
+        if (shares > 0 && currentPrice > 0.0) {
             transactionService.recordSellTransaction(ticker, shares, currentPrice);
         }
     }
@@ -191,12 +189,14 @@ public class PortfolioService {
             throw new RuntimeException("Cannot sell more shares than owned");
         }
 
-        double currentPrice = stockService.getLatestStockData(ticker)
-            .map(Stock::getCurrentPrice)
-            .orElse(0.0);
+        // Fetch live price data before recording transaction
+        Stock stock = stockService.updateStockData(ticker, Stock.StockType.INITIAL);
+        double currentPrice = (stock != null) ? stock.getCurrentPrice() : 0.0;
 
-        // Record sell transaction
-        transactionService.recordSellTransaction(ticker, sharesToSell, currentPrice);
+        // Record sell transaction with live price
+        if (currentPrice > 0.0) {
+            transactionService.recordSellTransaction(ticker, sharesToSell, currentPrice);
+        }
 
         // Update or remove holding
         if (sharesToSell == holding.getShares()) {
