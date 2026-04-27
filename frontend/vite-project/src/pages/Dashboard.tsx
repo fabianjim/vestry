@@ -92,13 +92,6 @@ export default function Dashboard() {
     setError('')
     setLoading(true)
     try {
-      // fetch stock data
-      const fetchRes = await fetch('/api/stock/fetch/initial', {
-        method: 'GET',
-        credentials: 'include',
-      })
-      if (!fetchRes.ok) throw new Error('Failed to fetch stock data')
-      
       // fetch holding data
       const getRes = await fetch('/api/portfolio/holdings', {
         method: 'GET',
