@@ -1,6 +1,5 @@
 package com.github.fabianjim.portfoliomonitor.service;
 
-import com.github.fabianjim.portfoliomonitor.dto.TradeEventDTO;
 import com.github.fabianjim.portfoliomonitor.model.Transaction;
 import com.github.fabianjim.portfoliomonitor.model.Transaction.TransactionType;
 import com.github.fabianjim.portfoliomonitor.model.User;
@@ -11,9 +10,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -72,21 +69,5 @@ public class TransactionService {
      */
     public List<Transaction> getTransactionHistoryForTicker(String ticker) {
         return transactionRepository.findByUserIdAndTicker(getCurrentUserId(), ticker);
-    }
-
-    /**
-     * Get trade events (BUY/SELL transactions) for the current user within a date range.
-     */
-    public List<TradeEventDTO> getTransactionsForDay(Instant start, Instant end) {
-        List<Transaction> transactions = transactionRepository.findByUserIdAndTimestampBetween(
-            getCurrentUserId(), start, end
-        );
-        return transactions.stream()
-            .map(t -> new TradeEventDTO(
-                t.getType().name(),
-                t.getTimestamp(),
-                t.getTotalValue()
-            ))
-            .collect(Collectors.toList());
     }
 }
