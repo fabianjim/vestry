@@ -159,6 +159,33 @@ public class PortfolioServiceTransactionTest {
         return stock;
     }
 
+    @Test
+    void addHoldingToExistingTickerAggregatesShares() {
+        // Given
+        String ticker = "AAPL";
+        double initialShares = 10.0;
+        double additionalShares = 5.0;
+        double currentPrice = 150.0;
+
+        Holding existingHolding = new Holding(ticker, initialShares);
+        mockPortfolio.getHoldings().add(existingHolding);
+
+        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
+            .thenReturn(createStock(ticker, currentPrice));
+        when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
+        when(transactionService.recordBuyTransaction(eq(ticker), eq(additionalShares), eq(currentPrice)))
+            .thenReturn(createTransaction(ticker, additionalShares, currentPrice, TransactionType.BUY));
+
+        // When
+        portfolioService.addHolding(ticker, additionalShares);
+
+        // Then
+        assertEquals(1, mockPortfolio.getHoldings().size());
+        assertEquals(initialShares + additionalShares, mockPortfolio.getHoldings().get(0).getShares());
+        verify(transactionService).recordBuyTransaction(ticker, additionalShares, currentPrice);
+    }
+
     private Transaction createTransaction(String ticker, double shares, double price, TransactionType type) {
         Transaction transaction = new Transaction(ticker, shares, price, type);
         transaction.setId(1);

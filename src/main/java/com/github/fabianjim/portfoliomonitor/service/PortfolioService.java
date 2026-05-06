@@ -65,6 +65,21 @@ public class PortfolioService {
         portfolio.setUser(user);
 
         if (portfolio != null && portfolio.getHoldings() != null) {
+            // Aggregate any duplicate tickers in initial holdings
+            List<Holding> aggregatedHoldings = new ArrayList<>();
+            Map<String, Holding> holdingsByTicker = new HashMap<>();
+            for (Holding holding : portfolio.getHoldings()) {
+                Holding existing = holdingsByTicker.get(holding.getTicker());
+                if (existing != null) {
+                    existing.setShares(existing.getShares() + holding.getShares());
+                } else {
+                    Holding newHolding = new Holding(holding.getTicker(), holding.getShares());
+                    holdingsByTicker.put(holding.getTicker(), newHolding);
+                    aggregatedHoldings.add(newHolding);
+                }
+            }
+            portfolio.setHoldings(aggregatedHoldings);
+
             portfolioRepository.save(portfolio);
 
             // Track all tickers in the new portfolio and record buy transactions
@@ -117,6 +132,7 @@ public class PortfolioService {
 
     /**
      * Add a holding to the current user's portfolio.
+     * If the ticker already exists, aggregates shares into the existing holding.
      */
     public void addHolding(String ticker, double shares) {
         Portfolio portfolio = getPortfolio();
@@ -124,8 +140,18 @@ public class PortfolioService {
             throw new RuntimeException("No portfolio found for current user");
         }
 
-        Holding newHolding = new Holding(ticker, shares);
-        portfolio.getHoldings().add(newHolding);
+        Holding existingHolding = portfolio.getHoldings().stream()
+            .filter(h -> h.getTicker().equals(ticker))
+            .findFirst()
+            .orElse(null);
+
+        if (existingHolding != null) {
+            existingHolding.setShares(existingHolding.getShares() + shares);
+        } else {
+            Holding newHolding = new Holding(ticker, shares);
+            portfolio.getHoldings().add(newHolding);
+        }
+
         portfolioRepository.save(portfolio);
 
         // Start tracking and fetch live price data
@@ -148,25 +174,29 @@ public class PortfolioService {
             throw new RuntimeException("No portfolio found for current user");
         }
 
-        // Get shares for transaction before removing
-        double shares = portfolio.getHoldings().stream()
+        Holding holding = portfolio.getHoldings().stream()
             .filter(h -> h.getTicker().equals(ticker))
             .findFirst()
-            .map(Holding::getShares)
-            .orElse(0.0);
+            .orElse(null);
+
+        if (holding == null) {
+            return;
+        }
+
+        double shares = holding.getShares();
 
         // Fetch live price data before recording transaction
         Stock stock = stockService.updateStockData(ticker, Stock.StockType.INITIAL);
         double currentPrice = (stock != null) ? stock.getCurrentPrice() : 0.0;
 
-        portfolio.getHoldings().removeIf(h -> h.getTicker().equals(ticker));
+        portfolio.getHoldings().remove(holding);
         portfolioRepository.save(portfolio);
 
         // Stop tracking this stock
         stopTrackingStock(ticker);
 
         // Record sell transaction with live price
-        if (shares > 0 && currentPrice > 0.0) {
+        if (currentPrice > 0.0) {
             transactionService.recordSellTransaction(ticker, shares, currentPrice);
         }
     }
@@ -201,7 +231,7 @@ public class PortfolioService {
         // Update or remove holding
         if (sharesToSell == holding.getShares()) {
             // Selling all shares - remove the holding
-            portfolio.getHoldings().removeIf(h -> h.getTicker().equals(ticker));
+            portfolio.getHoldings().remove(holding);
             stopTrackingStock(ticker);
         } else {
             // Partial sell - update shares
