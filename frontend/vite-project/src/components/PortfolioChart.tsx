@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
   Customized,
 } from 'recharts'
+import { useXAxis, useYAxis } from 'recharts/es6/hooks'
 import { portfolioApi, journalApi } from '../services/api'
 import type { JournalEntry } from '../types/journal'
 import type { Transaction } from '../types/transaction'
@@ -41,24 +42,18 @@ function isTradingHours(timestamp: string | number | Date): boolean {
 }
 
 function TransactionOverlay({
-  chartProps,
   data,
   lineColor,
   onPinClick,
 }: {
-  chartProps: any
   data: ChartDataPoint[]
   lineColor: string
   onPinClick?: (journalEntryId: number) => void
 }) {
-  const { xAxisMap, yAxisMap, offset } = chartProps
-  if (!xAxisMap || !yAxisMap || !offset) return null
+  const xAxis = useXAxis(0)
+  const yAxis = useYAxis(0)
 
-  const xAxis = Object.values(xAxisMap)[0] as any
-  const yAxis = Object.values(yAxisMap)[0] as any
   if (!xAxis || !yAxis) return null
-
-  const { x, y } = offset
 
   return (
     <g>
@@ -66,13 +61,13 @@ function TransactionOverlay({
         if (!point.isTransaction || index === 0) return null
 
         const prevPoint = data[index - 1]
-        const x1 = xAxis.scale(prevPoint.timestamp) + x
-        const y1 = yAxis.scale(prevPoint.value) + y
-        const x2 = xAxis.scale(point.timestamp) + x
-        const y2 = yAxis.scale(point.value) + y
+        const x1 = xAxis.scale(prevPoint.timestamp)
+        const y1 = yAxis.scale(prevPoint.value)
+        const x2 = xAxis.scale(point.timestamp)
+        const y2 = yAxis.scale(point.value)
 
-        const cx = xAxis.scale(point.timestamp) + x
-        const cy = yAxis.scale(point.value) + y
+        const cx = xAxis.scale(point.timestamp)
+        const cy = yAxis.scale(point.value)
 
         const circleColor = point.transactionType === 'BUY' ? '#10b981' : '#ef4444'
 
@@ -436,9 +431,9 @@ export default function PortfolioChart({ onPinClick }: Props) {
                 dataKey="value"
                 stroke={lineColor}
                 strokeWidth={2}
-                dot={(props: any) => {
+                dot={(props: { cx?: number; cy?: number; payload?: { isTransaction?: boolean } }) => {
                   const { cx, cy, payload } = props
-                  if (payload.isTransaction) return <g />
+                  if (payload?.isTransaction) return <g />
                   return <circle cx={cx} cy={cy} r={4} fill={lineColor} strokeWidth={0} />
                 }}
                 activeDot={{ r: 6, strokeWidth: 0 }}
@@ -446,9 +441,8 @@ export default function PortfolioChart({ onPinClick }: Props) {
                 animationDuration={1000}
               />
               <Customized
-                component={(props: any) => (
+                component={() => (
                   <TransactionOverlay
-                    chartProps={props}
                     data={processedData}
                     lineColor={lineColor}
                     onPinClick={onPinClick}
