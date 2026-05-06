@@ -5,6 +5,7 @@ import PortfolioChart from '../components/PortfolioChart'
 import TransactionHistory from '../components/TransactionHistory'
 import JournalPrompt from '../components/JournalPrompt'
 import JournalPanel from '../components/JournalPanel'
+import type { JournalPanelHandle } from '../components/JournalPanel'
 import WatchlistPanel from '../components/WatchlistPanel'
 import { journalApi } from '../services/api'
 
@@ -54,6 +55,7 @@ export default function Dashboard() {
   const [journalPromptTicker, setJournalPromptTicker] = useState('')
   const [journalPromptTradeType, setJournalPromptTradeType] = useState<'BUY' | 'SELL'>('BUY')
   const hasFetched = useRef(false)
+  const journalPanelRef = useRef<JournalPanelHandle>(null)
   
   useEffect(() => {
     document.title = 'Dashboard'
@@ -327,7 +329,9 @@ export default function Dashboard() {
       {/* Portfolio History Chart */}
       <div className="mb-8">
         <h3 className="text-xl font-150 mb-4">Portfolio Performance</h3>
-        <PortfolioChart />
+        <PortfolioChart
+          onPinClick={(id) => journalPanelRef.current?.scrollToEntry(id)}
+        />
       </div>
 
       {/* Holdings Table */}
@@ -423,7 +427,7 @@ export default function Dashboard() {
       {/* Journal Section */}
       <div className="mb-8">
         <h3 className="text-xl font-150 mt-4 mb-4">Journal</h3>
-        <JournalPanel />
+        <JournalPanel ref={journalPanelRef} />
       </div>
 
       {/* Trending Stocks Section */}

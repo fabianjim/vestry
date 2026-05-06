@@ -59,6 +59,9 @@ export const portfolioApi = {
 
   getPortfolioHistory: () =>
     apiClient('/portfolio/history'),
+
+  getTransactions: () =>
+    apiClient('/portfolio/transactions'),
 }
 
 // Stock API

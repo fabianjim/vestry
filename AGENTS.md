@@ -85,8 +85,6 @@ frontend/vite-project/src/
 ### Journal Entry System
 - A journal entry has: type (`BUY`, `SELL`, `INSIGHT`, `MARKET_EVENT`), body text, optional ticker, timestamp, and snapshotted price at time of writing
 - Created automatically (prompted after buy/sell — non-blocking, skippable) or manually
-- Surfaces in two places: as pins on the price chart (Price Analysis) and in the node detail panel (Holding Analysis)
-- The underlying data model is one unified journal entry object — not two separate systems
 
 ---
 

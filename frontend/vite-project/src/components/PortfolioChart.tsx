@@ -7,8 +7,11 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Customized,
 } from 'recharts'
-import { portfolioApi } from '../services/api'
+import { portfolioApi, journalApi } from '../services/api'
+import type { JournalEntry } from '../types/journal'
+import type { Transaction } from '../types/transaction'
 
 interface HistoryData {
   timestamp: string
@@ -16,13 +19,99 @@ interface HistoryData {
 }
 
 interface ChartDataPoint {
+  timestamp: number
   time: string
   value: number
   fullTimestamp: string
+  isTransaction?: boolean
+  transactionType?: 'BUY' | 'SELL'
+  journalEntryId?: number
 }
 
-export default function PortfolioChart() {
+interface Props {
+  onPinClick?: (journalEntryId: number) => void
+}
+
+function isTradingHours(timestamp: string | number | Date): boolean {
+  const date = new Date(timestamp)
+  const hour = date.getHours()
+  const minute = date.getMinutes()
+  const timeValue = hour + minute / 60
+  return timeValue >= 10 && timeValue <= 16
+}
+
+function TransactionOverlay({
+  chartProps,
+  data,
+  lineColor,
+  onPinClick,
+}: {
+  chartProps: any
+  data: ChartDataPoint[]
+  lineColor: string
+  onPinClick?: (journalEntryId: number) => void
+}) {
+  const { xAxisMap, yAxisMap, offset } = chartProps
+  if (!xAxisMap || !yAxisMap || !offset) return null
+
+  const xAxis = Object.values(xAxisMap)[0] as any
+  const yAxis = Object.values(yAxisMap)[0] as any
+  if (!xAxis || !yAxis) return null
+
+  const { x, y } = offset
+
+  return (
+    <g>
+      {data.map((point, index) => {
+        if (!point.isTransaction || index === 0) return null
+
+        const prevPoint = data[index - 1]
+        const x1 = xAxis.scale(prevPoint.timestamp) + x
+        const y1 = yAxis.scale(prevPoint.value) + y
+        const x2 = xAxis.scale(point.timestamp) + x
+        const y2 = yAxis.scale(point.value) + y
+
+        const cx = xAxis.scale(point.timestamp) + x
+        const cy = yAxis.scale(point.value) + y
+
+        const circleColor = point.transactionType === 'BUY' ? '#10b981' : '#ef4444'
+
+        return (
+          <g key={`tx-${index}`}>
+            <line
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke={lineColor}
+              strokeWidth={2}
+              strokeDasharray="6,4"
+            />
+            <circle
+              cx={cx}
+              cy={cy}
+              r={5}
+              fill="none"
+              stroke={circleColor}
+              strokeWidth={2}
+              style={{ cursor: point.journalEntryId ? 'pointer' : 'default' }}
+              onClick={() => {
+                if (point.journalEntryId && onPinClick) {
+                  onPinClick(point.journalEntryId)
+                }
+              }}
+            />
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+export default function PortfolioChart({ onPinClick }: Props) {
   const [data, setData] = useState<HistoryData[]>([])
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'hourly' | 'daily'>('hourly')
@@ -30,42 +119,44 @@ export default function PortfolioChart() {
   const hasAnimatedRef = useRef(false)
 
   useEffect(() => {
-    loadHistory()
+    loadData()
   }, [])
 
-  const loadHistory = async () => {
+  const loadData = async () => {
     try {
       setLoading(true)
       setError(null)
-      const history = await portfolioApi.getPortfolioHistory()
+      const [history, txList, entries] = await Promise.all([
+        portfolioApi.getPortfolioHistory(),
+        portfolioApi.getTransactions(),
+        journalApi.getEntries(),
+      ])
       setData(history || [])
+      setTransactions(txList || [])
+      setJournalEntries(entries || [])
       if (!hasAnimatedRef.current && history && history.length > 0) {
         hasAnimatedRef.current = true
       }
     } catch {
-      setError('Failed to load portfolio history')
+      setError('Failed to load chart data')
     } finally {
       setLoading(false)
     }
   }
 
-  // Process data based on view mode
   const processedData: ChartDataPoint[] = useMemo(() => {
     if (!data || data.length === 0) return []
 
     if (viewMode === 'hourly') {
-      // Show hourly data for current trading day
-      const startOfDay = new Date(currentDate)
-      startOfDay.setHours(0, 0, 0, 0)
-      const endOfDay = new Date(currentDate)
-      endOfDay.setHours(23, 59, 59, 999)
-
-      return data
+      // Filter portfolio history to current day AND trading hours (10am-4pm)
+      const dayHistory = data
         .filter((item) => {
           const itemDate = new Date(item.timestamp)
-          return itemDate >= startOfDay && itemDate <= endOfDay
+          const isSameDay = itemDate.toDateString() === currentDate.toDateString()
+          return isSameDay && isTradingHours(item.timestamp)
         })
         .map((item) => ({
+          timestamp: new Date(item.timestamp).getTime(),
           time: new Date(item.timestamp).toLocaleTimeString('en-US', {
             hour: 'numeric',
             minute: '2-digit',
@@ -73,17 +164,80 @@ export default function PortfolioChart() {
           }),
           value: item.portfolioValue,
           fullTimestamp: item.timestamp,
+          isTransaction: false,
         }))
+
+      // Filter transactions to current day AND trading hours (10am-4pm)
+      const dayTransactions = transactions.filter((tx) => {
+        const txDate = new Date(tx.timestamp)
+        const isSameDay = txDate.toDateString() === currentDate.toDateString()
+        return isSameDay && isTradingHours(tx.timestamp)
+      })
+
+      // Insert synthetic transaction points
+      const merged: ChartDataPoint[] = [...dayHistory]
+
+      for (const tx of dayTransactions) {
+        const txTime = new Date(tx.timestamp).getTime()
+
+        // Find closest previous portfolio history point
+        let prevPoint = merged
+          .filter((p) => !p.isTransaction && p.timestamp <= txTime)
+          .sort((a, b) => b.timestamp - a.timestamp)[0]
+
+        if (!prevPoint && merged.length > 0) {
+          // Use first available point if no previous
+          prevPoint = merged[0]
+        }
+
+        if (!prevPoint) continue
+
+        const syntheticValue =
+          tx.type === 'BUY'
+            ? prevPoint.value + tx.totalValue
+            : prevPoint.value - tx.totalValue
+
+        // Match to journal entry
+        const txType = tx.type as 'BUY' | 'SELL'
+        const matchedEntry = journalEntries
+          .filter(
+            (e) =>
+              e.entryType === txType &&
+              e.ticker === tx.ticker &&
+              Math.abs(new Date(e.timestamp).getTime() - txTime) <= 5 * 60 * 1000
+          )
+          .sort(
+            (a, b) =>
+              Math.abs(new Date(a.timestamp).getTime() - txTime) -
+              Math.abs(new Date(b.timestamp).getTime() - txTime)
+          )[0]
+
+        merged.push({
+          timestamp: txTime,
+          time: new Date(tx.timestamp).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+          }),
+          value: syntheticValue,
+          fullTimestamp: tx.timestamp,
+          isTransaction: true,
+          transactionType: txType,
+          journalEntryId: matchedEntry?.id,
+        })
+      }
+
+      // Sort by timestamp
+      merged.sort((a, b) => a.timestamp - b.timestamp)
+
+      return merged
     } else {
-      // Show daily aggregation for last 5 trading days
-      // TODO: Only trading days
       const dailyData: { [key: string]: HistoryData } = {}
 
       data.forEach((item) => {
         const date = new Date(item.timestamp)
         const dateKey = date.toDateString()
 
-        // Keep the latest value for each day
         if (!dailyData[dateKey] || new Date(item.timestamp) > new Date(dailyData[dateKey].timestamp)) {
           dailyData[dateKey] = item
         }
@@ -91,8 +245,9 @@ export default function PortfolioChart() {
 
       return Object.values(dailyData)
         .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-        .slice(-5) // Last 5 days
+        .slice(-5)
         .map((item) => ({
+          timestamp: new Date(item.timestamp).getTime(),
           time: new Date(item.timestamp).toLocaleDateString('en-US', {
             weekday: 'short',
             month: 'short',
@@ -100,11 +255,11 @@ export default function PortfolioChart() {
           }),
           value: item.portfolioValue,
           fullTimestamp: item.timestamp,
+          isTransaction: false,
         }))
     }
-  }, [data, viewMode, currentDate])
+  }, [data, transactions, journalEntries, viewMode, currentDate])
 
-  // Calculate trend for color
   const isPositiveTrend = useMemo(() => {
     if (processedData.length < 2) return true
     return processedData[processedData.length - 1].value >= processedData[0].value
@@ -130,7 +285,6 @@ export default function PortfolioChart() {
     } else {
       newDate.setDate(newDate.getDate() + 5)
     }
-    // Don't go past today
     if (newDate <= today) {
       setCurrentDate(newDate)
     }
@@ -152,6 +306,12 @@ export default function PortfolioChart() {
     current.setHours(0, 0, 0, 0)
     return current < today
   }, [currentDate])
+
+  // Dynamic ticks from actual data points (one tick per point)
+  const xAxisTicks = useMemo(() => {
+    if (viewMode !== 'hourly') return undefined
+    return processedData.map((p) => p.timestamp)
+  }, [processedData, viewMode])
 
   if (loading) {
     return (
@@ -211,14 +371,13 @@ export default function PortfolioChart() {
           >
             ←
           </button>
-          
+
           <span className="text-sm text-muted min-w-[100px] text-center">
             {viewMode === 'hourly'
               ? currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-              : 'Last 5 Days'
-            }
+              : 'Last 5 Days'}
           </span>
-          
+
           <button
             onClick={handleNext}
             disabled={!canGoForward}
@@ -235,13 +394,22 @@ export default function PortfolioChart() {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={processedData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-              <XAxis 
-                dataKey="time" 
+              <XAxis
+                dataKey="timestamp"
+                type="number"
+                ticks={xAxisTicks}
                 stroke="#6b7280"
                 fontSize={12}
                 tickLine={false}
+                tickFormatter={(value) =>
+                  new Date(value).toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true,
+                  })
+                }
               />
-              <YAxis 
+              <YAxis
                 domain={[(dataMin: number) => dataMin * 0.995, (dataMax: number) => dataMax * 1.005]}
                 stroke="#6b7280"
                 fontSize={12}
@@ -249,9 +417,13 @@ export default function PortfolioChart() {
                 tickFormatter={(value) => formatCurrency(value)}
                 tickCount={3}
               />
-              <Tooltip 
+              <Tooltip
                 formatter={(value: number) => [formatCurrency(value), 'Portfolio Value']}
-                labelFormatter={(label) => viewMode === 'hourly' ? `Time: ${label}` : `Date: ${label}`}
+                labelFormatter={(label) =>
+                  viewMode === 'hourly'
+                    ? `Time: ${new Date(label).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`
+                    : `Date: ${new Date(label).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`
+                }
                 contentStyle={{
                   backgroundColor: '#32393d',
                   border: '1px solid rgba(255,255,255,0.08)',
@@ -264,10 +436,24 @@ export default function PortfolioChart() {
                 dataKey="value"
                 stroke={lineColor}
                 strokeWidth={2}
-                dot={{ fill: lineColor, strokeWidth: 2, r: 4 }}
+                dot={(props: any) => {
+                  const { cx, cy, payload } = props
+                  if (payload.isTransaction) return <g />
+                  return <circle cx={cx} cy={cy} r={4} fill={lineColor} strokeWidth={0} />
+                }}
                 activeDot={{ r: 6, strokeWidth: 0 }}
                 isAnimationActive={!hasAnimatedRef.current}
                 animationDuration={1000}
+              />
+              <Customized
+                component={(props: any) => (
+                  <TransactionOverlay
+                    chartProps={props}
+                    data={processedData}
+                    lineColor={lineColor}
+                    onPinClick={onPinClick}
+                  />
+                )}
               />
             </LineChart>
           </ResponsiveContainer>

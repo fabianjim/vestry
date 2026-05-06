@@ -1,15 +1,29 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import type { JournalEntry, JournalEntryType } from '../types/journal'
 import { journalApi } from '../services/api'
 import { formatDateTime } from '../utils/dateUtils'
 
-export default function JournalPanel() {
+export interface JournalPanelHandle {
+  scrollToEntry: (id: number) => void
+}
+
+const JournalPanel = forwardRef<JournalPanelHandle>(function JournalPanel(_props, ref) {
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [entryType, setEntryType] = useState<JournalEntryType>('INSIGHT')
   const [body, setBody] = useState('')
   const [ticker, setTicker] = useState('')
+  const entryRefs = useRef<Map<number, HTMLDivElement>>(new Map())
+
+  useImperativeHandle(ref, () => ({
+    scrollToEntry: (id: number) => {
+      const el = entryRefs.current.get(id)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }
+  }))
 
   const fetchEntries = async () => {
     setLoading(true)
@@ -132,6 +146,9 @@ export default function JournalPanel() {
           {entries.map((entry) => (
             <div
               key={entry.id}
+              ref={(el) => {
+                if (el) entryRefs.current.set(entry.id, el)
+              }}
               className={`p-3 bg-surface-hover rounded-md border border-border ${getTypeBg(entry.entryType)}`}
             >
               <div className="flex justify-between items-start mb-1">
@@ -157,4 +174,6 @@ export default function JournalPanel() {
       )}
     </div>
   )
-}
+})
+
+export default JournalPanel
