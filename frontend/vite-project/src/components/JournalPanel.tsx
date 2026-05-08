@@ -7,7 +7,15 @@ export interface JournalPanelHandle {
   scrollToEntry: (id: number) => void
 }
 
-const JournalPanel = forwardRef<JournalPanelHandle>(function JournalPanel(_props, ref) {
+interface JournalPanelProps {
+  activeJournalId?: number | null
+  onClearActive?: () => void
+}
+
+const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function JournalPanel(
+  { activeJournalId, onClearActive },
+  ref
+) {
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -15,6 +23,7 @@ const JournalPanel = forwardRef<JournalPanelHandle>(function JournalPanel(_props
   const [body, setBody] = useState('')
   const [ticker, setTicker] = useState('')
   const entryRefs = useRef<Map<number, HTMLDivElement>>(new Map())
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useImperativeHandle(ref, () => ({
     scrollToEntry: (id: number) => {
@@ -24,6 +33,24 @@ const JournalPanel = forwardRef<JournalPanelHandle>(function JournalPanel(_props
       }
     }
   }))
+
+  useEffect(() => {
+    if (activeJournalId == null) return
+    let listener: ((e: MouseEvent) => void) | null = null
+    const timeout = setTimeout(() => {
+      listener = (e: MouseEvent) => {
+        const activeEl = entryRefs.current.get(activeJournalId)
+        if (activeEl && !activeEl.contains(e.target as Node)) {
+          onClearActive?.()
+        }
+      }
+      document.addEventListener('click', listener)
+    }, 0)
+    return () => {
+      clearTimeout(timeout)
+      if (listener) document.removeEventListener('click', listener)
+    }
+  }, [activeJournalId, onClearActive])
 
   const fetchEntries = async () => {
     setLoading(true)
@@ -89,7 +116,7 @@ const JournalPanel = forwardRef<JournalPanelHandle>(function JournalPanel(_props
   }
 
   return (
-    <div className="p-5 bg-surface rounded-lg border border-border">
+    <div ref={containerRef} className="p-5 bg-surface rounded-lg border border-border">
       <h4 className="text-muted mt-0 mb-3">New Journal Entry</h4>
       <div className="flex gap-3 mb-3 flex-wrap">
         <select
@@ -149,7 +176,7 @@ const JournalPanel = forwardRef<JournalPanelHandle>(function JournalPanel(_props
               ref={(el) => {
                 if (el) entryRefs.current.set(entry.id, el)
               }}
-              className={`p-3 bg-surface-hover rounded-md border border-border ${getTypeBg(entry.entryType)}`}
+              className={`p-3 bg-surface-hover rounded-md border border-border ${getTypeBg(entry.entryType)} ${activeJournalId === entry.id ? 'outline-2 outline-primary outline-offset-2' : ''}`}
             >
               <div className="flex justify-between items-start mb-1">
                 <div className="flex items-center gap-2">

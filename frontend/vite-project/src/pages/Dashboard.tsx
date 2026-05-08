@@ -56,6 +56,7 @@ export default function Dashboard() {
   const [journalPromptTradeType, setJournalPromptTradeType] = useState<'BUY' | 'SELL'>('BUY')
   const hasFetched = useRef(false)
   const journalPanelRef = useRef<JournalPanelHandle>(null)
+  const [activeJournalId, setActiveJournalId] = useState<number | null>(null)
   
   useEffect(() => {
     document.title = 'Dashboard'
@@ -330,7 +331,10 @@ export default function Dashboard() {
       <div className="mb-8">
         <h3 className="text-xl font-150 mb-4">Portfolio Performance</h3>
         <PortfolioChart
-          onPinClick={(id) => journalPanelRef.current?.scrollToEntry(id)}
+          onPinClick={(id) => {
+            setActiveJournalId(id)
+            journalPanelRef.current?.scrollToEntry(id)
+          }}
         />
       </div>
 
@@ -427,7 +431,7 @@ export default function Dashboard() {
       {/* Journal Section */}
       <div className="mb-8">
         <h3 className="text-xl font-150 mt-4 mb-4">Journal</h3>
-        <JournalPanel ref={journalPanelRef} />
+        <JournalPanel ref={journalPanelRef} activeJournalId={activeJournalId} onClearActive={() => setActiveJournalId(null)} />
       </div>
 
       {/* Trending Stocks Section */}

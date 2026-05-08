@@ -57,7 +57,6 @@ function TransactionOverlay({
 
   return (
     <g>
-      {/* Layer 1: All dashed transaction lines first (eraser + dashed) */}
       {data.map((point, index) => {
         if (!point.isTransaction || index === 0) return null
 
@@ -67,19 +66,25 @@ function TransactionOverlay({
         const x2 = xAxis.scale(point.timestamp)
         const y2 = yAxis.scale(point.value)
 
+        const cx = xAxis.scale(point.timestamp)
+        const cy = yAxis.scale(point.value)
+
+        const circleColor = point.transactionType === 'BUY' ? '#10b981' : '#ef4444'
+
         const midX = (x1 + x2) / 2
         const pathD = `M ${x1} ${y1} C ${midX} ${y1} ${midX} ${y2} ${x2} ${y2}`
 
         return (
-          <g key={`tx-line-${index}`}>
-            {/* Erase solid line underneath with background-colored thick stroke */}
+          // Buy/Sell event dashed line and hollow circle
+          <g key={`tx-${index}`}>
+            {/* background colored line to remove solid line*/}
             <path
               d={pathD}
               stroke="#32393d"
               strokeWidth={6}
               fill="none"
             />
-            {/* Smooth dashed curve */}
+            {/* dashed curve */}
             <path
               d={pathD}
               stroke={lineColor}
@@ -87,51 +92,31 @@ function TransactionOverlay({
               strokeDasharray="6,4"
               fill="none"
             />
+                        
+            {/* hollow circle */}
+            <circle
+              cx={cx}
+              cy={cy}
+              r={5}
+              fill="none"
+              stroke={circleColor}
+              strokeWidth={2}
+              style={{ cursor: point.journalEntryId ? 'pointer' : 'default' }}
+            />
+            {/* clickable area for the hollow circle */}
+            <circle
+              cx={cx}
+              cy={cy}
+              r={5}
+              fill="transparent"
+              style={{ cursor: point.journalEntryId ? 'pointer' : 'default' }}
+              onClick={() => {
+                if (point.journalEntryId && onPinClick) {
+                  onPinClick(point.journalEntryId)
+                }
+              }}
+            />
           </g>
-        )
-      })}
-      {/* Layer 2: Regular dots (hourly fetches) on top of dashed lines */}
-      {data.map((point, index) => {
-        if (point.isTransaction) return null
-
-        const cx = xAxis.scale(point.timestamp)
-        const cy = yAxis.scale(point.value)
-
-        return (
-          <circle
-            key={`dot-${index}`}
-            cx={cx}
-            cy={cy}
-            r={4}
-            fill={lineColor}
-            strokeWidth={0}
-          />
-        )
-      })}
-      {/* Layer 3: Hollow circles (transactions) on top of everything */}
-      {data.map((point, index) => {
-        if (!point.isTransaction || index === 0) return null
-
-        const cx = xAxis.scale(point.timestamp)
-        const cy = yAxis.scale(point.value)
-        const circleColor = point.transactionType === 'BUY' ? '#10b981' : '#ef4444'
-
-        return (
-          <circle
-            key={`tx-circle-${index}`}
-            cx={cx}
-            cy={cy}
-            r={5}
-            fill="none"
-            stroke={circleColor}
-            strokeWidth={2}
-            style={{ cursor: point.journalEntryId ? 'pointer' : 'default' }}
-            onClick={() => {
-              if (point.journalEntryId && onPinClick) {
-                onPinClick(point.journalEntryId)
-              }
-            }}
-          />
         )
       })}
     </g>
@@ -466,8 +451,12 @@ export default function PortfolioChart({ onPinClick }: Props) {
                 dataKey="value"
                 stroke={lineColor}
                 strokeWidth={2}
-                dot={false}
-                activeDot={false}
+                dot={(props: { cx?: number; cy?: number; payload?: { isTransaction?: boolean } }) => {
+                  const { cx, cy, payload } = props
+                  if (payload?.isTransaction) return <g />
+                  return <circle cx={cx} cy={cy} r={4} fill={lineColor} strokeWidth={0} />
+                }}
+                activeDot={{ r: 6, strokeWidth: 0 }}
                 isAnimationActive={!hasAnimatedRef.current}
                 animationDuration={1000}
               />
