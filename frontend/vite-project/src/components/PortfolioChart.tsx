@@ -324,9 +324,8 @@ export default function PortfolioChart({ onPinClick }: Props) {
 
   // Dynamic ticks from actual data points (one tick per point)
   const xAxisTicks = useMemo(() => {
-    if (viewMode !== 'hourly') return undefined
     return processedData.map((p) => p.timestamp)
-  }, [processedData, viewMode])
+  }, [processedData])
 
   if (loading) {
     return (
@@ -417,11 +416,17 @@ export default function PortfolioChart({ onPinClick }: Props) {
                 fontSize={12}
                 tickLine={false}
                 tickFormatter={(value) =>
-                  new Date(value).toLocaleTimeString('en-US', {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true,
-                  })
+                  viewMode === 'hourly'
+                    ? new Date(value).toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true,
+                      })
+                    : new Date(value).toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                      })
                 }
               />
               <YAxis
@@ -460,15 +465,17 @@ export default function PortfolioChart({ onPinClick }: Props) {
                 isAnimationActive={!hasAnimatedRef.current}
                 animationDuration={1000}
               />
-              <Customized
-                component={() => (
-                  <TransactionOverlay
-                    data={processedData}
-                    lineColor={lineColor}
-                    onPinClick={onPinClick}
-                  />
-                )}
-              />
+              {viewMode === 'hourly' && (
+                <Customized
+                  component={() => (
+                    <TransactionOverlay
+                      data={processedData}
+                      lineColor={lineColor}
+                      onPinClick={onPinClick}
+                    />
+                  )}
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
         </div>
