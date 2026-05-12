@@ -20,6 +20,9 @@ public class Holding {
     @Column(nullable = false)
     private Instant buyTimestamp;
 
+    @Transient
+    private StockMetadata metadata;
+
     public Holding() {}
 
     public Holding(String ticker, double shares) {
@@ -65,5 +68,13 @@ public class Holding {
 
     public void setBuyTimestamp(Instant buyTimestamp) {
         this.buyTimestamp = buyTimestamp;
+    }
+
+    public StockMetadata getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(StockMetadata metadata) {
+        this.metadata = metadata;
     }
 }

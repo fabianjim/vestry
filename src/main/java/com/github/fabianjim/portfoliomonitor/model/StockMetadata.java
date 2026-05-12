@@ -1,31 +1,13 @@
 package com.github.fabianjim.portfoliomonitor.model;
 
-import jakarta.persistence.*;
-
-@Entity
-@Table(name = "stock_metadata")
 public class StockMetadata {
 
-    @Id
-    @Column(nullable = false)
     private String ticker;
-
-    @Column(nullable = true)
     private String name;
-
-    @Column(nullable = true)
     private String country;
-
-    @Column(nullable = true)
     private String sector;
-
-    @Column(nullable = true)
     private String industry;
-
-    @Column(name = "market_cap", nullable = true)
     private Double marketCap;
-
-    @Column(name = "market_cap_tier", nullable = true)
     private String marketCapTier;
 
     public StockMetadata() {}

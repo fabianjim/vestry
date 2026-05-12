@@ -1,15 +1,12 @@
 package com.github.fabianjim.portfoliomonitor.service;
 
-import com.github.fabianjim.portfoliomonitor.model.StockMetadata;
 import com.github.fabianjim.portfoliomonitor.model.User;
 import com.github.fabianjim.portfoliomonitor.model.WatchlistItem;
-import com.github.fabianjim.portfoliomonitor.repository.StockMetadataRepository;
 import com.github.fabianjim.portfoliomonitor.repository.WatchlistItemRepository;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -30,12 +27,6 @@ public class WatchlistServiceTest {
 
     @Mock
     private WatchlistItemRepository watchlistItemRepository;
-
-    @Mock
-    private StockMetadataRepository stockMetadataRepository;
-
-    @Mock
-    private NasdaqMetadataService nasdaqMetadataService;
 
     @Mock
     private SecurityContext securityContext;
@@ -60,15 +51,9 @@ public class WatchlistServiceTest {
     }
 
     @Test
-    void addToWatchlistCreatesMetadataIfMissing() {
+    void addToWatchlistCreatesItem() {
         String ticker = "AAPL";
 
-        when(stockMetadataRepository.existsByTicker(ticker)).thenReturn(false);
-        StockMetadata metadata = new StockMetadata();
-        metadata.setTicker(ticker);
-        metadata.setSector("Technology");
-        when(nasdaqMetadataService.lookupMetadata(ticker)).thenReturn(Optional.of(metadata));
-        when(stockMetadataRepository.save(any(StockMetadata.class))).thenReturn(metadata);
         when(watchlistItemRepository.findByUserIdAndTicker(mockUser.getId(), ticker)).thenReturn(Optional.empty());
         when(watchlistItemRepository.save(any(WatchlistItem.class))).thenAnswer(invocation -> {
             WatchlistItem item = invocation.getArgument(0);
@@ -80,29 +65,6 @@ public class WatchlistServiceTest {
 
         assertNotNull(result);
         assertEquals(ticker, result.getTicker());
-
-        ArgumentCaptor<StockMetadata> metadataCaptor = ArgumentCaptor.forClass(StockMetadata.class);
-        verify(stockMetadataRepository).save(metadataCaptor.capture());
-        assertEquals(ticker, metadataCaptor.getValue().getTicker());
-    }
-
-    @Test
-    void addToWatchlistSkipsMetadataIfAlreadyExists() {
-        String ticker = "GOOGL";
-
-        when(stockMetadataRepository.existsByTicker(ticker)).thenReturn(true);
-        when(watchlistItemRepository.findByUserIdAndTicker(mockUser.getId(), ticker)).thenReturn(Optional.empty());
-        when(watchlistItemRepository.save(any(WatchlistItem.class))).thenAnswer(invocation -> {
-            WatchlistItem item = invocation.getArgument(0);
-            item.setId(1);
-            return item;
-        });
-
-        WatchlistItem result = watchlistService.addToWatchlist(ticker);
-
-        assertEquals(ticker, result.getTicker());
-        verify(stockMetadataRepository, never()).save(any());
-        verify(nasdaqMetadataService, never()).lookupMetadata(any());
     }
 
     @Test

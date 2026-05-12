@@ -1,9 +1,7 @@
 package com.github.fabianjim.portfoliomonitor.service;
 
-import com.github.fabianjim.portfoliomonitor.model.StockMetadata;
 import com.github.fabianjim.portfoliomonitor.model.User;
 import com.github.fabianjim.portfoliomonitor.model.WatchlistItem;
-import com.github.fabianjim.portfoliomonitor.repository.StockMetadataRepository;
 import com.github.fabianjim.portfoliomonitor.repository.WatchlistItemRepository;
 
 import org.springframework.security.core.Authentication;
@@ -19,15 +17,9 @@ import java.util.Optional;
 public class WatchlistService {
 
     private final WatchlistItemRepository watchlistItemRepository;
-    private final StockMetadataRepository stockMetadataRepository;
-    private final NasdaqMetadataService nasdaqMetadataService;
 
-    public WatchlistService(WatchlistItemRepository watchlistItemRepository,
-                           StockMetadataRepository stockMetadataRepository,
-                           NasdaqMetadataService nasdaqMetadataService) {
+    public WatchlistService(WatchlistItemRepository watchlistItemRepository) {
         this.watchlistItemRepository = watchlistItemRepository;
-        this.stockMetadataRepository = stockMetadataRepository;
-        this.nasdaqMetadataService = nasdaqMetadataService;
     }
 
     private User getCurrentUser() {
@@ -51,11 +43,6 @@ public class WatchlistService {
             throw new RuntimeException("Ticker already in watchlist");
         }
 
-        if (!stockMetadataRepository.existsByTicker(normalizedTicker)) {
-            Optional<StockMetadata> metadataOpt = nasdaqMetadataService.lookupMetadata(normalizedTicker);
-            metadataOpt.ifPresent(stockMetadataRepository::save);
-        }
-
         WatchlistItem item = new WatchlistItem();
         item.setUser(getCurrentUser());
         item.setTicker(normalizedTicker);
@@ -63,11 +50,7 @@ public class WatchlistService {
     }
 
     public List<WatchlistItem> getWatchlistForUser() {
-        List<WatchlistItem> items = watchlistItemRepository.findByUserId(getCurrentUserId());
-        for (WatchlistItem item : items) {
-            stockMetadataRepository.findByTicker(item.getTicker()).ifPresent(item::setMetadata);
-        }
-        return items;
+        return watchlistItemRepository.findByUserId(getCurrentUserId());
     }
 
     public void removeFromWatchlist(String ticker) {

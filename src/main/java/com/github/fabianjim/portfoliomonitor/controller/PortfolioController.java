@@ -5,6 +5,7 @@ import com.github.fabianjim.portfoliomonitor.model.Holding;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;
 import com.github.fabianjim.portfoliomonitor.model.Transaction;
 import com.github.fabianjim.portfoliomonitor.model.TrackedStock;
+import com.github.fabianjim.portfoliomonitor.service.NasdaqMetadataService;
 import com.github.fabianjim.portfoliomonitor.service.PortfolioService;
 import com.github.fabianjim.portfoliomonitor.service.TransactionService;
 import org.springframework.web.bind.annotation.*;
@@ -18,10 +19,12 @@ public class PortfolioController {
 
     private final PortfolioService portfolioService;
     private final TransactionService transactionService;
+    private final NasdaqMetadataService nasdaqMetadataService;
 
-    public PortfolioController(PortfolioService portfolioService, TransactionService transactionService) {
+    public PortfolioController(PortfolioService portfolioService, TransactionService transactionService, NasdaqMetadataService nasdaqMetadataService) {
         this.portfolioService = portfolioService;
         this.transactionService = transactionService;
+        this.nasdaqMetadataService = nasdaqMetadataService;
     }
     @PostMapping
     public void submitPortfolio(@RequestBody Portfolio portfolio) {
@@ -51,7 +54,11 @@ public class PortfolioController {
     @GetMapping("/holdings")
     public List<Holding> fetchHoldings() {
         Portfolio current = portfolioService.getPortfolio();
-        return current != null ? current.getHoldings() : List.of();
+        List<Holding> holdings = current != null ? current.getHoldings() : List.of();
+        for (Holding holding : holdings) {
+            nasdaqMetadataService.lookupMetadata(holding.getTicker()).ifPresent(holding::setMetadata);
+        }
+        return holdings;
     }
 
     @PostMapping("/holdings/add")

@@ -8,6 +8,7 @@ import type { StockMetadata } from '../types/watchlist'
 type Holding = {
   ticker: string
   shares: number
+  metadata: StockMetadata | null
   stockData?: {
     stock?: {
       currentPrice: number
@@ -93,14 +94,13 @@ export default function Analysis() {
       const marketValue = h.shares * price
       // Scale radius between 12 and 40 based on market value
       const radius = Math.max(12, Math.min(40, 12 + Math.log10(marketValue + 1) * 4))
-      const metadata = null // holdings don't have metadata directly; we'll match by ticker from watchlist if available
       allNodes.push({
         id: `holding-${h.ticker}`,
         ticker: h.ticker,
         type: 'holding',
         radius,
-        color: getNodeColor(null),
-        metadata,
+        color: getNodeColor(h.metadata?.sector),
+        metadata: h.metadata,
       })
     })
 
@@ -114,15 +114,6 @@ export default function Analysis() {
         color: getNodeColor(w.metadata?.sector),
         metadata: w.metadata,
       })
-    })
-
-    // Hydrate holding node colors/metadata from watchlist if same ticker exists there
-    watchlist.forEach((w) => {
-      const holdingNode = allNodes.find((n) => n.ticker === w.ticker && n.type === 'holding')
-      if (holdingNode && w.metadata) {
-        holdingNode.color = getNodeColor(w.metadata.sector)
-        holdingNode.metadata = w.metadata
-      }
     })
 
     // Compute edges based on shared metadata characteristics
@@ -151,9 +142,11 @@ export default function Analysis() {
 
   const selectedMetadata = useMemo(() => {
     if (!selectedTicker) return null
+    const holding = holdings.find((h) => h.ticker === selectedTicker)
+    if (holding?.metadata) return holding.metadata
     const watchlistItem = watchlist.find((w) => w.ticker === selectedTicker)
     return watchlistItem?.metadata || null
-  }, [selectedTicker, watchlist])
+  }, [selectedTicker, holdings, watchlist])
 
   return (
     <div className="max-w-6xl mx-auto mt-6 px-3">
