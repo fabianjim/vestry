@@ -92,8 +92,8 @@ export default function Analysis() {
     holdings.forEach((h) => {
       const price = h.stockData?.stock?.currentPrice || 0
       const marketValue = h.shares * price
-      // Scale radius between 12 and 40 based on market value
-      const radius = Math.max(12, Math.min(40, 12 + Math.log10(marketValue + 1) * 4))
+      // Scale radius between 10 and 50 based on market value
+      const radius = Math.max(10, Math.min(50, 10 + Math.log10(marketValue + 1) * 4))
       allNodes.push({
         id: `holding-${h.ticker}`,
         ticker: h.ticker,
@@ -110,7 +110,7 @@ export default function Analysis() {
         id: `watchlist-${w.ticker}`,
         ticker: w.ticker,
         type: 'watchlist',
-        radius: 18,
+        radius: 10,
         color: getNodeColor(w.metadata?.sector),
         metadata: w.metadata,
       })
