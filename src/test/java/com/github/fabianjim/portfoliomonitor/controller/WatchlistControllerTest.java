@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.fabianjim.portfoliomonitor.model.StockMetadata;
 import com.github.fabianjim.portfoliomonitor.model.User;
 import com.github.fabianjim.portfoliomonitor.model.WatchlistItem;
+import com.github.fabianjim.portfoliomonitor.service.NasdaqMetadataService;
 import com.github.fabianjim.portfoliomonitor.service.UserService;
 import com.github.fabianjim.portfoliomonitor.service.WatchlistService;
 
@@ -17,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -31,6 +33,9 @@ public class WatchlistControllerTest {
 
     @MockitoBean
     private WatchlistService watchlistService;
+
+    @MockitoBean
+    private NasdaqMetadataService nasdaqMetadataService;
 
     @MockitoBean
     private UserService userService;
@@ -75,9 +80,9 @@ public class WatchlistControllerTest {
         metadata.setTicker("AAPL");
         metadata.setSector("Technology");
         metadata.setMarketCapTier("LARGE_CAP");
-        item.setMetadata(metadata);
 
         when(watchlistService.getWatchlistForUser()).thenReturn(List.of(item));
+        when(nasdaqMetadataService.lookupMetadata("AAPL")).thenReturn(Optional.of(metadata));
 
         mockMvc.perform(get("/api/watchlist"))
             .andExpect(status().isOk())

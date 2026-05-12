@@ -1,6 +1,7 @@
 package com.github.fabianjim.portfoliomonitor.controller;
 
 import com.github.fabianjim.portfoliomonitor.model.WatchlistItem;
+import com.github.fabianjim.portfoliomonitor.service.NasdaqMetadataService;
 import com.github.fabianjim.portfoliomonitor.service.WatchlistService;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,9 +13,11 @@ import java.util.Map;
 public class WatchlistController {
 
     private final WatchlistService watchlistService;
+    private final NasdaqMetadataService nasdaqMetadataService;
 
-    public WatchlistController(WatchlistService watchlistService) {
+    public WatchlistController(WatchlistService watchlistService, NasdaqMetadataService nasdaqMetadataService) {
         this.watchlistService = watchlistService;
+        this.nasdaqMetadataService = nasdaqMetadataService;
     }
 
     @PostMapping
@@ -25,7 +28,11 @@ public class WatchlistController {
 
     @GetMapping
     public List<WatchlistItem> getWatchlist() {
-        return watchlistService.getWatchlistForUser();
+        List<WatchlistItem> items = watchlistService.getWatchlistForUser();
+        for (WatchlistItem item : items) {
+            nasdaqMetadataService.lookupMetadata(item.getTicker()).ifPresent(item::setMetadata);
+        }
+        return items;
     }
 
     @DeleteMapping("/{ticker}")
