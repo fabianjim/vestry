@@ -152,7 +152,9 @@ export default function HoldingGraph({
             d.ticker,
             d.metadata?.sector || 'Sector: -',
             d.metadata?.country || 'Country: -',
-            d.metadata?.marketCapTier || 'Cap: -',
+            d.metadata?.marketCapTier
+              ? `Cap: ${d.metadata.marketCapTier.replace('_', ' ').toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())}`
+              : 'Cap: -',
           ]
           tooltip.style('display', 'block')
           tooltip.attr('transform', `translate(${d.x + d.radius + 8},${d.y - 40})`)
@@ -280,7 +282,9 @@ export default function HoldingGraph({
           d.ticker,
           d.metadata?.sector || 'Sector: -',
           d.metadata?.country || 'Country: -',
-          d.metadata?.marketCapTier || 'Cap: -',
+          d.metadata?.marketCapTier
+            ? `Cap: ${d.metadata.marketCapTier.replace('_', ' ').toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())}`
+            : 'Cap: -',
         ]
         tooltip.style('display', 'block')
         tooltip.attr('transform', `translate(${d.x + d.radius + 8},${d.y - 40})`)
