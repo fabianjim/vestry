@@ -116,6 +116,7 @@ export default function Analysis() {
       })
     })
 
+    // EDGE STRENGTH
     // Compute edges based on shared metadata characteristics
     for (let i = 0; i < allNodes.length; i++) {
       for (let j = i + 1; j < allNodes.length; j++) {

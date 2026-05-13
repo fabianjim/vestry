@@ -1,8 +1,7 @@
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import {
   ComposedChart,
   Line,
-  Scatter,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -13,7 +12,6 @@ import type { JournalEntry } from '../types/journal'
 import type { StockMetadata } from '../types/watchlist'
 import { stockApi, journalApi } from '../services/api'
 import { formatDateTime } from '../utils/dateUtils'
-import { findNearestChartPoint, evaluateBuyPinOutcome } from '../utils/chartPins'
 
 type NodeDetailPanelProps = {
   ticker: string
@@ -32,18 +30,6 @@ type ChartPoint = {
   fullTimestamp: string
 }
 
-type PinPoint = ChartPoint & {
-  entryId: number
-  entryType: JournalEntry['entryType']
-  outcome: 'gain' | 'loss' | 'neutral'
-}
-
-type ScatterShapeProps = {
-  cx?: number
-  cy?: number
-  payload?: PinPoint
-}
-
 const SECTOR_COLORS: Record<string, string> = {
   Technology: '#5e9ed6',
   'Health Care': '#10b981',
@@ -58,70 +44,11 @@ const SECTOR_COLORS: Record<string, string> = {
   Utilities: '#6b7280',
 }
 
-function CustomPin(props: ScatterShapeProps) {
-  const { cx, cy, payload } = props
-  if (cx == null || cy == null || !payload) return null
-
-  const size = 10
-  const half = size / 2
-
-  let fill = '#6b7280'
-  const stroke = '#2d2d2d'
-
-  if (payload.entryType === 'BUY') {
-    fill = payload.outcome === 'gain' ? '#10b981' : payload.outcome === 'loss' ? '#ef4444' : '#5e9ed6'
-  } else if (payload.entryType === 'SELL') {
-    fill = '#f97316'
-  } else if (payload.entryType === 'INSIGHT') {
-    fill = '#8b5cf6'
-  } else if (payload.entryType === 'MARKET_EVENT') {
-    fill = '#6b7280'
-  }
-
-  // Shapes
-  if (payload.entryType === 'BUY' && payload.outcome === 'gain') {
-    return (
-      <g transform={`translate(${cx},${cy})`}>
-        <polygon points={`0,-${half} ${half},${half} -${half},${half}`} fill={fill} stroke={stroke} strokeWidth={1} />
-      </g>
-    )
-  }
-  if (payload.entryType === 'BUY' && payload.outcome === 'loss') {
-    return (
-      <g transform={`translate(${cx},${cy})`}>
-        <polygon points={`0,${half} ${half},-${half} -${half},-${half}`} fill={fill} stroke={stroke} strokeWidth={1} />
-      </g>
-    )
-  }
-  if (payload.entryType === 'SELL') {
-    return (
-      <g transform={`translate(${cx},${cy})`}>
-        <rect x={-half} y={-half} width={size} height={size} fill={fill} stroke={stroke} strokeWidth={1} />
-      </g>
-    )
-  }
-  if (payload.entryType === 'INSIGHT') {
-    return (
-      <g transform={`translate(${cx},${cy})`}>
-        <polygon points={`0,-${half} ${half},0 0,${half} -${half},0`} fill={fill} stroke={stroke} strokeWidth={1} />
-      </g>
-    )
-  }
-  // Default circle for BUY neutral and MARKET_EVENT
-  return (
-    <g transform={`translate(${cx},${cy})`}>
-      <circle r={half} fill={fill} stroke={stroke} strokeWidth={1} />
-    </g>
-  )
-}
-
 export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetailPanelProps) {
   const [history, setHistory] = useState<StockHistoryPoint[]>([])
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [highlightedEntryId, setHighlightedEntryId] = useState<number | null>(null)
-  const entryRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
   useEffect(() => {
     const load = async () => {
@@ -144,55 +71,30 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
     load()
   }, [ticker])
 
-  useEffect(() => {
-    if (highlightedEntryId != null && entryRefs.current[highlightedEntryId]) {
-      entryRefs.current[highlightedEntryId]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
-  }, [highlightedEntryId])
-
   const chartData: ChartPoint[] = useMemo(() => {
     if (!history || history.length === 0) return []
-    return history
+
+    // Sort by timestamp ascending
+    const sorted = history
       .slice()
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-      .map((item) => ({
-        time: new Date(item.timestamp).toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-        }),
-        price: item.currentPrice,
-        fullTimestamp: item.timestamp,
-      }))
-  }, [history])
 
-  const currentPrice = useMemo(() => {
-    if (chartData.length === 0) return 0
-    return chartData[chartData.length - 1].price
-  }, [chartData])
-
-  const pinData: PinPoint[] = useMemo(() => {
-    if (chartData.length === 0) return []
-    const pins: PinPoint[] = []
-
-    journalEntries.forEach((entry) => {
-      const nearest = findNearestChartPoint(entry.timestamp, chartData)
-      if (!nearest) return
-
-      let outcome: PinPoint['outcome'] = 'neutral'
-      if (entry.entryType === 'BUY') {
-        outcome = evaluateBuyPinOutcome(entry, journalEntries, currentPrice)
-      }
-
-      pins.push({
-        ...nearest,
-        entryId: entry.id,
-        entryType: entry.entryType,
-        outcome,
+    // Deduplicate by day, keeping the last (most recent) entry per day
+    const byDay = new Map<string, StockHistoryPoint>()
+    sorted.forEach((item) => {
+      const day = new Date(item.timestamp).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
       })
+      byDay.set(day, item)
     })
 
-    return pins
-  }, [journalEntries, chartData, currentPrice])
+    return Array.from(byDay.entries()).map(([time, item]) => ({
+      time,
+      price: item.currentPrice,
+      fullTimestamp: item.timestamp,
+    }))
+  }, [history])
 
   const lineColor = metadata?.sector ? SECTOR_COLORS[metadata.sector] || '#6b7280' : '#6b7280'
 
@@ -201,10 +103,6 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
       style: 'currency',
       currency: 'USD',
     }).format(value)
-  }
-
-  const handlePinClick = (entryId: number) => {
-    setHighlightedEntryId(entryId)
   }
 
   return (
@@ -257,7 +155,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
                   stroke="#6b7280"
                   fontSize={12}
                   tickLine={false}
-                  tickFormatter={(value) => `$${value}`}
+                  tickFormatter={(value) => `$${value.toFixed(2)}`}
                   domain={[(dataMin: number) => dataMin * 0.99, (dataMax: number) => dataMax * 1.01]}
                 />
                 <Tooltip
@@ -280,21 +178,6 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
                   dot={false}
                   activeDot={{ r: 5 }}
                 />
-                <Scatter
-                  data={pinData}
-                  dataKey="price"
-                  fill="#8884d8"
-                  shape={(props: ScatterShapeProps) => (
-                    <g
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => {
-                        if (props.payload) handlePinClick(props.payload.entryId)
-                      }}
-                    >
-                      <CustomPin {...props} payload={props.payload} />
-                    </g>
-                  )}
-                />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -310,12 +193,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
             {journalEntries.map((entry) => (
               <div
                 key={entry.id}
-                ref={(el) => { entryRefs.current[entry.id] = el }}
-                className={`p-3 rounded-md transition-colors ${
-                  highlightedEntryId === entry.id
-                    ? 'bg-primary/10 border-2 border-primary'
-                    : 'bg-surface-hover border border-border'
-                }`}
+                className="p-3 rounded-md transition-colors bg-surface-hover border border-border"
               >
                 <div className="flex justify-between mb-1">
                   <span
