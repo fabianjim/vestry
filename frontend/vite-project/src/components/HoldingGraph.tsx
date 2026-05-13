@@ -65,7 +65,7 @@ export default function HoldingGraph({
     const svg = d3.select(svgRef.current)
 
     if (isFirstRender.current) {
-      // === FIRST MOUNT: Create everything from scratch ===
+      // FIRST MOUNT: Create everything from scratch
       svg.selectAll('*').remove()
 
       const g = svg.append('g')
@@ -162,7 +162,8 @@ export default function HoldingGraph({
             tooltip
               .append('text')
               .attr('x', 6)
-              .attr('y', 6 + i * 14)
+              .attr('y', 11 + i * 14)
+              .attr('dominant-baseline', 'middle')
               .attr('font-size', 11)
               .attr('fill', '#bdbdbd')
               .text(line)
@@ -289,7 +290,8 @@ export default function HoldingGraph({
           tooltip
             .append('text')
             .attr('x', 6)
-            .attr('y', 6 + i * 14)
+            .attr('y', 11 + i * 14)
+            .attr('dominant-baseline', 'middle')
             .attr('font-size', 11)
             .attr('fill', '#bdbdbd')
             .text(line)
