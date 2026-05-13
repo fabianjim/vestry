@@ -65,7 +65,7 @@ export default function HoldingGraph({
     const svg = d3.select(svgRef.current)
 
     if (isFirstRender.current) {
-      // === FIRST MOUNT: Create everything from scratch ===
+      // FIRST MOUNT: Create everything from scratch
       svg.selectAll('*').remove()
 
       const g = svg.append('g')
@@ -152,7 +152,9 @@ export default function HoldingGraph({
             d.ticker,
             d.metadata?.sector || 'Sector: -',
             d.metadata?.country || 'Country: -',
-            d.metadata?.marketCapTier || 'Cap: -',
+            d.metadata?.marketCapTier
+              ? `Cap: ${d.metadata.marketCapTier.replace('_', ' ').toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())}`
+              : 'Cap: -',
           ]
           tooltip.style('display', 'block')
           tooltip.attr('transform', `translate(${d.x + d.radius + 8},${d.y - 40})`)
@@ -162,7 +164,8 @@ export default function HoldingGraph({
             tooltip
               .append('text')
               .attr('x', 6)
-              .attr('y', 6 + i * 14)
+              .attr('y', 11 + i * 14)
+              .attr('dominant-baseline', 'middle')
               .attr('font-size', 11)
               .attr('fill', '#bdbdbd')
               .text(line)
@@ -279,7 +282,9 @@ export default function HoldingGraph({
           d.ticker,
           d.metadata?.sector || 'Sector: -',
           d.metadata?.country || 'Country: -',
-          d.metadata?.marketCapTier || 'Cap: -',
+          d.metadata?.marketCapTier
+            ? `Cap: ${d.metadata.marketCapTier.replace('_', ' ').toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())}`
+            : 'Cap: -',
         ]
         tooltip.style('display', 'block')
         tooltip.attr('transform', `translate(${d.x + d.radius + 8},${d.y - 40})`)
@@ -289,7 +294,8 @@ export default function HoldingGraph({
           tooltip
             .append('text')
             .attr('x', 6)
-            .attr('y', 6 + i * 14)
+            .attr('y', 11 + i * 14)
+            .attr('dominant-baseline', 'middle')
             .attr('font-size', 11)
             .attr('fill', '#bdbdbd')
             .text(line)
