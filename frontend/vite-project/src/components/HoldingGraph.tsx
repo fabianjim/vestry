@@ -98,7 +98,7 @@ export default function HoldingGraph({
       // Edge lines
       const link = g
         .append('g')
-        .attr('stroke', 'rgba(255,255,255,0.15)')
+        .attr('stroke', 'rgba(255,255,255,0.45)')
         .attr('stroke-opacity', 0.6)
         .selectAll('line')
         .data(edges)
