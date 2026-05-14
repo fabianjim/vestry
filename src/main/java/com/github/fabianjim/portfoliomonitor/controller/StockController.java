@@ -52,7 +52,7 @@ public class StockController {
         if (trackedOpt.isPresent()) {
             TrackedStock tracked = trackedOpt.get();
             boolean isStale = tracked.isStale();
-            String warning = isStale ? "Data is stale. Last successful fetch: " + tracked.getLastSuccessfulFetch() : null;
+            String warning = isStale ? "Data is stale" : null;
             return new StockDataDTO(stock, isStale, warning, tracked.getLastSuccessfulFetch());
         }
 

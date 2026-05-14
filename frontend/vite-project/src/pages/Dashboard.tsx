@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { roundToMinute } from '../utils/dateUtils'
+import { roundToMinute, formatDateTime } from '../utils/dateUtils'
 import PortfolioChart from '../components/PortfolioChart'
 import TransactionHistory from '../components/TransactionHistory'
 import JournalPrompt from '../components/JournalPrompt'
@@ -395,6 +395,9 @@ export default function Dashboard() {
                         {isStale && r.stockData?.staleWarning && (
                           <div className="text-error mt-0.5">
                             {r.stockData.staleWarning}
+                            {r.stockData.lastSuccessfulFetch && (
+                              <>. Last updated: {formatDateTime(r.stockData.lastSuccessfulFetch)}</>
+                            )}
                           </div>
                         )}
                       </td>
