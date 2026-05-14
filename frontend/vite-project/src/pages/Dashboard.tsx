@@ -7,7 +7,10 @@ import JournalPrompt from '../components/JournalPrompt'
 import JournalPanel from '../components/JournalPanel'
 import type { JournalPanelHandle } from '../components/JournalPanel'
 import WatchlistPanel from '../components/WatchlistPanel'
+import HoldingGraph from '../components/HoldingGraph'
+import NodeDetailPanel from '../components/NodeDetailPanel'
 import { journalApi } from '../services/api'
+import { useHoldingGraphData } from '../hooks/useHoldingGraphData'
 
 type StockData = {
   stock: Stock | null
@@ -57,6 +60,8 @@ export default function Dashboard() {
   const hasFetched = useRef(false)
   const journalPanelRef = useRef<JournalPanelHandle>(null)
   const [activeJournalId, setActiveJournalId] = useState<number | null>(null)
+  const [selectedGraphTicker, setSelectedGraphTicker] = useState<string | null>(null)
+  const { nodes, edges, error: graphError, getMetadata } = useHoldingGraphData()
   
   useEffect(() => {
     document.title = 'Dashboard'
@@ -435,6 +440,48 @@ export default function Dashboard() {
       <div className="mb-8">
         <h3 className="text-xl font-150 mt-4 mb-4">Journal</h3>
         <JournalPanel ref={journalPanelRef} activeJournalId={activeJournalId} onClearActive={() => setActiveJournalId(null)} />
+      </div>
+
+      {/* Mini Holding Graph */}
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-150">Holding Graph</h3>
+          <button
+            onClick={() => navigate('/analysis')}
+            className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors"
+          >
+            Focus Graph
+          </button>
+        </div>
+
+        {graphError && <div className="text-error mb-4">{graphError}</div>}
+
+        <div className="mb-3 flex gap-6 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="w-4 h-4 rounded-full bg-muted inline-block"></span>
+            <span className="text-sm text-muted">Holding (size = market value)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-4 h-4 rounded-full border-2 border-muted bg-background inline-block"></span>
+            <span className="text-sm text-muted">Watchlist</span>
+          </div>
+        </div>
+
+        <HoldingGraph
+          nodes={nodes}
+          edges={edges}
+          onNodeClick={(ticker) => setSelectedGraphTicker(ticker)}
+          width={600}
+          height={300}
+        />
+
+        {selectedGraphTicker && (
+          <NodeDetailPanel
+            ticker={selectedGraphTicker}
+            metadata={getMetadata(selectedGraphTicker)}
+            onClose={() => setSelectedGraphTicker(null)}
+          />
+        )}
       </div>
 
       {/* Trending Stocks Section */}

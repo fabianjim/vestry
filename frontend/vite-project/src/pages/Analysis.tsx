@@ -1,153 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import HoldingGraph, { type GraphNode, type GraphEdge } from '../components/HoldingGraph'
+import HoldingGraph from '../components/HoldingGraph'
 import NodeDetailPanel from '../components/NodeDetailPanel'
-import { portfolioApi, watchlistApi, stockApi } from '../services/api'
-import type { StockMetadata } from '../types/watchlist'
-
-type Holding = {
-  ticker: string
-  shares: number
-  metadata: StockMetadata | null
-  stockData?: {
-    stock?: {
-      currentPrice: number
-    } | null
-  } | null
-}
-
-type WatchlistItem = {
-  id: number
-  ticker: string
-  metadata: StockMetadata | null
-}
-
-const SECTOR_COLORS: Record<string, string> = {
-  Technology: '#5e9ed6',
-  'Health Care': '#10b981',
-  Finance: '#f59e0b',
-  Industrials: '#8b5cf6',
-  'Consumer Discretionary': '#f97316',
-  'Consumer Staples': '#14b8a6',
-  'Communication Services': '#ec4899',
-  Energy: '#ef4444',
-  Materials: '#06b6d4',
-  'Real Estate': '#a78bfa',
-  Utilities: '#6b7280',
-}
-
-function getNodeColor(sector: string | null | undefined) {
-  if (!sector) return '#6b7280'
-  return SECTOR_COLORS[sector] || '#6b7280'
-}
+import { useHoldingGraphData } from '../hooks/useHoldingGraphData'
 
 export default function Analysis() {
   const navigate = useNavigate()
-  const [holdings, setHoldings] = useState<Holding[]>([])
-  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([])
-  const [error, setError] = useState('')
+  const { nodes, edges, error, getMetadata } = useHoldingGraphData()
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
-
-  useEffect(() => {
-    document.title = 'Holding Analysis'
-  }, [])
-
-  const fetchData = async () => {
-    setError('')
-    try {
-      const [holdingsRes, watchlistRes] = await Promise.all([
-        portfolioApi.getHoldings() as Promise<Holding[]>,
-        watchlistApi.getWatchlist() as Promise<WatchlistItem[]>,
-      ])
-
-      // For holdings, we need stock data to compute market value for sizing
-      const holdingsWithData = await Promise.all(
-        (holdingsRes || []).map(async (h) => {
-          try {
-            const data = (await stockApi.getStockData(h.ticker)) as { stock?: { currentPrice: number } | null }
-            return { ...h, stockData: data }
-          } catch {
-            return h
-          }
-        })
-      )
-
-      setHoldings(holdingsWithData)
-      setWatchlist(watchlistRes || [])
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unexpected error'
-      setError(message)
-    }
-  }
-
-  useEffect(() => {
-    fetchData()
-  }, [])
-
-  const { nodes, edges } = useMemo(() => {
-    const allNodes: GraphNode[] = []
-    const allEdges: GraphEdge[] = []
-
-    // Holding nodes
-    holdings.forEach((h) => {
-      const price = h.stockData?.stock?.currentPrice || 0
-      const marketValue = h.shares * price
-      // Scale radius between 10 and 50 based on market value
-      const radius = Math.max(10, Math.min(50, 10 + Math.log10(marketValue + 1) * 4))
-      allNodes.push({
-        id: `holding-${h.ticker}`,
-        ticker: h.ticker,
-        type: 'holding',
-        radius,
-        color: getNodeColor(h.metadata?.sector),
-        metadata: h.metadata,
-      })
-    })
-
-    // Watchlist nodes
-    watchlist.forEach((w) => {
-      allNodes.push({
-        id: `watchlist-${w.ticker}`,
-        ticker: w.ticker,
-        type: 'watchlist',
-        radius: 10,
-        color: getNodeColor(w.metadata?.sector),
-        metadata: w.metadata,
-      })
-    })
-
-    // EDGE STRENGTH
-    // Compute edges based on shared metadata characteristics
-    for (let i = 0; i < allNodes.length; i++) {
-      for (let j = i + 1; j < allNodes.length; j++) {
-        const a = allNodes[i]
-        const b = allNodes[j]
-        let shared = 0
-
-        if (a.metadata?.sector && a.metadata.sector === b.metadata?.sector) shared++
-        if (a.metadata?.country && a.metadata.country === b.metadata?.country) shared++
-        if (a.metadata?.marketCapTier && a.metadata.marketCapTier === b.metadata?.marketCapTier) shared++
-
-        if (shared > 0) {
-          allEdges.push({
-            source: a.id,
-            target: b.id,
-            strength: shared,
-          })
-        }
-      }
-    }
-
-    return { nodes: allNodes, edges: allEdges }
-  }, [holdings, watchlist])
-
-  const selectedMetadata = useMemo(() => {
-    if (!selectedTicker) return null
-    const holding = holdings.find((h) => h.ticker === selectedTicker)
-    if (holding?.metadata) return holding.metadata
-    const watchlistItem = watchlist.find((w) => w.ticker === selectedTicker)
-    return watchlistItem?.metadata || null
-  }, [selectedTicker, holdings, watchlist])
 
   return (
     <div className="max-w-6xl mx-auto mt-6 px-3">
@@ -180,7 +40,7 @@ export default function Analysis() {
       {selectedTicker && (
         <NodeDetailPanel
           ticker={selectedTicker}
-          metadata={selectedMetadata}
+          metadata={getMetadata(selectedTicker)}
           onClose={() => setSelectedTicker(null)}
         />
       )}
