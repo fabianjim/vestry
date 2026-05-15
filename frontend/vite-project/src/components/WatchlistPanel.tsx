@@ -64,23 +64,22 @@ export default function WatchlistPanel() {
   }
 
   return (
-    <div className="p-5 bg-surface rounded-lg border border-border">
-      <div className="flex gap-3 mb-4 flex-wrap">
+    <>
+      <div className="flex gap-2 mb-4">
         <input
           type="text"
-          placeholder="Ticker (e.g. NVDA)"
+          placeholder="Ticker"
           value={newTicker}
           onChange={(e) => setNewTicker(e.target.value.toUpperCase())}
-          className="px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm w-40"
+          className="flex-1 px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm"
         />
         <button
           onClick={handleAdd}
           disabled={loading || !newTicker.trim()}
-          className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50"
+          className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50 text-sm"
         >
-          {loading ? 'Adding…' : 'Add to Watchlist'}
+          {loading ? '…' : 'Add'}
         </button>
-        <button onClick={fetchWatchlist} disabled={loading} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors disabled:opacity-50">Refresh</button>
       </div>
 
       {error && <div className="text-error mb-4">{error}</div>}
@@ -118,6 +117,6 @@ export default function WatchlistPanel() {
           ))}
         </div>
       )}
-    </div>
+    </>
   )
 }
