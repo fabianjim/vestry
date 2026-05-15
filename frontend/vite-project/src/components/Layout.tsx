@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation, Outlet } from 'react-router-dom'
+import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard' },
@@ -11,6 +11,19 @@ const navItems = [
 export default function Layout() {
   const [isOpen, setIsOpen] = useState(true)
   const location = useLocation()
+  const navigate = useNavigate()
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      })
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
+    navigate('/login')
+  }
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -73,6 +86,21 @@ export default function Layout() {
             )
           })}
         </nav>
+
+        {/* Logout Button */}
+        <div className={`border-t border-border ${isOpen ? 'p-4' : 'p-2'}`}>
+          <button
+            onClick={handleLogout}
+            className={`flex items-center rounded-md text-secondary hover:bg-surface-hover hover:text-foreground transition-colors ${
+              isOpen ? 'gap-3 w-full px-4 py-3' : 'justify-center w-full p-2'
+            }`}
+          >
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            {isOpen && <span className="text-sm font-130">Logout</span>}
+          </button>
+        </div>
       </aside>
 
       {/* Main Content */}
