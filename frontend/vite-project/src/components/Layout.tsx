@@ -29,7 +29,7 @@ export default function Layout() {
     <div className="flex min-h-screen bg-background text-foreground">
       {/* Sidebar */}
       <aside
-        className={`flex flex-col border-r border-border bg-surface transition-all duration-300 ${
+        className={`sticky top-0 h-screen flex flex-col border-r border-border bg-surface transition-all duration-300 ${
           isOpen ? 'w-64' : 'w-16'
         }`}
       >
