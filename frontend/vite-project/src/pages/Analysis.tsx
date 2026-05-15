@@ -1,20 +1,15 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import HoldingGraph from '../components/HoldingGraph'
 import NodeDetailPanel from '../components/NodeDetailPanel'
 import { useHoldingGraphData } from '../hooks/useHoldingGraphData'
 
 export default function Analysis() {
-  const navigate = useNavigate()
   const { nodes, edges, error, getMetadata } = useHoldingGraphData()
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
 
   return (
     <div className="max-w-6xl mx-auto mt-6 px-3">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-150 m-0">Holding Analysis</h2>
-        <button onClick={() => navigate('/dashboard')} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">← Back to Dashboard</button>
-      </div>
+      <h2 className="text-2xl font-150 mb-6">Holding Analysis</h2>
 
       {error && <div className="text-error mb-4">{error}</div>}
 

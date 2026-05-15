@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { roundToMinute, formatDateTime } from '../utils/dateUtils'
 import PortfolioChart from '../components/PortfolioChart'
-import TransactionHistory from '../components/TransactionHistory'
 import JournalPrompt from '../components/JournalPrompt'
 import JournalPanel from '../components/JournalPanel'
 import type { JournalPanelHandle } from '../components/JournalPanel'
@@ -42,7 +40,6 @@ type TrendingStock = {
 }
 
 export default function Dashboard() {
-  const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
   const [results, setResults] = useState<Holding[]>([])
@@ -66,20 +63,6 @@ export default function Dashboard() {
   useEffect(() => {
     document.title = 'Dashboard'
   }, [])
-
-  const handleLogout = async () => {
-    setResults([])
-    setError('')
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include'
-      })
-    } catch (error) {
-      console.error('Logout error:', error)
-    }
-    navigate('/login')
-  }
 
   const fetchTrendingStocks = async () => {
     try {
@@ -276,18 +259,7 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-6xl mx-auto mt-6 px-3">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-150 m-0">Vestry Dashboard</h2>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-1 px-4 py-2 bg-error text-white border-none rounded cursor-pointer text-sm hover:bg-error/80 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-          Logout
-        </button>
-      </div>
+      <h2 className="text-2xl font-150 mb-6">Vestry Dashboard</h2>
 
       {/* Portfolio Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -320,13 +292,6 @@ export default function Dashboard() {
           className="px-3 py-2 bg-gain text-white rounded-md hover:bg-gain/80 transition-colors disabled:opacity-50"
         >
           + Buy Stock
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate('/analysis')}
-          className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors"
-        >
-          Analysis
         </button>
       </div>
 
@@ -424,12 +389,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Transaction History Section */}
-      <div className="mt-8 mb-8">
-        <h3 className="text-xl font-150 mb-4">Transaction History</h3>
-        <TransactionHistory />
-      </div>
-
       {/* Watchlist Section */}
       <div className="mb-8">
         <h3 className="text-xl font-150 mt-4 mb-4">Watchlist</h3>
@@ -444,15 +403,7 @@ export default function Dashboard() {
 
       {/* Mini Holding Graph */}
       <div className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-150">Holding Graph</h3>
-          <button
-            onClick={() => navigate('/analysis')}
-            className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors"
-          >
-            Focus Graph
-          </button>
-        </div>
+        <h3 className="text-xl font-150 mb-4">Holding Graph</h3>
 
         {graphError && <div className="text-error mb-4">{graphError}</div>}
 
