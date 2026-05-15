@@ -4,10 +4,7 @@ import JournalPrompt from '../components/JournalPrompt'
 import JournalPanel from '../components/JournalPanel'
 import type { JournalPanelHandle } from '../components/JournalPanel'
 import RightSidebar from '../components/RightSidebar'
-import HoldingGraph from '../components/HoldingGraph'
-import NodeDetailPanel from '../components/NodeDetailPanel'
 import { journalApi } from '../services/api'
-import { useHoldingGraphData } from '../hooks/useHoldingGraphData'
 
 type StockData = {
   stock: Stock | null
@@ -32,17 +29,10 @@ type Holding = {
   stockData?: StockData | null
 }
 
-type TrendingStock = {
-  ticker: string
-  holderCount: number
-  firstTrackedAt: string
-}
-
 export default function Dashboard() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
   const [results, setResults] = useState<Holding[]>([])
-  const [trendingStocks, setTrendingStocks] = useState<TrendingStock[]>([])
   const [showAddModal, setShowAddModal] = useState(false)
   const [newTicker, setNewTicker] = useState('')
   const [newShares, setNewShares] = useState('')
@@ -56,27 +46,10 @@ export default function Dashboard() {
   const hasFetched = useRef(false)
   const journalPanelRef = useRef<JournalPanelHandle>(null)
   const [activeJournalId, setActiveJournalId] = useState<number | null>(null)
-  const [selectedGraphTicker, setSelectedGraphTicker] = useState<string | null>(null)
-  const { nodes, edges, error: graphError, getMetadata } = useHoldingGraphData()
   
   useEffect(() => {
     document.title = 'Dashboard'
   }, [])
-
-  const fetchTrendingStocks = async () => {
-    try {
-      const res = await fetch('/api/portfolio/trending', {
-        method: 'GET',
-        credentials: 'include',
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setTrendingStocks(data)
-      }
-    } catch (e) {
-      console.error('Failed to fetch trending stocks:', e)
-    }
-  }
 
   const fetchPortfolioInfo = async () => {
     setError('')
@@ -110,7 +83,6 @@ export default function Dashboard() {
       )
       
       setResults(holdingsWithData)
-      await fetchTrendingStocks()
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
       setError(message)
@@ -292,71 +264,6 @@ export default function Dashboard() {
         <h3 className="text-xl font-150 mt-4 mb-4">Journal</h3>
         <JournalPanel ref={journalPanelRef} activeJournalId={activeJournalId} onClearActive={() => setActiveJournalId(null)} />
       </div>
-
-      {/* Mini Holding Graph */}
-      <div className="mb-8">
-        <h3 className="text-xl font-150 mb-4">Holding Graph</h3>
-
-        {graphError && <div className="text-error mb-4">{graphError}</div>}
-
-        <div className="mb-3 flex gap-6 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="w-4 h-4 rounded-full bg-muted inline-block"></span>
-            <span className="text-sm text-muted">Holding (size = market value)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-4 h-4 rounded-full border-2 border-muted bg-background inline-block"></span>
-            <span className="text-sm text-muted">Watchlist</span>
-          </div>
-        </div>
-
-        <HoldingGraph
-          nodes={nodes}
-          edges={edges}
-          onNodeClick={(ticker) => setSelectedGraphTicker(ticker)}
-          width={600}
-          height={300}
-        />
-
-        {selectedGraphTicker && (
-          <NodeDetailPanel
-            ticker={selectedGraphTicker}
-            metadata={getMetadata(selectedGraphTicker)}
-            onClose={() => setSelectedGraphTicker(null)}
-          />
-        )}
-      </div>
-
-      {/* Trending Stocks Section */}
-      {trendingStocks.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-xl font-150 mb-4">Trending Stocks</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {trendingStocks.map((stock, i) => (
-              <div 
-                key={stock.ticker}
-                className="p-4 bg-surface rounded-lg border border-border flex justify-between items-center"
-              >
-                <div>
-                  <div className="text-xl text-foreground font-130">#{i + 1} {stock.ticker}</div>
-                  <div className="text-xs text-muted">
-                    {stock.holderCount} {stock.holderCount === 1 ? 'investor' : 'investors'} holding
-                  </div>
-                </div>
-                {/* <button
-                  onClick={() => {
-                    setNewTicker(stock.ticker)
-                    setShowAddModal(true)
-                  }}
-                  className="px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded hover:bg-primary-hover transition-colors"
-                >
-                  Buy
-                </button> */}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Add Stock Modal */}
       {showAddModal && (

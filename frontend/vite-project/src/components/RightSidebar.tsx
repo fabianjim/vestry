@@ -43,7 +43,7 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
     >
       {/* Toggle */}
       <div className="flex items-center justify-between p-3 border-b border-border">
-        {isOpen && <span className="text-sm font-130">Portfolio</span>}
+        {isOpen && <span className="text-md font-130">Portfolio</span>}
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="p-1.5 rounded-md hover:bg-surface-hover transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
