@@ -88,31 +88,29 @@ export default function WatchlistPanel() {
       {items.length === 0 ? (
         <div className="text-muted italic">No watchlist items yet.</div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="flex flex-col gap-2">
           {items.map((item) => (
             <div
               key={item.id}
-              className="p-4 bg-surface-hover rounded-lg border border-border flex justify-between items-start"
+              className="p-3 bg-surface-hover rounded-lg border border-border"
             >
-              <div>
-                <div className="text-lg font-130 text-foreground">{item.ticker}</div>
-                {item.metadata ? (
-                  <div className="mt-2 text-xs text-secondary">
-                    <div><span className="font-semibold">Sector:</span> {item.metadata.sector || '-'}</div>
-                    <div><span className="font-semibold">Industry:</span> {item.metadata.industry || '-'}</div>
-                    <div><span className="font-semibold">Country:</span> {item.metadata.country || '-'}</div>
-                    <div><span className="font-semibold">Cap:</span> {getTierLabel(item.metadata.marketCapTier)}</div>
-                  </div>
-                ) : (
-                  <div className="mt-2 text-xs text-muted italic">
-                    Metadata not available
-                  </div>
-                )}
-              </div>
+              <div className="text-base font-130 text-foreground">{item.ticker}</div>
+              {item.metadata ? (
+                <div className="mt-1 text-xs text-secondary space-y-0.5">
+                  <div><span className="font-semibold">Sector:</span> {item.metadata.sector || '-'}</div>
+                  <div><span className="font-semibold">Industry:</span> {item.metadata.industry || '-'}</div>
+                  <div><span className="font-semibold">Country:</span> {item.metadata.country || '-'}</div>
+                  <div><span className="font-semibold">Cap:</span> {getTierLabel(item.metadata.marketCapTier)}</div>
+                </div>
+              ) : (
+                <div className="mt-1 text-xs text-muted italic">
+                  Metadata not available
+                </div>
+              )}
               <button
                 onClick={() => handleRemove(item.ticker)}
                 disabled={loading}
-                className="px-2.5 py-1 bg-error text-white text-xs rounded hover:bg-error/80 transition-colors disabled:opacity-50"
+                className="mt-2 px-2.5 py-1 bg-error text-white text-xs rounded hover:bg-error/80 transition-colors disabled:opacity-50"
               >
                 Remove
               </button>
