@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { roundToMinute, formatDateTime } from '../utils/dateUtils'
 import PortfolioChart from '../components/PortfolioChart'
 import JournalPrompt from '../components/JournalPrompt'
 import JournalPanel from '../components/JournalPanel'
 import type { JournalPanelHandle } from '../components/JournalPanel'
-import WatchlistPanel from '../components/WatchlistPanel'
+import RightSidebar from '../components/RightSidebar'
 import HoldingGraph from '../components/HoldingGraph'
 import NodeDetailPanel from '../components/NodeDetailPanel'
 import { journalApi } from '../services/api'
@@ -156,13 +155,6 @@ export default function Dashboard() {
     }
   }
 
-  const openSellModal = (ticker: string, shares: number) => {
-    setSellTicker(ticker)
-    setMaxShares(shares)
-    setSellShares('')
-    setShowSellModal(true)
-  }
-
   const closeSellModal = () => {
     setShowSellModal(false)
     setSellTicker('')
@@ -228,10 +220,6 @@ export default function Dashboard() {
     }
   }
 
-  const removeHolding = async (ticker: string, shares: number) => {
-    openSellModal(ticker, shares)
-  }
-
   const calculatePortfolioValue = () => {
     return results.reduce((total, holding) => {
       const price = holding.stockData?.stock?.currentPrice || 0
@@ -258,8 +246,10 @@ export default function Dashboard() {
   }, [])
 
   return (
-    <div className="max-w-6xl mx-auto mt-6 px-3">
-      <h2 className="text-2xl font-150 mb-6">Vestry Dashboard</h2>
+    <div className="flex min-h-screen">
+      {/* Main Content */}
+      <div className="flex-1 max-w-6xl mx-auto mt-6 px-3">
+        <h2 className="text-2xl font-150 mb-6">Dashboard</h2>
 
       {/* Portfolio Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -283,18 +273,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-2 mb-4">
-        <button
-          type="button"
-          onClick={() => setShowAddModal(true)}
-          disabled={loading}
-          className="px-3 py-2 bg-gain text-white rounded-md hover:bg-gain/80 transition-colors disabled:opacity-50"
-        >
-          + Buy Stock
-        </button>
-      </div>
-
       {error && <div className="text-error mt-2 mb-4">{error}</div>}
 
       {/* Portfolio History Chart */}
@@ -309,92 +287,6 @@ export default function Dashboard() {
       </div>
 
       {/* Holdings Table */}
-      {results.length > 0 && (
-        <div className="mt-4 mb-8">
-          <h3 className="text-xl font-150 mb-4">Your Holdings</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-elevated">
-                  {['Ticker', 'Shares', 'Current Price', 'Day Change', 'Market Value', 'Last Updated', 'Actions'].map(
-                    (h) => (
-                      <th key={h} className="border border-border p-2 text-left text-foreground font-130">
-                        {h}
-                      </th>
-                    ),
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((r, i) => {
-                  const currentPrice = r.stockData?.stock?.currentPrice ?? 0
-                  const prevClose = r.stockData?.stock?.prevClose ?? currentPrice
-                  const dayChange = currentPrice - prevClose
-                  const dayChangePercent = prevClose > 0 ? (dayChange / prevClose) * 100 : 0
-                  const marketValue = r.shares * currentPrice
-                  const isStale = r.stockData?.stale ?? false
-                  
-                  return (
-                    <tr key={i} className={`${isStale ? 'bg-surface-hover' : 'bg-surface'} text-secondary hover:bg-surface-hover transition-colors`}>
-                      {/* ticker*/}
-                      <td className="border border-border p-2">
-                        {r.ticker}
-                        {isStale && (
-                          <span className="text-xs text-error block mt-0.5">
-                            ⚠ Stale
-                          </span>
-                        )}
-                      </td>
-                      {/* shares */}
-                      <td className="border border-border p-2">{r.shares}</td>
-                      {/* current price */}
-                      <td className="border border-border p-2">
-                        ${currentPrice.toFixed(2)}
-                      </td>
-                      {/* day change */}
-                      <td className={`border border-border p-2 ${dayChange >= 0 ? 'text-gain' : 'text-loss'}`}>
-                        {dayChange >= 0 ? '+' : ''}{dayChange.toFixed(2)} ({dayChangePercent.toFixed(2)}%)
-                      </td>
-                      {/* market value */}
-                      <td className="border border-border p-2">
-                        ${marketValue.toFixed(2)}
-                      </td>
-                      {/* last updated */}
-                      <td className="border border-border p-2 text-xs">
-                        {r.stockData?.stock?.timestamp ? roundToMinute(r.stockData.stock.timestamp) : '-'}
-                        {isStale && r.stockData?.staleWarning && (
-                          <div className="text-error mt-0.5">
-                            {r.stockData.staleWarning}
-                            {r.stockData.lastSuccessfulFetch && (
-                              <>. Last updated: {formatDateTime(r.stockData.lastSuccessfulFetch)}</>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                      <td className="border border-border p-2">
-                        <button
-                          onClick={() => removeHolding(r.ticker, r.shares)}
-                          disabled={loading}
-                          className="px-2 py-1 bg-error text-white text-xs rounded hover:bg-error/80 transition-colors disabled:opacity-50"
-                        >
-                          Sell
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Watchlist Section */}
-      <div className="mb-8">
-        <h3 className="text-xl font-150 mt-4 mb-4">Watchlist</h3>
-        <WatchlistPanel />
-      </div>
-
       {/* Journal Section */}
       <div className="mb-8">
         <h3 className="text-xl font-150 mt-4 mb-4">Journal</h3>
@@ -518,22 +410,56 @@ export default function Dashboard() {
       {showSellModal && (
         <div className="fixed inset-0 bg-overlay flex justify-center items-center z-50">
           <div className="bg-surface p-6 rounded-lg w-11/12 max-w-md border border-border">
-            <h3 className="text-xl font-150 mt-0 mb-4">Sell {sellTicker}</h3>
-            <div className="mb-4">
-              <label className="block mb-1 text-secondary">
-                Shares (max: {maxShares})
-              </label>
-              <input
-                type="number"
-                placeholder="Number of shares to sell"
-                value={sellShares}
-                onChange={(e) => setSellShares(e.target.value)}
-                min="0.01"
-                max={maxShares}
-                step="0.01"
-                className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
+            <h3 className="text-xl font-150 mt-0 mb-4">Sell Stock</h3>
+            
+            {!sellTicker && (
+              <div className="mb-4">
+                <label className="block mb-1 text-secondary">Select Holding</label>
+                <select
+                  value={sellTicker}
+                  onChange={(e) => {
+                    const ticker = e.target.value
+                    const holding = results.find(h => h.ticker === ticker)
+                    if (holding) {
+                      setSellTicker(ticker)
+                      setMaxShares(holding.shares)
+                    }
+                  }}
+                  className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">Choose a holding...</option>
+                  {results.map(h => (
+                    <option key={h.ticker} value={h.ticker}>
+                      {h.ticker} ({h.shares} shares)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            
+            {sellTicker && (
+              <>
+                <div className="mb-2 text-sm text-secondary">
+                  Selling: <span className="text-foreground font-130">{sellTicker}</span>
+                </div>
+                <div className="mb-4">
+                  <label className="block mb-1 text-secondary">
+                    Shares (max: {maxShares})
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="Number of shares to sell"
+                    value={sellShares}
+                    onChange={(e) => setSellShares(e.target.value)}
+                    min="0.01"
+                    max={maxShares}
+                    step="0.01"
+                    className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </>
+            )}
+            
             <div className="flex gap-2 justify-end">
               <button onClick={closeSellModal} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">
                 Cancel
@@ -557,6 +483,15 @@ export default function Dashboard() {
         onSubmit={submitJournalPrompt}
         ticker={journalPromptTicker}
         tradeType={journalPromptTradeType}
+      />
+      </div>
+
+      {/* Right Sidebar */}
+      <RightSidebar
+        holdings={results}
+        loading={loading}
+        onBuyClick={() => setShowAddModal(true)}
+        onSellClick={() => setShowSellModal(true)}
       />
     </div>
   )
