@@ -91,25 +91,27 @@ export default function WatchlistPanel() {
           {items.map((item) => (
             <div
               key={item.id}
-              className="p-3 bg-surface-hover rounded-lg border border-border"
+              className="p-3 bg-surface-hover rounded-lg border border-border flex justify-between items-start"
             >
-              <div className="text-base font-130 text-foreground">{item.ticker}</div>
-              {item.metadata ? (
-                <div className="mt-1 text-xs text-secondary space-y-0.5">
-                  <div><span className="font-semibold">Sector:</span> {item.metadata.sector || '-'}</div>
-                  <div><span className="font-semibold">Industry:</span> {item.metadata.industry || '-'}</div>
-                  <div><span className="font-semibold">Country:</span> {item.metadata.country || '-'}</div>
-                  <div><span className="font-semibold">Cap:</span> {getTierLabel(item.metadata.marketCapTier)}</div>
-                </div>
-              ) : (
-                <div className="mt-1 text-xs text-muted italic">
-                  Metadata not available
-                </div>
-              )}
+              <div>
+                <div className="text-base font-130 text-foreground">{item.ticker}</div>
+                {item.metadata ? (
+                  <div className="mt-1 text-xs text-secondary space-y-0.5">
+                    <div><span className="font-semibold">Sector:</span> {item.metadata.sector || '-'}</div>
+                    <div><span className="font-semibold">Industry:</span> {item.metadata.industry || '-'}</div>
+                    <div><span className="font-semibold">Country:</span> {item.metadata.country || '-'}</div>
+                    <div><span className="font-semibold">Cap:</span> {getTierLabel(item.metadata.marketCapTier)}</div>
+                  </div>
+                ) : (
+                  <div className="mt-1 text-xs text-muted italic">
+                    Metadata not available
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => handleRemove(item.ticker)}
                 disabled={loading}
-                className="mt-2 px-2.5 py-1 bg-error text-white text-xs rounded hover:bg-error/80 transition-colors disabled:opacity-50"
+                className="px-2.5 py-1 bg-error text-white text-xs rounded hover:bg-error/80 transition-colors disabled:opacity-50"
               >
                 Remove
               </button>

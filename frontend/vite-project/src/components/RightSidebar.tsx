@@ -37,9 +37,9 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
 
   return (
     <aside
-      className={`sticky top-0 h-screen flex flex-col border-l border-border bg-surface transition-all duration-300 ${
-        isOpen ? 'w-80' : 'w-36'
-      }`}
+      className={`sticky top-0 h-screen flex flex-col border-l border-border bg-surface overflow-y-auto transition-all duration-300 ${
+          isOpen ? 'w-80' : 'w-36'
+        }`}
     >
       {/* Toggle */}
       <div className="flex items-center justify-between p-3 border-b border-border">
@@ -80,7 +80,7 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
       </div>
 
       {/* Holdings */}
-      <div className="flex-1 overflow-y-auto">
+      <div>
         <div className={`border-b border-border ${isOpen ? 'px-4 py-3' : 'px-2 py-2'}`}>
           <h3 className={`font-130 ${isOpen ? 'text-sm' : 'text-xs'}`}>Holdings</h3>
         </div>
