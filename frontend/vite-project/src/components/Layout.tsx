@@ -3,8 +3,8 @@ import { Link, useLocation, Outlet } from 'react-router-dom'
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard' },
-  { path: '/transactions', label: 'Transaction History' },
   { path: '/analysis', label: 'Holding Analysis' },
+  { path: '/transactions', label: 'Transaction History' },
   { path: '/vestry-info', label: 'Vestry Info' },
 ]
 
