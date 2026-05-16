@@ -37,7 +37,7 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
 
   return (
     <aside
-      className={`sticky top-0 h-screen flex flex-col border-l border-border bg-surface overflow-y-auto transition-all duration-300 ${
+      className={`sticky top-0 self-start flex flex-col border-l border-border bg-surface rounded-b-lg transition-all duration-300 ${
           isOpen ? 'w-80' : 'w-36'
         }`}
     >
