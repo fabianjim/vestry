@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react'
 import type { WatchlistItem } from '../types/watchlist'
 import { watchlistApi } from '../services/api'
 
-export default function WatchlistPanel() {
+interface WatchlistPanelProps {
+  isOpen?: boolean
+}
+
+export default function WatchlistPanel({ isOpen = true }: WatchlistPanelProps) {
   const [items, setItems] = useState<WatchlistItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -64,62 +68,78 @@ export default function WatchlistPanel() {
   }
 
   return (
-    <div className="p-5 bg-surface rounded-lg border border-border">
-      <div className="flex gap-3 mb-4 flex-wrap">
-        <input
-          type="text"
-          placeholder="Ticker (e.g. NVDA)"
-          value={newTicker}
-          onChange={(e) => setNewTicker(e.target.value.toUpperCase())}
-          className="px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm w-40"
-        />
-        <button
-          onClick={handleAdd}
-          disabled={loading || !newTicker.trim()}
-          className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50"
-        >
-          {loading ? 'Adding…' : 'Add to Watchlist'}
-        </button>
-        <button onClick={fetchWatchlist} disabled={loading} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors disabled:opacity-50">Refresh</button>
-      </div>
+    <>
+      {isOpen && (
+        <>
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              placeholder="Ticker"
+              value={newTicker}
+              onChange={(e) => setNewTicker(e.target.value.toUpperCase())}
+              className="flex-1 px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+            />
+            <button
+              onClick={handleAdd}
+              disabled={loading || !newTicker.trim()}
+              className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50 text-sm"
+            >
+              {loading ? '…' : 'Add'}
+            </button>
+          </div>
 
-      {error && <div className="text-error mb-4">{error}</div>}
+          {error && <div className="text-error mb-4">{error}</div>}
+        </>
+      )}
 
       {items.length === 0 ? (
         <div className="text-muted italic">No watchlist items yet.</div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="p-4 bg-surface-hover rounded-lg border border-border flex justify-between items-start"
-            >
-              <div>
-                <div className="text-lg font-130 text-foreground">{item.ticker}</div>
-                {item.metadata ? (
-                  <div className="mt-2 text-xs text-secondary">
-                    <div><span className="font-semibold">Sector:</span> {item.metadata.sector || '-'}</div>
-                    <div><span className="font-semibold">Industry:</span> {item.metadata.industry || '-'}</div>
-                    <div><span className="font-semibold">Country:</span> {item.metadata.country || '-'}</div>
-                    <div><span className="font-semibold">Cap:</span> {getTierLabel(item.metadata.marketCapTier)}</div>
-                  </div>
-                ) : (
-                  <div className="mt-2 text-xs text-muted italic">
-                    Metadata not available
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => handleRemove(item.ticker)}
-                disabled={loading}
-                className="px-2.5 py-1 bg-error text-white text-xs rounded hover:bg-error/80 transition-colors disabled:opacity-50"
+        <div className={isOpen ? 'flex flex-col gap-2' : 'p-1'}>
+          {items.map((item) => {
+            if (!isOpen) {
+              return (
+                <div
+                  key={item.id}
+                  className="flex justify-between items-center py-1 px-2 text-sm hover:bg-surface-hover rounded transition-colors"
+                >
+                  <span className="font-130">{item.ticker}</span>
+                </div>
+              )
+            }
+
+            return (
+              <div
+                key={item.id}
+                className="p-3 bg-surface-hover rounded-lg border border-border flex justify-between items-start"
               >
-                Remove
-              </button>
-            </div>
-          ))}
+                <div>
+                  <div className="text-base font-130 text-foreground">{item.ticker}</div>
+                  {item.metadata ? (
+                    <div className="mt-1 text-xs text-secondary space-y-0.5">
+                      <div><span className="font-semibold">Sector:</span> {item.metadata.sector || '-'}</div>
+                      <div><span className="font-semibold">Industry:</span> {item.metadata.industry || '-'}</div>
+                      <div><span className="font-semibold">Country:</span> {item.metadata.country || '-'}</div>
+                      <div><span className="font-semibold">Cap:</span> {getTierLabel(item.metadata.marketCapTier)}</div>
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-xs text-muted italic">
+                      Metadata not available
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleRemove(item.ticker)}
+                  disabled={loading}
+                  className="px-2.5 py-1 bg-error text-white text-xs rounded hover:bg-error/80 transition-colors disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              </div>
+            )
+          })}
         </div>
       )}
-    </div>
+    </>
   )
 }
