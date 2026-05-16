@@ -142,8 +142,8 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
         <div className={`border-b border-border ${isOpen ? 'px-4 py-3' : 'px-2 py-2'}`}>
           <h3 className={`font-130 ${isOpen ? 'text-sm' : 'text-xs'}`}>Watchlist</h3>
         </div>
-        <div className={isOpen ? 'p-4' : 'p-2'}>
-          <WatchlistPanel />
+        <div className={isOpen ? 'p-4' : ''}>
+          <WatchlistPanel isOpen={isOpen} />
         </div>
       </div>
     </aside>
