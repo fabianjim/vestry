@@ -218,7 +218,7 @@ export default function Dashboard() {
   }, [])
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen gap-6"> {/* if modifying sidebar gap also update Layout.tsx */}
       {/* Main Content */}
       <div className="flex-1 max-w-6xl mx-auto mt-6 px-3">
         <h2 className="text-2xl font-150 mb-6">Dashboard</h2>

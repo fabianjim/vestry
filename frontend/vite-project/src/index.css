@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+html {
+  font-size: 14px;
+}
+
 @theme {
   /* Background Surfaces */
   --color-background: #2d2d2d;

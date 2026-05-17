@@ -26,7 +26,7 @@ export default function Layout() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div className="flex min-h-screen gap-6 bg-background text-foreground"> {/* if modifying sidebar gap also update Dashboard.tsx */}
       {/* Sidebar */}
       <aside
         className={`sticky top-0 h-screen flex flex-col border-r border-border bg-surface transition-all duration-300 ${
