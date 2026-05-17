@@ -232,7 +232,7 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="p-4 bg-surface rounded-lg border border-border">
-          <div className="text-sm text-muted">Day's Change</div>
+          <div className="text-sm text-muted">Total Day's Change</div>
           <div className={`text-2xl font-130 ${calculateDayChange() >= 0 ? 'text-gain' : 'text-loss'}`}>
             {calculateDayChange() >= 0 ? '+' : ''}{calculateDayChange().toFixed(2)}
           </div>

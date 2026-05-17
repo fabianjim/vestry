@@ -93,7 +93,7 @@ export default function WatchlistPanel({ isOpen = true }: WatchlistPanelProps) {
       )}
 
       {items.length === 0 ? (
-        <div className="text-muted italic">No watchlist items yet.</div>
+        <div className={`text-muted ${isOpen ? 'p-4 text-sm' : 'p-2 text-xs'}`}>No watchlist items yet.</div>
       ) : (
         <div className={isOpen ? 'flex flex-col gap-2' : 'p-1'}>
           {items.map((item) => {
