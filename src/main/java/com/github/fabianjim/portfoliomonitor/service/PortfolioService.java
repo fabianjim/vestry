@@ -24,6 +24,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @Transactional
@@ -82,19 +83,20 @@ public class PortfolioService {
             }
             portfolio.setHoldings(aggregatedHoldings);
 
+            // Validate all tickers by fetching prices before saving
+            Map<String, Double> tickerPrices = new HashMap<>();
+            for (Holding holding : portfolio.getHoldings()) {
+                double price = fetchTransactionPrice(holding.getTicker());
+                tickerPrices.put(holding.getTicker(), price);
+                startTrackingStock(holding.getTicker());
+            }
+
             portfolioRepository.save(portfolio);
 
-            // Track all tickers in the new portfolio and record buy transactions
+            // Record buy transactions with validated prices
             for (Holding holding : portfolio.getHoldings()) {
-                startTrackingStock(holding.getTicker());
-                // Fetch initial price data immediately
-                Stock stock = stockService.updateStockData(holding.getTicker(), Stock.StockType.INITIAL);
-                
-                // Record buy transaction for initial holding with actual price
-                double price = (stock != null) ? stock.getCurrentPrice() : 0.0;
-                if (price > 0.0) {
-                    transactionService.recordBuyTransaction(holding.getTicker(), holding.getShares(), price);
-                }
+                double price = tickerPrices.get(holding.getTicker());
+                transactionService.recordBuyTransaction(holding.getTicker(), holding.getShares(), price);
             }
         }
     }
@@ -133,6 +135,40 @@ public class PortfolioService {
     }
 
     /**
+     * Fetch live price for a transaction with one retry.
+     * Throws RuntimeException if unable to get a valid price after retry.
+     */
+    private double fetchTransactionPrice(String ticker) {
+        Exception lastError = null;
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                Stock stock = stockService.updateStockData(ticker, Stock.StockType.INITIAL);
+                if (stock != null && stock.getCurrentPrice() > 0.0) {
+                    return stock.getCurrentPrice();
+                }
+                if (stock == null) {
+                    lastError = new RuntimeException("No stock data returned for " + ticker);
+                } else {
+                    lastError = new RuntimeException("Invalid price (" + stock.getCurrentPrice() + ") for " + ticker);
+                }
+            } catch (Exception e) {
+                lastError = e;
+            }
+            
+            if (attempt == 1) {
+                try {
+                    TimeUnit.MILLISECONDS.sleep(500);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Retry interrupted for " + ticker, ie);
+                }
+            }
+        }
+        
+        throw new RuntimeException("Unable to fetch valid price for " + ticker + " after 2 attempts. Last error: " + lastError.getMessage(), lastError);
+    }
+
+    /**
      * Add a holding to the current user's portfolio.
      * If the ticker already exists, aggregates shares into the existing holding.
      */
@@ -141,6 +177,10 @@ public class PortfolioService {
         if (portfolio == null) {
             throw new RuntimeException("No portfolio found for current user");
         }
+
+        // Fetch and validate price BEFORE modifying portfolio
+        startTrackingStock(ticker);
+        double currentPrice = fetchTransactionPrice(ticker);
 
         Holding existingHolding = portfolio.getHoldings().stream()
             .filter(h -> h.getTicker().equals(ticker))
@@ -156,15 +196,8 @@ public class PortfolioService {
 
         portfolioRepository.save(portfolio);
 
-        // Start tracking and fetch live price data
-        startTrackingStock(ticker);
-        Stock stock = stockService.updateStockData(ticker, Stock.StockType.INITIAL);
-
-        // Record buy transaction with live price
-        double currentPrice = (stock != null) ? stock.getCurrentPrice() : 0.0;
-        if (currentPrice > 0.0) {
-            transactionService.recordBuyTransaction(ticker, shares, currentPrice);
-        }
+        // Record buy transaction with validated price
+        transactionService.recordBuyTransaction(ticker, shares, currentPrice);
     }
 
     /**
@@ -187,9 +220,8 @@ public class PortfolioService {
 
         double shares = holding.getShares();
 
-        // Fetch live price data before recording transaction
-        Stock stock = stockService.updateStockData(ticker, Stock.StockType.INITIAL);
-        double currentPrice = (stock != null) ? stock.getCurrentPrice() : 0.0;
+        // Fetch and validate price BEFORE modifying portfolio
+        double currentPrice = fetchTransactionPrice(ticker);
 
         portfolio.getHoldings().remove(holding);
         portfolioRepository.save(portfolio);
@@ -197,10 +229,8 @@ public class PortfolioService {
         // Stop tracking this stock
         stopTrackingStock(ticker);
 
-        // Record sell transaction with live price
-        if (currentPrice > 0.0) {
-            transactionService.recordSellTransaction(ticker, shares, currentPrice);
-        }
+        // Record sell transaction with validated price
+        transactionService.recordSellTransaction(ticker, shares, currentPrice);
     }
 
     /**
@@ -221,14 +251,11 @@ public class PortfolioService {
             throw new RuntimeException("Cannot sell more shares than owned");
         }
 
-        // Fetch live price data before recording transaction
-        Stock stock = stockService.updateStockData(ticker, Stock.StockType.INITIAL);
-        double currentPrice = (stock != null) ? stock.getCurrentPrice() : 0.0;
+        // Fetch and validate price BEFORE modifying portfolio
+        double currentPrice = fetchTransactionPrice(ticker);
 
-        // Record sell transaction with live price
-        if (currentPrice > 0.0) {
-            transactionService.recordSellTransaction(ticker, sharesToSell, currentPrice);
-        }
+        // Record sell transaction with validated price
+        transactionService.recordSellTransaction(ticker, sharesToSell, currentPrice);
 
         // Update or remove holding
         if (sharesToSell == holding.getShares()) {
