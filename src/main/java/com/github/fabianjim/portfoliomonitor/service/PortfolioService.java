@@ -1,10 +1,12 @@
 package com.github.fabianjim.portfoliomonitor.service;
 
+import com.github.fabianjim.portfoliomonitor.dto.PnLSummaryDTO;
 import com.github.fabianjim.portfoliomonitor.dto.PortfolioHistoryDTO;
 import com.github.fabianjim.portfoliomonitor.model.Holding;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;
 import com.github.fabianjim.portfoliomonitor.model.Stock;
 import com.github.fabianjim.portfoliomonitor.model.TrackedStock;
+import com.github.fabianjim.portfoliomonitor.model.Transaction;
 import com.github.fabianjim.portfoliomonitor.model.User;
 import com.github.fabianjim.portfoliomonitor.repository.PortfolioRepository;
 import com.github.fabianjim.portfoliomonitor.repository.StockRepository;
@@ -298,6 +300,75 @@ public class PortfolioService {
      */
     public List<TrackedStock> getTopTrendingStocks(int limit) {
         return trackedStockRepository.findTopTrackedStocks(limit);
+    }
+
+    /**
+     * Calculate total unrealized and realized P/L for the current user's portfolio.
+     * Uses average cost basis method per ticker.
+     */
+    public PnLSummaryDTO getPnLSummary() {
+        List<Transaction> transactions = transactionService.getTransactionHistory();
+
+        // Group transactions by ticker
+        Map<String, List<Transaction>> byTicker = new HashMap<>();
+        for (Transaction tx : transactions) {
+            byTicker.computeIfAbsent(tx.getTicker(), k -> new ArrayList<>()).add(tx);
+        }
+
+        double totalUnrealized = 0;
+        double totalRealized = 0;
+        double totalCurrentCostBasis = 0;
+        double totalSoldCostBasis = 0;
+
+        for (List<Transaction> tickerTxs : byTicker.values()) {
+            double buyShares = 0;
+            double buyCost = 0;
+            double sellShares = 0;
+            double sellProceeds = 0;
+
+            for (Transaction tx : tickerTxs) {
+                if (tx.getType() == Transaction.TransactionType.BUY) {
+                    buyShares += tx.getShares();
+                    buyCost += tx.getTotalValue();
+                } else {
+                    sellShares += tx.getShares();
+                    sellProceeds += tx.getTotalValue();
+                }
+            }
+
+            if (buyShares == 0) continue;
+
+            double avgCost = buyCost / buyShares;
+            double realizedForTicker = sellProceeds - (avgCost * sellShares);
+            totalRealized += realizedForTicker;
+            totalSoldCostBasis += avgCost * sellShares;
+
+            double currentShares = buyShares - sellShares;
+            if (currentShares > 0) {
+                String ticker = tickerTxs.get(0).getTicker();
+                Stock stock = getStockData(ticker);
+                double currentPrice = (stock != null) ? stock.getCurrentPrice() : 0;
+                double unrealizedForTicker = (currentPrice - avgCost) * currentShares;
+                totalUnrealized += unrealizedForTicker;
+                totalCurrentCostBasis += avgCost * currentShares;
+            }
+        }
+
+        double totalPnL = totalUnrealized + totalRealized;
+        double totalCostBasis = totalCurrentCostBasis + totalSoldCostBasis;
+        double totalPnLPercent = totalCostBasis > 0
+                ? (totalPnL / totalCostBasis) * 100
+                : 0;
+        double unrealizedPercent = totalCurrentCostBasis > 0
+                ? (totalUnrealized / totalCurrentCostBasis) * 100
+                : 0;
+        double realizedPercent = totalSoldCostBasis > 0
+                ? (totalRealized / totalSoldCostBasis) * 100
+                : 0;
+
+        return new PnLSummaryDTO(totalPnL, totalPnLPercent,
+                                 totalUnrealized, unrealizedPercent,
+                                 totalRealized, realizedPercent);
     }
 
     /**

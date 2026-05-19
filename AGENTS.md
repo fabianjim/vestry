@@ -58,11 +58,19 @@ frontend/vite-project/src/
 ## Features Built
 
 ### Dashboard (Price Analysis)
-- Displays total portfolio value, day's change, total holdings count
+- Displays total portfolio value, day's change, **total P/L** (unrealized + realized with percentage)
+- Right sidebar shows **holdings count** and **watchlist count** next to their respective headers
 - Portfolio performance chart (hourly + daily toggle, date navigation)
 - Holdings table with ticker, shares, current price, day change, market value, last updated
 - Buy and sell stock actions
 - Chart pin layer: journal entries rendered as typed pins directly on the performance chart. Pin color reflects outcome retroactively (green/red based on price movement after entry).
+
+### P/L Tracking
+- **Total P/L** shown on Dashboard using average cost basis method per ticker
+- **Unrealized P/L**: current value minus cost basis for held positions
+- **Realized P/L**: sell proceeds minus cost basis for sold positions (lifetime, includes fully sold positions)
+- **Transaction History** page shows separate Unrealized and Realized P/L summary cards above the transaction table
+- Backend endpoint: `GET /api/portfolio/pnl` returns `PnLSummaryDTO`
 
 ### Holding Analysis View (`/analysis` route)
 - Force-directed node graph (D3.js) showing holdings and watchlist stocks as nodes
@@ -196,6 +204,8 @@ npm run lint
 | `frontend/vite-project/vercel.json` | Production API routing |
 | `frontend/vite-project/vite.config.ts` | Dev proxy config |
 | `.github/workflows/aws.yml` | CI/CD for backend |
+| `src/main/java/.../dto/PnLSummaryDTO.java` | P/L summary data transfer object |
+| `src/main/java/.../service/PortfolioService.java` | Business logic incl. P/L calculation |
 
 ---
 

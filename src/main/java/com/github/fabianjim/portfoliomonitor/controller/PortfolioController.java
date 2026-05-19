@@ -1,5 +1,6 @@
 package com.github.fabianjim.portfoliomonitor.controller;
 
+import com.github.fabianjim.portfoliomonitor.dto.PnLSummaryDTO;
 import com.github.fabianjim.portfoliomonitor.dto.PortfolioHistoryDTO;
 import com.github.fabianjim.portfoliomonitor.model.Holding;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;
@@ -87,6 +88,11 @@ public class PortfolioController {
     @GetMapping("/transactions")
     public List<Transaction> getTransactionHistory() {
         return transactionService.getTransactionHistory();
+    }
+
+    @GetMapping("/pnl")
+    public PnLSummaryDTO getPnLSummary() {
+        return portfolioService.getPnLSummary();
     }
 
     @PostMapping("/holdings/sell")

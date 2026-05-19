@@ -4,9 +4,10 @@ import { watchlistApi } from '../services/api'
 
 interface WatchlistPanelProps {
   isOpen?: boolean
+  onCountChange?: (count: number) => void
 }
 
-export default function WatchlistPanel({ isOpen = true }: WatchlistPanelProps) {
+export default function WatchlistPanel({ isOpen = true, onCountChange }: WatchlistPanelProps) {
   const [items, setItems] = useState<WatchlistItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -29,6 +30,10 @@ export default function WatchlistPanel({ isOpen = true }: WatchlistPanelProps) {
   useEffect(() => {
     fetchWatchlist()
   }, [])
+
+  useEffect(() => {
+    onCountChange?.(items.length)
+  }, [items.length, onCountChange])
 
   const handleAdd = async () => {
     const ticker = newTicker.trim().toUpperCase()
