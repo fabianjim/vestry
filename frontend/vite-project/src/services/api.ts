@@ -62,6 +62,9 @@ export const portfolioApi = {
 
   getTransactions: () =>
     apiClient('/portfolio/transactions'),
+
+  getPnLSummary: () =>
+    apiClient('/portfolio/pnl'),
 }
 
 // Stock API

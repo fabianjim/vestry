@@ -5,7 +5,7 @@ import Portfolio from './pages/Portfolio'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Analysis from './pages/Analysis'
-import TransactionHistoryPage from './pages/TransactionHistoryPage'
+import Transactions from './pages/Transactions'
 import VestryInfo from './pages/VestryInfo'
 
 export default function App() {
@@ -18,7 +18,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/transactions" element={<TransactionHistoryPage />} />
+            <Route path="/transactions" element={<Transactions />} />
             <Route path="/analysis" element={<Analysis />} />
             <Route path="/vestry-info" element={<VestryInfo />} />
           </Route>

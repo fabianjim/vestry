@@ -4,7 +4,8 @@ import JournalPrompt from '../components/JournalPrompt'
 import JournalPanel from '../components/JournalPanel'
 import type { JournalPanelHandle } from '../components/JournalPanel'
 import RightSidebar from '../components/RightSidebar'
-import { journalApi } from '../services/api'
+import type { PnLSummary } from '../types/transaction'
+import { journalApi, portfolioApi } from '../services/api'
 
 type StockData = {
   stock: Stock | null
@@ -46,7 +47,8 @@ export default function Dashboard() {
   const hasFetched = useRef(false)
   const journalPanelRef = useRef<JournalPanelHandle>(null)
   const [activeJournalId, setActiveJournalId] = useState<number | null>(null)
-  
+  const [pnlSummary, setPnlSummary] = useState<PnLSummary | null>(null)
+
   useEffect(() => {
     document.title = 'Dashboard'
   }, [])
@@ -116,6 +118,7 @@ export default function Dashboard() {
       setNewTicker('')
       setNewShares('')
       await fetchPortfolioInfo()
+      await fetchPnLSummary()
       setJournalPromptTicker(boughtTicker)
       setJournalPromptTradeType('BUY')
       setShowJournalPrompt(true)
@@ -162,6 +165,7 @@ export default function Dashboard() {
       const soldTicker = sellTicker
       closeSellModal()
       await fetchPortfolioInfo()
+      await fetchPnLSummary()
       setJournalPromptTicker(soldTicker)
       setJournalPromptTradeType('SELL')
       setShowJournalPrompt(true)
@@ -210,10 +214,20 @@ export default function Dashboard() {
     return totalChange
   }
 
+  const fetchPnLSummary = async () => {
+    try {
+      const data = await portfolioApi.getPnLSummary() as PnLSummary
+      setPnlSummary(data)
+    } catch (e) {
+      console.error('Failed to fetch P/L summary:', e)
+    }
+  }
+
   useEffect(() => {
     if (!hasFetched.current) {
       hasFetched.current = true
       fetchPortfolioInfo()
+      fetchPnLSummary()
     }
   }, [])
 
@@ -238,9 +252,9 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="p-4 bg-surface rounded-lg border border-border">
-          <div className="text-sm text-muted">Total Holdings</div>
-          <div className="text-2xl text-foreground font-130">
-            {results.length}
+          <div className="text-sm text-muted">Total P/L</div>
+          <div className={`text-2xl font-130 ${(pnlSummary?.totalPnL ?? 0) >= 0 ? 'text-gain' : 'text-loss'}`}>
+            {pnlSummary ? `${pnlSummary.totalPnL >= 0 ? '+' : ''}$${pnlSummary.totalPnL.toFixed(2)} (${pnlSummary.totalPnLPercent.toFixed(1)}%)` : '—'}
           </div>
         </div>
       </div>
@@ -292,7 +306,8 @@ export default function Dashboard() {
                 className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            <div className="flex gap-2 justify-end">
+            <div className="flex items-center justify-end gap-2">
+              {error && <span className="text-error text-sm mr-auto">Error fetching price, try again.</span>}
               <button onClick={() => {
                 setShowAddModal(false)
                 setNewTicker('')
@@ -301,7 +316,7 @@ export default function Dashboard() {
               }} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={addHolding}
                 disabled={loading || !newTicker.trim() || !newShares}
                 className="px-3 py-2 bg-gain text-white rounded-md hover:bg-gain/80 transition-colors disabled:opacity-50"
@@ -367,11 +382,12 @@ export default function Dashboard() {
               </>
             )}
             
-            <div className="flex gap-2 justify-end">
+            <div className="flex items-center justify-end gap-2">
+              {error && <span className="text-error text-sm mr-auto">Error fetching price, try again.</span>}
               <button onClick={closeSellModal} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={executeSell}
                 disabled={loading || !sellShares || Number(sellShares) <= 0 || Number(sellShares) > maxShares}
                 className="px-3 py-2 bg-error text-white rounded-md hover:bg-error/80 transition-colors disabled:opacity-50"

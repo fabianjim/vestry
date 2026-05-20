@@ -34,6 +34,7 @@ interface RightSidebarProps {
 
 export default function RightSidebar({ holdings, loading, onBuyClick, onSellClick }: RightSidebarProps) {
   const [isOpen, setIsOpen] = useState(true)
+  const [watchlistCount, setWatchlistCount] = useState(0)
 
   return (
     <aside
@@ -81,8 +82,9 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
 
       {/* Holdings */}
       <div>
-        <div className={`border-b border-border ${isOpen ? 'px-4 py-3' : 'px-2 py-2'}`}>
+        <div className={`border-b border-border flex items-center justify-between ${isOpen ? 'px-4 py-3' : 'px-2 py-2'}`}>
           <h3 className={`font-130 ${isOpen ? 'text-sm' : 'text-xs'}`}>Holdings</h3>
+          <span className={`text-muted font-130 ${isOpen ? 'text-sm' : 'text-xs'}`}>{holdings.length}</span>
         </div>
         
         {holdings.length === 0 ? (
@@ -139,11 +141,12 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
 
       {/* Watchlist */}
       <div className="border-t border-border">
-        <div className={`border-b border-border ${isOpen ? 'px-4 py-3' : 'px-2 py-2'}`}>
+        <div className={`border-b border-border flex items-center justify-between ${isOpen ? 'px-4 py-3' : 'px-2 py-2'}`}>
           <h3 className={`font-130 ${isOpen ? 'text-sm' : 'text-xs'}`}>Watchlist</h3>
+          <span className={`text-muted font-130 ${isOpen ? 'text-sm' : 'text-xs'}`}>{watchlistCount}</span>
         </div>
         <div className={isOpen ? 'p-4' : ''}>
-          <WatchlistPanel isOpen={isOpen} />
+          <WatchlistPanel isOpen={isOpen} onCountChange={setWatchlistCount} />
         </div>
       </div>
     </aside>

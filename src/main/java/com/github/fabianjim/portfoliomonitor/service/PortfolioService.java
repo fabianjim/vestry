@@ -1,10 +1,12 @@
 package com.github.fabianjim.portfoliomonitor.service;
 
+import com.github.fabianjim.portfoliomonitor.dto.PnLSummaryDTO;
 import com.github.fabianjim.portfoliomonitor.dto.PortfolioHistoryDTO;
 import com.github.fabianjim.portfoliomonitor.model.Holding;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;
 import com.github.fabianjim.portfoliomonitor.model.Stock;
 import com.github.fabianjim.portfoliomonitor.model.TrackedStock;
+import com.github.fabianjim.portfoliomonitor.model.Transaction;
 import com.github.fabianjim.portfoliomonitor.model.User;
 import com.github.fabianjim.portfoliomonitor.repository.PortfolioRepository;
 import com.github.fabianjim.portfoliomonitor.repository.StockRepository;
@@ -22,6 +24,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @Transactional
@@ -80,19 +83,20 @@ public class PortfolioService {
             }
             portfolio.setHoldings(aggregatedHoldings);
 
+            // Validate all tickers by fetching prices before saving
+            Map<String, Double> tickerPrices = new HashMap<>();
+            for (Holding holding : portfolio.getHoldings()) {
+                double price = fetchTransactionPrice(holding.getTicker());
+                tickerPrices.put(holding.getTicker(), price);
+                startTrackingStock(holding.getTicker());
+            }
+
             portfolioRepository.save(portfolio);
 
-            // Track all tickers in the new portfolio and record buy transactions
+            // Record buy transactions with validated prices
             for (Holding holding : portfolio.getHoldings()) {
-                startTrackingStock(holding.getTicker());
-                // Fetch initial price data immediately
-                Stock stock = stockService.updateStockData(holding.getTicker(), Stock.StockType.INITIAL);
-                
-                // Record buy transaction for initial holding with actual price
-                double price = (stock != null) ? stock.getCurrentPrice() : 0.0;
-                if (price > 0.0) {
-                    transactionService.recordBuyTransaction(holding.getTicker(), holding.getShares(), price);
-                }
+                double price = tickerPrices.get(holding.getTicker());
+                transactionService.recordBuyTransaction(holding.getTicker(), holding.getShares(), price);
             }
         }
     }
@@ -131,6 +135,40 @@ public class PortfolioService {
     }
 
     /**
+     * Fetch live price for a transaction with one retry.
+     * Throws RuntimeException if unable to get a valid price after retry.
+     */
+    private double fetchTransactionPrice(String ticker) {
+        Exception lastError = null;
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                Stock stock = stockService.updateStockData(ticker, Stock.StockType.INITIAL);
+                if (stock != null && stock.getCurrentPrice() > 0.0) {
+                    return stock.getCurrentPrice();
+                }
+                if (stock == null) {
+                    lastError = new RuntimeException("No stock data returned for " + ticker);
+                } else {
+                    lastError = new RuntimeException("Invalid price (" + stock.getCurrentPrice() + ") for " + ticker);
+                }
+            } catch (Exception e) {
+                lastError = e;
+            }
+            
+            if (attempt == 1) {
+                try {
+                    TimeUnit.MILLISECONDS.sleep(500);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Retry interrupted for " + ticker, ie);
+                }
+            }
+        }
+        
+        throw new RuntimeException("Unable to fetch valid price for " + ticker + " after 2 attempts. Last error: " + lastError.getMessage(), lastError);
+    }
+
+    /**
      * Add a holding to the current user's portfolio.
      * If the ticker already exists, aggregates shares into the existing holding.
      */
@@ -139,6 +177,10 @@ public class PortfolioService {
         if (portfolio == null) {
             throw new RuntimeException("No portfolio found for current user");
         }
+
+        // Fetch and validate price BEFORE modifying portfolio
+        startTrackingStock(ticker);
+        double currentPrice = fetchTransactionPrice(ticker);
 
         Holding existingHolding = portfolio.getHoldings().stream()
             .filter(h -> h.getTicker().equals(ticker))
@@ -154,15 +196,8 @@ public class PortfolioService {
 
         portfolioRepository.save(portfolio);
 
-        // Start tracking and fetch live price data
-        startTrackingStock(ticker);
-        Stock stock = stockService.updateStockData(ticker, Stock.StockType.INITIAL);
-
-        // Record buy transaction with live price
-        double currentPrice = (stock != null) ? stock.getCurrentPrice() : 0.0;
-        if (currentPrice > 0.0) {
-            transactionService.recordBuyTransaction(ticker, shares, currentPrice);
-        }
+        // Record buy transaction with validated price
+        transactionService.recordBuyTransaction(ticker, shares, currentPrice);
     }
 
     /**
@@ -185,9 +220,8 @@ public class PortfolioService {
 
         double shares = holding.getShares();
 
-        // Fetch live price data before recording transaction
-        Stock stock = stockService.updateStockData(ticker, Stock.StockType.INITIAL);
-        double currentPrice = (stock != null) ? stock.getCurrentPrice() : 0.0;
+        // Fetch and validate price BEFORE modifying portfolio
+        double currentPrice = fetchTransactionPrice(ticker);
 
         portfolio.getHoldings().remove(holding);
         portfolioRepository.save(portfolio);
@@ -195,10 +229,8 @@ public class PortfolioService {
         // Stop tracking this stock
         stopTrackingStock(ticker);
 
-        // Record sell transaction with live price
-        if (currentPrice > 0.0) {
-            transactionService.recordSellTransaction(ticker, shares, currentPrice);
-        }
+        // Record sell transaction with validated price
+        transactionService.recordSellTransaction(ticker, shares, currentPrice);
     }
 
     /**
@@ -219,14 +251,11 @@ public class PortfolioService {
             throw new RuntimeException("Cannot sell more shares than owned");
         }
 
-        // Fetch live price data before recording transaction
-        Stock stock = stockService.updateStockData(ticker, Stock.StockType.INITIAL);
-        double currentPrice = (stock != null) ? stock.getCurrentPrice() : 0.0;
+        // Fetch and validate price BEFORE modifying portfolio
+        double currentPrice = fetchTransactionPrice(ticker);
 
-        // Record sell transaction with live price
-        if (currentPrice > 0.0) {
-            transactionService.recordSellTransaction(ticker, sharesToSell, currentPrice);
-        }
+        // Record sell transaction with validated price
+        transactionService.recordSellTransaction(ticker, sharesToSell, currentPrice);
 
         // Update or remove holding
         if (sharesToSell == holding.getShares()) {
@@ -298,6 +327,75 @@ public class PortfolioService {
      */
     public List<TrackedStock> getTopTrendingStocks(int limit) {
         return trackedStockRepository.findTopTrackedStocks(limit);
+    }
+
+    /**
+     * Calculate total unrealized and realized P/L for the current user's portfolio.
+     * Uses average cost basis method per ticker.
+     */
+    public PnLSummaryDTO getPnLSummary() {
+        List<Transaction> transactions = transactionService.getTransactionHistory();
+
+        // Group transactions by ticker
+        Map<String, List<Transaction>> byTicker = new HashMap<>();
+        for (Transaction tx : transactions) {
+            byTicker.computeIfAbsent(tx.getTicker(), k -> new ArrayList<>()).add(tx);
+        }
+
+        double totalUnrealized = 0;
+        double totalRealized = 0;
+        double totalCurrentCostBasis = 0;
+        double totalSoldCostBasis = 0;
+
+        for (List<Transaction> tickerTxs : byTicker.values()) {
+            double buyShares = 0;
+            double buyCost = 0;
+            double sellShares = 0;
+            double sellProceeds = 0;
+
+            for (Transaction tx : tickerTxs) {
+                if (tx.getType() == Transaction.TransactionType.BUY) {
+                    buyShares += tx.getShares();
+                    buyCost += tx.getTotalValue();
+                } else {
+                    sellShares += tx.getShares();
+                    sellProceeds += tx.getTotalValue();
+                }
+            }
+
+            if (buyShares == 0) continue;
+
+            double avgCost = buyCost / buyShares;
+            double realizedForTicker = sellProceeds - (avgCost * sellShares);
+            totalRealized += realizedForTicker;
+            totalSoldCostBasis += avgCost * sellShares;
+
+            double currentShares = buyShares - sellShares;
+            if (currentShares > 0) {
+                String ticker = tickerTxs.get(0).getTicker();
+                Stock stock = getStockData(ticker);
+                double currentPrice = (stock != null) ? stock.getCurrentPrice() : 0;
+                double unrealizedForTicker = (currentPrice - avgCost) * currentShares;
+                totalUnrealized += unrealizedForTicker;
+                totalCurrentCostBasis += avgCost * currentShares;
+            }
+        }
+
+        double totalPnL = totalUnrealized + totalRealized;
+        double totalCostBasis = totalCurrentCostBasis + totalSoldCostBasis;
+        double totalPnLPercent = totalCostBasis > 0
+                ? (totalPnL / totalCostBasis) * 100
+                : 0;
+        double unrealizedPercent = totalCurrentCostBasis > 0
+                ? (totalUnrealized / totalCurrentCostBasis) * 100
+                : 0;
+        double realizedPercent = totalSoldCostBasis > 0
+                ? (totalRealized / totalSoldCostBasis) * 100
+                : 0;
+
+        return new PnLSummaryDTO(totalPnL, totalPnLPercent,
+                                 totalUnrealized, unrealizedPercent,
+                                 totalRealized, realizedPercent);
     }
 
     /**
