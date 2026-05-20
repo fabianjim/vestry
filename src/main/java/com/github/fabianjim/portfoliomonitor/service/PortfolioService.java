@@ -139,7 +139,6 @@ public class PortfolioService {
      * Throws RuntimeException if unable to get a valid price after retry.
      */
     private double fetchTransactionPrice(String ticker) {
-        throw new RuntimeException("sim");
         Exception lastError = null;
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
