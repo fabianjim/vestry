@@ -306,7 +306,8 @@ export default function Dashboard() {
                 className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            <div className="flex gap-2 justify-end">
+            <div className="flex items-center justify-end gap-2">
+              {error && <span className="text-error text-sm mr-auto">Error fetching price, try again.</span>}
               <button onClick={() => {
                 setShowAddModal(false)
                 setNewTicker('')
@@ -315,7 +316,7 @@ export default function Dashboard() {
               }} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={addHolding}
                 disabled={loading || !newTicker.trim() || !newShares}
                 className="px-3 py-2 bg-gain text-white rounded-md hover:bg-gain/80 transition-colors disabled:opacity-50"
@@ -381,11 +382,12 @@ export default function Dashboard() {
               </>
             )}
             
-            <div className="flex gap-2 justify-end">
+            <div className="flex items-center justify-end gap-2">
+              {error && <span className="text-error text-sm mr-auto">Error fetching price, try again.</span>}
               <button onClick={closeSellModal} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={executeSell}
                 disabled={loading || !sellShares || Number(sellShares) <= 0 || Number(sellShares) > maxShares}
                 className="px-3 py-2 bg-error text-white rounded-md hover:bg-error/80 transition-colors disabled:opacity-50"
