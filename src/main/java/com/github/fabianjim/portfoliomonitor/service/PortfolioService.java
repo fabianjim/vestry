@@ -445,12 +445,17 @@ public class PortfolioService {
             Instant hourBucket = entry.getKey();
             Map<String, Stock> stocksAtHour = entry.getValue();
             
-            // Check if we have data for all holdings at this hour bucket
-            if (stocksAtHour.size() == holdingsByTicker.size()) {
+            // Only include holdings that existed at this hour bucket
+            List<Map.Entry<String, Holding>> activeHoldings = holdingsByTicker.entrySet().stream()
+                .filter(holdingEntry -> !holdingEntry.getValue().getBuyTimestamp().isAfter(hourBucket))
+                .toList();
+            
+            // Check if we have data for all active holdings at this hour bucket
+            if (stocksAtHour.size() >= activeHoldings.size()) {
                 double totalValue = 0.0;
                 boolean hasAllData = true;
                 
-                for (Map.Entry<String, Holding> holdingEntry : holdingsByTicker.entrySet()) {
+                for (Map.Entry<String, Holding> holdingEntry : activeHoldings) {
                     String ticker = holdingEntry.getKey();
                     Holding holding = holdingEntry.getValue();
                     Stock stock = stocksAtHour.get(ticker);
@@ -463,7 +468,7 @@ public class PortfolioService {
                     totalValue += stock.getCurrentPrice() * holding.getShares();
                 }
                 
-                if (hasAllData) {
+                if (hasAllData && !activeHoldings.isEmpty()) {
                     result.add(new PortfolioHistoryDTO(hourBucket, totalValue));
                 }
             }

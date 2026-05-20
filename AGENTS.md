@@ -65,6 +65,15 @@ frontend/vite-project/src/
 - Buy and sell stock actions
 - Chart pin layer: journal entries rendered as typed pins directly on the performance chart. Pin color reflects outcome retroactively (green/red based on price movement after entry).
 
+### Portfolio History Calculation
+- `PortfolioService.getPortfolioHistory()` groups stock data by `hourBucket` and calculates portfolio value at each bucket
+- **Critical logic**: Only holdings with `buyTimestamp <= hourBucket` are included in the calculation for that bucket. This ensures:
+  - Pre-buy hours show the portfolio without the new holding
+  - Post-buy hours include the new holding (if price data exists)
+  - After-hours buys don't wipe existing intraday history (the new holding simply isn't counted in earlier buckets)
+- A bucket is only included if **all active holdings** (those that existed at that time) have price data
+- EOD data is explicitly excluded from history calculations
+
 ### P/L Tracking
 - **Total P/L** shown on Dashboard using average cost basis method per ticker
 - **Unrealized P/L**: current value minus cost basis for held positions
