@@ -1,0 +1,118 @@
+import type { Transaction } from '../types/transaction'
+import type { JournalEntry } from '../types/journal'
+
+interface HistoryData {
+  timestamp: string
+  portfolioValue: number
+}
+
+export interface ChartDataPoint {
+  timestamp: number
+  time: string
+  value: number
+  fullTimestamp: string
+  isTransaction?: boolean
+  transactionType?: 'BUY' | 'SELL'
+  journalEntryId?: number
+}
+
+function isTradingHours(timestamp: string | number | Date): boolean {
+  const date = new Date(timestamp)
+  const hour = date.getHours()
+  const minute = date.getMinutes()
+  const timeValue = hour + minute / 60
+  return timeValue >= 10 && timeValue <= 16
+}
+
+export function processHourlyData(
+  data: HistoryData[],
+  transactions: Transaction[],
+  journalEntries: JournalEntry[],
+  currentDate: Date
+): ChartDataPoint[] {
+  // Filter portfolio history to current day AND trading hours (10am-4pm)
+  const dayHistory = data
+    .filter((item) => {
+      const itemDate = new Date(item.timestamp)
+      const isSameDay = itemDate.toDateString() === currentDate.toDateString()
+      return isSameDay && isTradingHours(item.timestamp)
+    })
+    .map((item) => ({
+      timestamp: new Date(item.timestamp).getTime(),
+      time: new Date(item.timestamp).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }),
+      value: item.portfolioValue,
+      fullTimestamp: item.timestamp,
+      isTransaction: false,
+    }))
+
+  // Filter transactions to current day AND trading hours (10am-4pm)
+  const dayTransactions = transactions
+    .filter((tx) => {
+      const txDate = new Date(tx.timestamp)
+      const isSameDay = txDate.toDateString() === currentDate.toDateString()
+      return isSameDay && isTradingHours(tx.timestamp)
+    })
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+
+  // Insert synthetic transaction points
+  const merged: ChartDataPoint[] = [...dayHistory]
+
+  for (const tx of dayTransactions) {
+    const txTime = new Date(tx.timestamp).getTime()
+
+    // Find closest previous point (hourly OR already-inserted transaction)
+    let prevPoint = merged
+      .filter((p) => p.timestamp <= txTime)
+      .sort((a, b) => b.timestamp - a.timestamp)[0]
+
+    if (!prevPoint && merged.length > 0) {
+      // Use first available point if no previous
+      prevPoint = merged[0]
+    }
+
+    if (!prevPoint) continue
+
+    const syntheticValue =
+      tx.type === 'BUY'
+        ? prevPoint.value + tx.totalValue
+        : prevPoint.value - tx.totalValue
+
+    // Match to journal entry
+    const txType = tx.type as 'BUY' | 'SELL'
+    const matchedEntry = journalEntries
+      .filter(
+        (e) =>
+          e.entryType === txType &&
+          e.ticker === tx.ticker &&
+          Math.abs(new Date(e.timestamp).getTime() - txTime) <= 5 * 60 * 1000
+      )
+      .sort(
+        (a, b) =>
+          Math.abs(new Date(a.timestamp).getTime() - txTime) -
+          Math.abs(new Date(b.timestamp).getTime() - txTime)
+      )[0]
+
+    merged.push({
+      timestamp: txTime,
+      time: new Date(tx.timestamp).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }),
+      value: syntheticValue,
+      fullTimestamp: tx.timestamp,
+      isTransaction: true,
+      transactionType: txType,
+      journalEntryId: matchedEntry?.id,
+    })
+  }
+
+  // Sort by timestamp
+  merged.sort((a, b) => a.timestamp - b.timestamp)
+
+  return merged
+}
