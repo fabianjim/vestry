@@ -13,6 +13,7 @@ import { useXAxis, useYAxis } from 'recharts/es6/hooks'
 import { portfolioApi, journalApi } from '../services/api'
 import type { JournalEntry } from '../types/journal'
 import type { Transaction } from '../types/transaction'
+import * as d3 from 'd3'
 
 interface HistoryData {
   timestamp: string
@@ -41,6 +42,44 @@ function isTradingHours(timestamp: string | number | Date): boolean {
   return timeValue >= 10 && timeValue <= 16
 }
 
+// Extract cubic bezier segments from a d3 monotone path.
+// A monotone path looks like: M x0 y0 C cp1x cp1y cp2x cp2y x1 y1 C cp1x cp1y cp2x cp2y x2 y2
+// We return an array where segments[i] is a standalone SVG path drawing from data[i] to data[i+1].
+function extractMonotoneSegments(pathD: string): string[] {
+  const segments: string[] = []
+
+  // Split at every C, keeping the C as the start of each piece
+  // e.g. "M0,100C16,100,33,90,50,90C66,90,83,80,100,80"
+  //   -> ["M0,100", "C16,100,33,90,50,90", "C66,90,83,80,100,80"]
+  const pieces = pathD.split(/(?=C)/)
+  if (pieces.length < 2) return segments
+
+  // Segment 0: combine the M piece with the first C piece
+  // e.g. "M0,100" + "C16,100,33,90,50,90" -> "M0,100C16,100,33,90,50,90"
+  segments.push(pieces[0] + pieces[1])
+
+  // For each subsequent C piece, prepend "Mx,y" where x,y is the endpoint of the previous segment.
+  // A C command ends with "...,endX,endY". Extract those two numbers.
+  let lastEnd = ''
+  const endMatch = pieces[1].match(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/)
+  if (endMatch) {
+    lastEnd = endMatch[1] + ',' + endMatch[2]
+  }
+
+  for (let i = 2; i < pieces.length; i++) {
+    const piece = pieces[i]
+    if (lastEnd) {
+      segments.push('M' + lastEnd + piece)
+    }
+    const m = piece.match(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/)
+    if (m) {
+      lastEnd = m[1] + ',' + m[2]
+    }
+  }
+
+  return segments
+}
+
 function TransactionOverlay({
   data,
   lineColor,
@@ -55,44 +94,44 @@ function TransactionOverlay({
 
   if (!xAxis || !yAxis) return null
 
+  // Build screen-space points and generate the full monotone path with d3
+  // (same curveMonotoneX algorithm Recharts uses for type="monotone")
+  const screenPoints = data.map((p) => [xAxis.scale(p.timestamp), yAxis.scale(p.value)] as [number, number])
+  const lineGenerator = d3.line().curve(d3.curveMonotoneX)
+  const fullPath = lineGenerator(screenPoints)
+  const segments = fullPath ? extractMonotoneSegments(fullPath) : []
+
   return (
     <g>
       {data.map((point, index) => {
         if (!point.isTransaction || index === 0) return null
 
-        const prevPoint = data[index - 1]
-        const x1 = xAxis.scale(prevPoint.timestamp)
-        const y1 = yAxis.scale(prevPoint.value)
-        const x2 = xAxis.scale(point.timestamp)
-        const y2 = yAxis.scale(point.value)
+        const segment = segments[index - 1]
+        if (!segment) return null
 
         const cx = xAxis.scale(point.timestamp)
         const cy = yAxis.scale(point.value)
-
         const circleColor = point.transactionType === 'BUY' ? '#10b981' : '#ef4444'
-
-        const midX = (x1 + x2) / 2
-        const pathD = `M ${x1} ${y1} C ${midX} ${y1} ${midX} ${y2} ${x2} ${y2}`
 
         return (
           // Buy/Sell event dashed line and hollow circle
           <g key={`tx-${index}`}>
             {/* background colored line to remove solid line*/}
             <path
-              d={pathD}
+              d={segment}
               stroke="#32393d"
               strokeWidth={6}
               fill="none"
             />
-            {/* dashed curve */}
+            {/* dashed curve — identical path to the solid monotone line */}
             <path
-              d={pathD}
+              d={segment}
               stroke={lineColor}
               strokeWidth={2}
               strokeDasharray="6,4"
               fill="none"
             />
-                        
+
             {/* hollow circle */}
             <circle
               cx={cx}
@@ -189,6 +228,8 @@ export default function PortfolioChart({ onPinClick }: Props) {
         return isSameDay && isTradingHours(tx.timestamp)
       })
 
+      // BUY/SELL EVENT POINT INTEGRATION
+      
       // Insert synthetic transaction points
       const merged: ChartDataPoint[] = [...dayHistory]
 
