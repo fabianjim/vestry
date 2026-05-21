@@ -21,6 +21,21 @@ export type GraphEdge = {
   strength: number
 }
 
+export type SectorBreakdownItem = {
+  sector: string
+  value: number
+  percentage: number
+  color: string
+}
+
+export type HoldingValueItem = {
+  ticker: string
+  value: number
+  percentage: number
+  color: string
+  sector: string
+}
+
 type Holding = {
   ticker: string
   shares: number
@@ -93,7 +108,7 @@ export function useHoldingGraphData() {
     fetchData()
   }, [])
 
-  const { nodes, edges } = useMemo(() => {
+  const { nodes, edges, sectorData, holdingsValueData, totalValue } = useMemo(() => {
     const allNodes: GraphNode[] = []
     const allEdges: GraphEdge[] = []
 
@@ -142,7 +157,46 @@ export function useHoldingGraphData() {
       }
     }
 
-    return { nodes: allNodes, edges: allEdges }
+    // Compute breakdown data from holdings
+    const breakdownHoldings = holdings
+      .map((h) => {
+        const price = h.stockData?.stock?.currentPrice || 0
+        return {
+          ticker: h.ticker,
+          sector: h.metadata?.sector || 'Unknown',
+          value: h.shares * price,
+        }
+      })
+      .filter((h) => h.value > 0)
+
+    const totalValue = breakdownHoldings.reduce((sum, h) => sum + h.value, 0)
+
+    // Sector aggregation
+    const sectorMap = new Map<string, number>()
+    breakdownHoldings.forEach((h) => {
+      sectorMap.set(h.sector, (sectorMap.get(h.sector) || 0) + h.value)
+    })
+    const sectorData: SectorBreakdownItem[] = Array.from(sectorMap.entries())
+      .map(([sector, value]) => ({
+        sector,
+        value,
+        percentage: totalValue > 0 ? (value / totalValue) * 100 : 0,
+        color: getNodeColor(sector),
+      }))
+      .sort((a, b) => b.value - a.value)
+
+    // Holdings sorted by value descending
+    const holdingsValueData: HoldingValueItem[] = breakdownHoldings
+      .map((h) => ({
+        ticker: h.ticker,
+        value: h.value,
+        percentage: totalValue > 0 ? (h.value / totalValue) * 100 : 0,
+        color: getNodeColor(h.sector),
+        sector: h.sector,
+      }))
+      .sort((a, b) => b.value - a.value)
+
+    return { nodes: allNodes, edges: allEdges, sectorData, holdingsValueData, totalValue }
   }, [holdings, watchlist])
 
   const getMetadata = (ticker: string) => {
@@ -152,5 +206,5 @@ export function useHoldingGraphData() {
     return watchlistItem?.metadata || null
   }
 
-  return { nodes, edges, error, getMetadata, refetch: fetchData }
+  return { nodes, edges, sectorData, holdingsValueData, totalValue, error, getMetadata, refetch: fetchData }
 }

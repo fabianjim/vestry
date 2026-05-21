@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import HoldingGraph from '../components/HoldingGraph'
 import NodeDetailPanel from '../components/NodeDetailPanel'
+import SectorBreakdown from '../components/SectorBreakdown'
+import HoldingsValueChart from '../components/HoldingsValueChart'
 import { useHoldingGraphData } from '../hooks/useHoldingGraphData'
 
 export default function Analysis() {
-  const { nodes, edges, error, getMetadata } = useHoldingGraphData()
+  const { nodes, edges, sectorData, holdingsValueData, error, getMetadata } = useHoldingGraphData()
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
 
   return (
@@ -12,6 +14,11 @@ export default function Analysis() {
       <h2 className="text-2xl font-150 mb-6">Holding Analysis</h2>
 
       {error && <div className="text-error mb-4">{error}</div>}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <SectorBreakdown data={sectorData} />
+        <HoldingsValueChart data={holdingsValueData} />
+      </div>
 
       <div className="mb-4 flex gap-6 flex-wrap">
         <div className="flex items-center gap-2">
