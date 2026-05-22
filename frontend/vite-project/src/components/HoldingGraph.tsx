@@ -86,12 +86,12 @@ export default function HoldingGraph({
           d3
             .forceLink<GraphNode, GraphEdge>(edges)
             .id((d) => d.id)
-            .distance(120)
+            .distance(185)
             .strength((d) => d.strength * 0.5)
         )
-        .force('charge', d3.forceManyBody<GraphNode>().strength(-300))
+        .force('charge', d3.forceManyBody<GraphNode>().strength(-400))
         .force('center', d3.forceCenter<GraphNode>(width / 2, height / 2))
-        .force('collision', d3.forceCollide<GraphNode>().radius((d) => d.radius + 4))
+        .force('collision', d3.forceCollide<GraphNode>().radius((d) => d.radius + 8))
 
       simulationRef.current = simulation
 
