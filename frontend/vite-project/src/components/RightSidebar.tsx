@@ -34,15 +34,18 @@ interface RightSidebarProps {
 
 export default function RightSidebar({ holdings, loading, onBuyClick, onSellClick }: RightSidebarProps) {
   const [isOpen, setIsOpen] = useState(() => window.innerWidth >= 768)
+  const [userManuallyClosed, setUserManuallyClosed] = useState(false)
   const [watchlistCount, setWatchlistCount] = useState(0)
 
   useEffect(() => {
     const handleResize = () => {
-      setIsOpen(window.innerWidth >= 1168)
+      if (!userManuallyClosed) {
+        setIsOpen(window.innerWidth >= 1168)
+      }
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [])
+  }, [userManuallyClosed])
 
   return (
     <aside
@@ -54,7 +57,11 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
       <div className="flex items-center justify-between p-3 border-b border-border">
         {isOpen && <span className="text-md font-130">Portfolio</span>}
         <button
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => {
+            const next = !isOpen
+            setIsOpen(next)
+            setUserManuallyClosed(!next)
+          }}
           className="p-1.5 rounded-md hover:bg-surface-hover transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
           aria-label={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
         >

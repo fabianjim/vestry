@@ -10,16 +10,19 @@ const navItems = [
 
 export default function Layout() {
   const [isOpen, setIsOpen] = useState(() => window.innerWidth >= 1280)
+  const [userManuallyClosed, setUserManuallyClosed] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
 
   useEffect(() => {
     const handleResize = () => {
-      setIsOpen(window.innerWidth >= 1348)
+      if (!userManuallyClosed) {
+        setIsOpen(window.innerWidth >= 1348)
+      }
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [])
+  }, [userManuallyClosed])
 
   const handleLogout = async () => {
     try {
@@ -45,7 +48,11 @@ export default function Layout() {
         <div className="flex items-center justify-between p-4 border-b border-border">
           {isOpen && <span className="text-lg font-150">Vestry</span>}
           <button
-            onClick={() => setIsOpen(!isOpen)}
+            onClick={() => {
+              const next = !isOpen
+              setIsOpen(next)
+              setUserManuallyClosed(!next)
+            }}
             className="p-2 rounded-md hover:bg-surface-hover transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
             aria-label={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           >
