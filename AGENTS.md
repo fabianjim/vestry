@@ -28,7 +28,9 @@ src/main/java/com/github/fabianjim/portfoliomonitor/
 ├── repository/       # Spring Data JPA repositories
 ├── security/         # SecurityConfig (CORS, BCryptPasswordEncoder, session-based auth)
 └── service/          # Business logic (PortfolioService, StockService, TransactionService, etc.)
-    └── ScheduledStockService.java   # Cron jobs: intraday (10AM-4PM EST) + EOD (4:30PM EST)
+    ├── ScheduledStockService.java   # Cron jobs: intraday (10AM-4PM EST) + EOD (4:30PM EST)
+    ├── NasdaqMetadataService.java   # Loads nasdaq_metadata.csv; falls back to EtfMetadataService
+    └── EtfMetadataService.java      # Loads ETFs.csv with Asset→sector, Category→industry, Region→country mapping
 
 Entry point: PortfolioMonitorApplication.java (has @EnableScheduling)
 ```
@@ -92,10 +94,15 @@ frontend/vite-project/src/
 ### Watchlist
 - Users add tickers to a watchlist — these are NOT price fetched
 - Purpose is relational context in the Holding Analysis graph only
-- Metadata is fetched once from Tiingo (or Financial Modeling Prep free tier) on add and stored statically
+- Metadata is fetched from the unified metadata service (`NasdaqMetadataService` with ETF fallback) on load and attached transiently
 
-### Stock Metadata
+### Stock & ETF Metadata
 - Both holdings and watchlist stocks carry: sector, industry, country/region, market cap tier
+- ETFs are supported via a separate `ETFs.csv` file with normalized metadata mapping:
+  - `Asset` → `sector`
+  - `Category` → `industry`
+  - `Region` → `country`
+- `StockMetadata` includes an `isEtf` boolean flag; the UI shows conditional labels ("Asset Class"/"Category"/"Region" for ETFs, "Sector"/"Industry"/"Country" for stocks)
 - Fetched once at time of buy/add, stored statically, never updated automatically
 - Powers the edge logic in the Holding Analysis graph
 
@@ -215,6 +222,10 @@ npm run lint
 | `.github/workflows/aws.yml` | CI/CD for backend |
 | `src/main/java/.../dto/PnLSummaryDTO.java` | P/L summary data transfer object |
 | `src/main/java/.../service/PortfolioService.java` | Business logic incl. P/L calculation |
+| `src/main/java/.../service/EtfMetadataService.java` | ETF metadata loader (ETFs.csv → StockMetadata) |
+| `src/main/java/.../service/NasdaqMetadataService.java` | Stock metadata loader with ETF fallback |
+| `src/main/resources/data/ETFs.csv` | ETF metadata source (~1021 rows) |
+| `src/main/resources/data/nasdaq_metadata.csv` | Stock metadata source (~6996 rows) |
 
 ---
 

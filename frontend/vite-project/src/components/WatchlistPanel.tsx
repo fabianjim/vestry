@@ -122,9 +122,18 @@ export default function WatchlistPanel({ isOpen = true, onCountChange }: Watchli
                   <div className="text-base font-130 text-foreground">{item.ticker}</div>
                   {item.metadata ? (
                     <div className="mt-1 text-xs text-secondary space-y-0.5">
-                      <div><span className="font-semibold">Sector:</span> {item.metadata.sector || '-'}</div>
-                      <div><span className="font-semibold">Industry:</span> {item.metadata.industry || '-'}</div>
-                      <div><span className="font-semibold">Country:</span> {item.metadata.country || '-'}</div>
+                      <div>
+                        <span className="font-semibold">{item.metadata.isEtf ? 'Asset Class' : 'Sector'}:</span>{' '}
+                        {item.metadata.sector || '-'}
+                      </div>
+                      <div>
+                        <span className="font-semibold">{item.metadata.isEtf ? 'Category' : 'Industry'}:</span>{' '}
+                        {item.metadata.industry || '-'}
+                      </div>
+                      <div>
+                        <span className="font-semibold">{item.metadata.isEtf ? 'Region' : 'Country'}:</span>{' '}
+                        {item.metadata.country || '-'}
+                      </div>
                       <div><span className="font-semibold">Cap:</span> {getTierLabel(item.metadata.marketCapTier)}</div>
                     </div>
                   ) : (
