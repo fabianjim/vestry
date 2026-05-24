@@ -12,6 +12,7 @@ export type GraphNode = {
     sector?: string | null
     country?: string | null
     marketCapTier?: string | null
+    etf?: boolean
   } | null
 }
 
@@ -26,6 +27,7 @@ export type SectorBreakdownItem = {
   value: number
   percentage: number
   color: string
+  etf: boolean
 }
 
 export type HoldingValueItem = {
@@ -165,6 +167,7 @@ export function useHoldingGraphData() {
           ticker: h.ticker,
           sector: h.metadata?.sector || 'Unknown',
           value: h.shares * price,
+          etf: h.metadata?.etf ?? false,
         }
       })
       .filter((h) => h.value > 0)
@@ -172,16 +175,21 @@ export function useHoldingGraphData() {
     const totalValue = breakdownHoldings.reduce((sum, h) => sum + h.value, 0)
 
     // Sector aggregation
-    const sectorMap = new Map<string, number>()
+    const sectorMap = new Map<string, { value: number; etf: boolean }>()
     breakdownHoldings.forEach((h) => {
-      sectorMap.set(h.sector, (sectorMap.get(h.sector) || 0) + h.value)
+      const current = sectorMap.get(h.sector) || { value: 0, etf: false }
+      sectorMap.set(h.sector, {
+        value: current.value + h.value,
+        etf: current.etf || h.etf,
+      })
     })
     const sectorData: SectorBreakdownItem[] = Array.from(sectorMap.entries())
-      .map(([sector, value]) => ({
+      .map(([sector, { value, etf }]) => ({
         sector,
         value,
         percentage: totalValue > 0 ? (value / totalValue) * 100 : 0,
         color: getNodeColor(sector),
+        etf,
       }))
       .sort((a, b) => b.value - a.value)
 

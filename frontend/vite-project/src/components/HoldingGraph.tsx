@@ -11,6 +11,7 @@ export type GraphNode = d3.SimulationNodeDatum & {
     sector?: string | null
     country?: string | null
     marketCapTier?: string | null
+    etf?: boolean
   } | null
 }
 
@@ -148,10 +149,11 @@ export default function HoldingGraph({
         })
         .on('mouseenter', (_event, d) => {
           if (d.x == null || d.y == null) return
+          const isEtf = d.metadata?.etf
           const lines = [
             d.ticker,
-            d.metadata?.sector || 'Sector: -',
-            d.metadata?.country || 'Country: -',
+            `${isEtf ? 'Asset Class' : 'Sector'}: ${d.metadata?.sector || '-'}`,
+            `${isEtf ? 'Region' : 'Country'}: ${d.metadata?.country || '-'}`,
             d.metadata?.marketCapTier
               ? `Cap: ${d.metadata.marketCapTier.replace('_', ' ').toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())}`
               : 'Cap: -',
@@ -278,10 +280,11 @@ export default function HoldingGraph({
       })
       .on('mouseenter', (_event, d) => {
         if (d.x == null || d.y == null) return
+        const isEtf = d.metadata?.etf
         const lines = [
           d.ticker,
-          d.metadata?.sector || 'Sector: -',
-          d.metadata?.country || 'Country: -',
+          `${isEtf ? 'Asset Class' : 'Sector'}: ${d.metadata?.sector || '-'}`,
+          `${isEtf ? 'Region' : 'Country'}: ${d.metadata?.country || '-'}`,
           d.metadata?.marketCapTier
             ? `Cap: ${d.metadata.marketCapTier.replace('_', ' ').toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())}`
             : 'Cap: -',

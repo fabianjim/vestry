@@ -9,6 +9,7 @@ public class StockMetadata {
     private String industry;
     private Double marketCap;
     private String marketCapTier;
+    private boolean isEtf;
 
     public StockMetadata() {}
 
@@ -74,5 +75,13 @@ public class StockMetadata {
 
     public void setMarketCapTier(String marketCapTier) {
         this.marketCapTier = marketCapTier;
+    }
+
+    public boolean isEtf() {
+        return isEtf;
+    }
+
+    public void setEtf(boolean isEtf) {
+        this.isEtf = isEtf;
     }
 }

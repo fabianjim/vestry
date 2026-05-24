@@ -12,39 +12,35 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
-public class NasdaqMetadataService {
+public class EtfMetadataService {
 
-    private final Map<String, StockMetadata> metadataCache = new ConcurrentHashMap<>();
-    private final EtfMetadataService etfMetadataService;
-
-    public NasdaqMetadataService(EtfMetadataService etfMetadataService) {
-        this.etfMetadataService = etfMetadataService;
-    }
+    private final Map<String, StockMetadata> etfCache = new ConcurrentHashMap<>();
 
     @PostConstruct
-    public void loadMetadata() {
+    public void loadEtfMetadata() {
         try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(new ClassPathResource("data/nasdaq_metadata.csv").getInputStream()))) {
-            
+                new InputStreamReader(new ClassPathResource("data/ETFs.csv").getInputStream()))) {
+
             String header = reader.readLine();
             if (header == null) return;
 
             String line;
             while ((line = reader.readLine()) != null) {
                 String[] parts = parseCsvLine(line);
-                if (parts.length < 10) continue;
+                if (parts.length < 17) continue;
 
                 String ticker = parts[0].trim();
                 String name = parts[1].trim();
-                String marketCapStr = parts[5].trim().replaceAll("[^0-9.]", "");
-                String country = parts[6].trim();
-                String sector = parts[9].trim();
-                String industry = parts.length > 10 ? parts[10].trim() : "";
+                String category = parts[4].trim();
+                String marketCapStr = parts[9].trim().replaceAll("[^0-9.]", "");
+                String asset = parts[13].trim();
+                String size = parts[14].trim();
+                String region = parts[16].trim();
 
                 Double marketCap = null;
                 try {
                     if (!marketCapStr.isEmpty()) {
-                        marketCap = Double.parseDouble(marketCapStr);
+                        marketCap = Double.parseDouble(marketCapStr) * 1_000_000;
                     }
                 } catch (NumberFormatException e) {
                     // ignore invalid market cap
@@ -52,23 +48,22 @@ public class NasdaqMetadataService {
 
                 StockMetadata metadata = new StockMetadata();
                 metadata.setTicker(ticker);
-                metadata.setName(name);
-                metadata.setCountry(country.isEmpty() ? null : country);
-                metadata.setSector(sector.isEmpty() ? null : sector);
-                metadata.setIndustry(industry.isEmpty() ? null : industry);
+                metadata.setName(name.isEmpty() ? null : name);
+                metadata.setCountry(region.isEmpty() ? null : region);
+                metadata.setSector(asset.isEmpty() ? null : asset);
+                metadata.setIndustry(category.isEmpty() ? null : category);
                 metadata.setMarketCap(marketCap);
-                metadata.setMarketCapTier(classifyMarketCap(marketCap));
-                metadata.setEtf(false);
+                metadata.setMarketCapTier(classifyMarketCap(marketCap, size));
+                metadata.setEtf(true);
 
-                metadataCache.put(ticker, metadata);
+                etfCache.put(ticker, metadata);
             }
         } catch (Exception e) {
-            System.err.println("Failed to load NASDAQ metadata CSV: " + e.getMessage());
+            System.err.println("Failed to load ETF metadata CSV: " + e.getMessage());
         }
     }
 
     private String[] parseCsvLine(String line) {
-        // Simple CSV parser handling quoted fields
         java.util.List<String> result = new java.util.ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean inQuotes = false;
@@ -88,19 +83,27 @@ public class NasdaqMetadataService {
         return result.toArray(new String[0]);
     }
 
-    private String classifyMarketCap(Double marketCap) {
-        if (marketCap == null) return null;
-        if (marketCap >= 10_000_000_000.0) return "LARGE_CAP";
-        if (marketCap >= 2_000_000_000.0) return "MID_CAP";
-        if (marketCap >= 300_000_000.0) return "SMALL_CAP";
-        return "MICRO_CAP";
+    private String classifyMarketCap(Double marketCap, String size) {
+        if (marketCap != null) {
+            if (marketCap >= 10_000_000_000.0) return "LARGE_CAP";
+            if (marketCap >= 2_000_000_000.0) return "MID_CAP";
+            if (marketCap >= 300_000_000.0) return "SMALL_CAP";
+            return "MICRO_CAP";
+        }
+        // Fallback to Size field when Market_Cap is empty
+        if (!size.isEmpty()) {
+            return switch (size) {
+                case "Large-Cap" -> "LARGE_CAP";
+                case "Mid-Cap" -> "MID_CAP";
+                case "Small-Cap" -> "SMALL_CAP";
+                case "Multi-Cap" -> "LARGE_CAP"; // Multi-cap typically includes large-cap
+                default -> null;
+            };
+        }
+        return null;
     }
 
     public Optional<StockMetadata> lookupMetadata(String ticker) {
-        StockMetadata nasdaqMetadata = metadataCache.get(ticker);
-        if (nasdaqMetadata != null) {
-            return Optional.of(nasdaqMetadata);
-        }
-        return etfMetadataService.lookupMetadata(ticker);
+        return Optional.ofNullable(etfCache.get(ticker));
     }
 }
