@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { roundToMinute } from '../utils/dateUtils'
 import WatchlistPanel from './WatchlistPanel'
 
@@ -33,8 +33,16 @@ interface RightSidebarProps {
 }
 
 export default function RightSidebar({ holdings, loading, onBuyClick, onSellClick }: RightSidebarProps) {
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(() => window.innerWidth >= 768)
   const [watchlistCount, setWatchlistCount] = useState(0)
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsOpen(window.innerWidth >= 1200)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   return (
     <aside
