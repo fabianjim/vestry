@@ -41,7 +41,7 @@ export default function Layout() {
       {/* Sidebar */}
       <aside
         className={`sticky top-0 h-screen flex flex-col border-r border-border bg-surface transition-all duration-300 ${
-          isOpen ? 'w-64' : 'w-16'
+          isOpen ? 'w-54' : 'w-16'
         }`}
       >
         {/* Toggle Button */}
