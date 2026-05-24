@@ -120,15 +120,15 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
       {metadata && (
         <div className="mb-6">
           <div className="text-sm text-muted mb-1">
-            <span className="font-150">{metadata.isEtf ? 'Asset Class' : 'Sector'}:</span>{' '}
+            <span className="font-150">{metadata.etf ? 'Asset Class' : 'Sector'}:</span>{' '}
             {metadata.sector || '-'}
           </div>
           <div className="text-sm text-muted mb-1">
-            <span className="font-150">{metadata.isEtf ? 'Category' : 'Industry'}:</span>{' '}
+            <span className="font-150">{metadata.etf ? 'Category' : 'Industry'}:</span>{' '}
             {metadata.industry || '-'}
           </div>
           <div className="text-sm text-muted mb-1">
-            <span className="font-150">{metadata.isEtf ? 'Region' : 'Country'}:</span>{' '}
+            <span className="font-150">{metadata.etf ? 'Region' : 'Country'}:</span>{' '}
             {metadata.country || '-'}
           </div>
           <div className="text-sm text-muted">

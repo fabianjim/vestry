@@ -6,7 +6,7 @@ export type StockMetadata = {
   industry: string | null
   marketCap: number | null
   marketCapTier: string | null
-  isEtf: boolean
+  etf: boolean
 }
 
 export type WatchlistItem = {

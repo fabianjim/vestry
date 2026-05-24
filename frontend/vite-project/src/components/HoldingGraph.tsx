@@ -11,7 +11,7 @@ export type GraphNode = d3.SimulationNodeDatum & {
     sector?: string | null
     country?: string | null
     marketCapTier?: string | null
-    isEtf?: boolean
+    etf?: boolean
   } | null
 }
 
@@ -149,7 +149,7 @@ export default function HoldingGraph({
         })
         .on('mouseenter', (_event, d) => {
           if (d.x == null || d.y == null) return
-          const isEtf = d.metadata?.isEtf
+          const isEtf = d.metadata?.etf
           const lines = [
             d.ticker,
             `${isEtf ? 'Asset Class' : 'Sector'}: ${d.metadata?.sector || '-'}`,
@@ -280,7 +280,7 @@ export default function HoldingGraph({
       })
       .on('mouseenter', (_event, d) => {
         if (d.x == null || d.y == null) return
-        const isEtf = d.metadata?.isEtf
+        const isEtf = d.metadata?.etf
         const lines = [
           d.ticker,
           `${isEtf ? 'Asset Class' : 'Sector'}: ${d.metadata?.sector || '-'}`,

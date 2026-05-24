@@ -12,7 +12,7 @@ export type GraphNode = {
     sector?: string | null
     country?: string | null
     marketCapTier?: string | null
-    isEtf?: boolean
+    etf?: boolean
   } | null
 }
 
