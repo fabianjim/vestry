@@ -38,7 +38,7 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
 
   useEffect(() => {
     const handleResize = () => {
-      setIsOpen(window.innerWidth >= 1200)
+      setIsOpen(window.innerWidth >= 1168)
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
