@@ -54,7 +54,7 @@ export default function SectorBreakdown({ data }: SectorBreakdownProps) {
                 if (!item) return [String(value), '']
                 return [
                   `${formatCurrency(value)} (${formatPercent(item.percentage)})`,
-                  item.sector,
+                  item.etf ? `${item.sector} ETF` : item.sector,
                 ]
               }}
               contentStyle={{
@@ -77,7 +77,7 @@ export default function SectorBreakdown({ data }: SectorBreakdownProps) {
                 className="w-3 h-3 rounded-sm inline-block"
                 style={{ backgroundColor: item.color }}
               />
-              <span className="text-foreground">{item.sector}</span>
+              <span className="text-foreground">{item.etf ? `${item.sector} ETF` : item.sector}</span>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-secondary">{formatCurrency(item.value)}</span>
