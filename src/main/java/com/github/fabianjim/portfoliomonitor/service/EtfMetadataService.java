@@ -34,6 +34,7 @@ public class EtfMetadataService {
                 String category = parts[4].trim();
                 String marketCapStr = parts[9].trim().replaceAll("[^0-9.]", "");
                 String asset = parts[13].trim();
+                String size = parts[14].trim();
                 String region = parts[16].trim();
 
                 Double marketCap = null;
@@ -52,7 +53,7 @@ public class EtfMetadataService {
                 metadata.setSector(asset.isEmpty() ? null : asset);
                 metadata.setIndustry(category.isEmpty() ? null : category);
                 metadata.setMarketCap(marketCap);
-                metadata.setMarketCapTier(classifyMarketCap(marketCap));
+                metadata.setMarketCapTier(classifyMarketCap(marketCap, size));
                 metadata.setEtf(true);
 
                 etfCache.put(ticker, metadata);
@@ -82,12 +83,24 @@ public class EtfMetadataService {
         return result.toArray(new String[0]);
     }
 
-    private String classifyMarketCap(Double marketCap) {
-        if (marketCap == null) return null;
-        if (marketCap >= 10_000_000_000.0) return "LARGE_CAP";
-        if (marketCap >= 2_000_000_000.0) return "MID_CAP";
-        if (marketCap >= 300_000_000.0) return "SMALL_CAP";
-        return "MICRO_CAP";
+    private String classifyMarketCap(Double marketCap, String size) {
+        if (marketCap != null) {
+            if (marketCap >= 10_000_000_000.0) return "LARGE_CAP";
+            if (marketCap >= 2_000_000_000.0) return "MID_CAP";
+            if (marketCap >= 300_000_000.0) return "SMALL_CAP";
+            return "MICRO_CAP";
+        }
+        // Fallback to Size field when Market_Cap is empty
+        if (!size.isEmpty()) {
+            return switch (size) {
+                case "Large-Cap" -> "LARGE_CAP";
+                case "Mid-Cap" -> "MID_CAP";
+                case "Small-Cap" -> "SMALL_CAP";
+                case "Multi-Cap" -> "LARGE_CAP"; // Multi-cap typically includes large-cap
+                default -> null;
+            };
+        }
+        return null;
     }
 
     public Optional<StockMetadata> lookupMetadata(String ticker) {

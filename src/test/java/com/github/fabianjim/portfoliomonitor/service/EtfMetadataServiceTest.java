@@ -66,4 +66,15 @@ public class EtfMetadataServiceTest {
         assertNull(metadata.getMarketCap());
         assertNull(metadata.getMarketCapTier());
     }
+
+    @Test
+    void lookupMetadataFallsBackToSizeWhenMarketCapIsEmpty() {
+        Optional<StockMetadata> result = etfMetadataService.lookupMetadata("VOO");
+
+        assertTrue(result.isPresent());
+        StockMetadata metadata = result.get();
+        assertEquals("VOO", metadata.getTicker());
+        assertNull(metadata.getMarketCap());
+        assertEquals("LARGE_CAP", metadata.getMarketCapTier());
+    }
 }
