@@ -214,6 +214,19 @@ export default function Dashboard() {
     return totalChange
   }
 
+  const calculateDayChangePercent = () => {
+    let totalChange = 0
+    let totalPrevValue = 0
+    results.forEach(holding => {
+      const currentPrice = holding.stockData?.stock?.currentPrice || 0
+      const prevClose = holding.stockData?.stock?.prevClose || currentPrice
+      const change = (currentPrice - prevClose) * holding.shares
+      totalChange += change
+      totalPrevValue += prevClose * holding.shares
+    })
+    return totalPrevValue > 0 ? (totalChange / totalPrevValue) * 100 : 0
+  }
+
   const fetchPnLSummary = async () => {
     try {
       const data = await portfolioApi.getPnLSummary() as PnLSummary
@@ -248,7 +261,7 @@ export default function Dashboard() {
         <div className="p-4 bg-surface rounded-lg border border-border">
           <div className="text-sm text-muted">Total Day's Change</div>
           <div className={`text-2xl font-130 ${calculateDayChange() >= 0 ? 'text-gain' : 'text-loss'}`}>
-            {calculateDayChange() >= 0 ? '+' : ''}{calculateDayChange().toFixed(2)}
+            {`${calculateDayChange() >= 0 ? '+' : ''}$${calculateDayChange().toFixed(2)} (${calculateDayChangePercent().toFixed(1)}%)`}
           </div>
         </div>
         <div className="p-4 bg-surface rounded-lg border border-border">
