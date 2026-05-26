@@ -80,17 +80,16 @@ public class PortfolioServicePnLTest {
 
     @Test
     void getPnLSummary_SingleBuy_UnrealizedPositive() {
-        // Given: Bought 10 AAPL at $100, current price $150
+        // Bought 10 AAPL at $100, current price $150
         List<Transaction> transactions = List.of(
             createTransaction("AAPL", 10.0, 100.0, TransactionType.BUY)
         );
         when(transactionService.getTransactionHistory()).thenReturn(transactions);
         when(stockService.getLatestStockData("AAPL")).thenReturn(Optional.of(createStock("AAPL", 150.0)));
 
-        // When
+        
         PnLSummaryDTO result = portfolioService.getPnLSummary();
 
-        // Then
         // Unrealized: (150 - 100) * 10 = 500, cost basis = 100 * 10 = 1000, % = 50%
         // Total P/L: 500, total cost basis: 1000, % = 50%
         assertEquals(500.0, result.getTotalPnL(), 0.01);
@@ -103,7 +102,7 @@ public class PortfolioServicePnLTest {
 
     @Test
     void getPnLSummary_BuyThenPartialSell_MixedPnL() {
-        // Given: Bought 10 AAPL at $100, sold 4 at $150, current price $120
+        // Bought 10 AAPL at $100, sold 4 at $150, current price $120
         List<Transaction> transactions = List.of(
             createTransaction("AAPL", 10.0, 100.0, TransactionType.BUY),
             createTransaction("AAPL", 4.0, 150.0, TransactionType.SELL)
@@ -111,10 +110,9 @@ public class PortfolioServicePnLTest {
         when(transactionService.getTransactionHistory()).thenReturn(transactions);
         when(stockService.getLatestStockData("AAPL")).thenReturn(Optional.of(createStock("AAPL", 120.0)));
 
-        // When
+        
         PnLSummaryDTO result = portfolioService.getPnLSummary();
 
-        // Then
         // Avg cost = 100, current shares = 6
         // Unrealized: (120 - 100) * 6 = 120, cost basis = 100 * 6 = 600, % = 20%
         // Realized: (150 * 4) - (100 * 4) = 600 - 400 = 200, sold cost basis = 100 * 4 = 400, % = 50%
@@ -129,17 +127,16 @@ public class PortfolioServicePnLTest {
 
     @Test
     void getPnLSummary_FullSell_UnrealizedZero_RealizedNonZero() {
-        // Given: Bought 10 AAPL at $100, sold all 10 at $150
+        // Bought 10 AAPL at $100, sold all 10 at $150
         List<Transaction> transactions = List.of(
             createTransaction("AAPL", 10.0, 100.0, TransactionType.BUY),
             createTransaction("AAPL", 10.0, 150.0, TransactionType.SELL)
         );
         when(transactionService.getTransactionHistory()).thenReturn(transactions);
 
-        // When
+        
         PnLSummaryDTO result = portfolioService.getPnLSummary();
 
-        // Then
         // Unrealized: 0 (no current shares)
         // Realized: (150 * 10) - (100 * 10) = 1500 - 1000 = 500, sold cost basis = 1000, % = 50%
         // Total P/L: 500, total cost basis: 1000, % = 50%
@@ -153,7 +150,6 @@ public class PortfolioServicePnLTest {
 
     @Test
     void getPnLSummary_MultipleTickers() {
-        // Given:
         // AAPL: Bought 10 at $100, current $150 → unrealized 500, % 50
         // GOOGL: Bought 5 at $200, sold 5 at $180 → realized -100, % -10
         List<Transaction> transactions = List.of(
@@ -164,10 +160,9 @@ public class PortfolioServicePnLTest {
         when(transactionService.getTransactionHistory()).thenReturn(transactions);
         when(stockService.getLatestStockData("AAPL")).thenReturn(Optional.of(createStock("AAPL", 150.0)));
 
-        // When
+        
         PnLSummaryDTO result = portfolioService.getPnLSummary();
 
-        // Then
         // Total unrealized: 500, cost basis: 1000, %: 50%
         // Total realized: -100, sold cost basis: 1000, %: -10%
         // Total P/L: 400, total cost basis: 2000, %: 20%
@@ -181,13 +176,12 @@ public class PortfolioServicePnLTest {
 
     @Test
     void getPnLSummary_NoTransactions_ZeroPnL() {
-        // Given: no transactions
+        // no transactions
         when(transactionService.getTransactionHistory()).thenReturn(List.of());
 
-        // When
+        
         PnLSummaryDTO result = portfolioService.getPnLSummary();
 
-        // Then
         assertEquals(0.0, result.getTotalPnL(), 0.01);
         assertEquals(0.0, result.getTotalPnLPercent(), 0.01);
         assertEquals(0.0, result.getUnrealizedPnL(), 0.01);
@@ -198,17 +192,16 @@ public class PortfolioServicePnLTest {
 
     @Test
     void getPnLSummary_CurrentPriceUnavailable_ZeroPrice() {
-        // Given: Bought 10 AAPL at $100, but no current price data
+        // Bought 10 AAPL at $100, but no current price data
         List<Transaction> transactions = List.of(
             createTransaction("AAPL", 10.0, 100.0, TransactionType.BUY)
         );
         when(transactionService.getTransactionHistory()).thenReturn(transactions);
         when(stockService.getLatestStockData("AAPL")).thenReturn(Optional.empty());
 
-        // When
+        
         PnLSummaryDTO result = portfolioService.getPnLSummary();
 
-        // Then
         // Unrealized: (0 - 100) * 10 = -1000, cost basis: 1000, %: -100%
         // Total P/L: -1000, total cost basis: 1000, %: -100%
         assertEquals(-1000.0, result.getTotalPnL(), 0.01);

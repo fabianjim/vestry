@@ -84,9 +84,7 @@ public class TiingoClient implements MarketDataClient {
         }
     }
 
-    /*
-    *   Old method
-     */
+    // Old method
     @Override
     public double getCurrentPrice(String ticker) {
         String url = baseUrl + "/iex/" + ticker;

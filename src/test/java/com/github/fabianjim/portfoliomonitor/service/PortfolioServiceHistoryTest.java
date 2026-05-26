@@ -1,6 +1,5 @@
 package com.github.fabianjim.portfoliomonitor.service;
 
-// troi oi
 import com.github.fabianjim.portfoliomonitor.dto.PortfolioHistoryDTO;
 import com.github.fabianjim.portfoliomonitor.model.Holding;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;

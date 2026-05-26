@@ -39,34 +39,22 @@ public class TransactionService {
         return (User) auth.getPrincipal();
     }
 
-    /**
-     * Record a buy transaction
-     */
     public Transaction recordBuyTransaction(String ticker, double shares, double price) {
         Transaction transaction = new Transaction(ticker, shares, price, TransactionType.BUY);
         transaction.setUser(getCurrentUser());
         return transactionRepository.save(transaction);
     }
 
-    /**
-     * Record a sell transaction
-     */
     public Transaction recordSellTransaction(String ticker, double shares, double price) {
         Transaction transaction = new Transaction(ticker, shares, price, TransactionType.SELL);
         transaction.setUser(getCurrentUser());
         return transactionRepository.save(transaction);
     }
 
-    /**
-     * Get transaction history for current user
-     */
     public List<Transaction> getTransactionHistory() {
         return transactionRepository.findByUserIdOrderByTimestampDesc(getCurrentUserId());
     }
 
-    /**
-     * Get transaction history for current user and specific ticker
-     */
     public List<Transaction> getTransactionHistoryForTicker(String ticker) {
         return transactionRepository.findByUserIdAndTicker(getCurrentUserId(), ticker);
     }

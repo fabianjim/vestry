@@ -101,9 +101,7 @@ public class PortfolioService {
         }
     }
 
-    /**
-     * Start tracking a stock ticker. If already tracked, increment holder count.
-     */
+    // Start tracking a stock ticker. If already tracked, increment holder count
     private void startTrackingStock(String ticker) {
         TrackedStock trackedStock = trackedStockRepository.findByTicker(ticker)
             .orElse(null);
@@ -117,9 +115,7 @@ public class PortfolioService {
         }
     }
 
-    /**
-     * Stop tracking a stock ticker. Decrement holder count, delete if no holders remain.
-     */
+    // Stop tracking a stock ticker. Decrement holder count, delete if no holders remain.
     private void stopTrackingStock(String ticker) {
         TrackedStock trackedStock = trackedStockRepository.findByTicker(ticker)
             .orElse(null);
@@ -134,10 +130,8 @@ public class PortfolioService {
         }
     }
 
-    /**
-     * Fetch live price for a transaction with one retry.
-     * Throws RuntimeException if unable to get a valid price after retry.
-     */
+     
+    // Fetch live price for a transaction with one retry, throw exc if retry fails
     private double fetchTransactionPrice(String ticker) {
         Exception lastError = null;
         for (int attempt = 1; attempt <= 2; attempt++) {
@@ -168,10 +162,6 @@ public class PortfolioService {
         throw new RuntimeException("Unable to fetch valid price for " + ticker + " after 2 attempts. Last error: " + lastError.getMessage(), lastError);
     }
 
-    /**
-     * Add a holding to the current user's portfolio.
-     * If the ticker already exists, aggregates shares into the existing holding.
-     */
     public void addHolding(String ticker, double shares) {
         Portfolio portfolio = getPortfolio();
         if (portfolio == null) {
@@ -200,9 +190,6 @@ public class PortfolioService {
         transactionService.recordBuyTransaction(ticker, shares, currentPrice);
     }
 
-    /**
-     * Remove a holding from the current user's portfolio.
-     */
     public void removeHolding(String ticker) {
         Portfolio portfolio = getPortfolio();
         if (portfolio == null) {
@@ -213,16 +200,13 @@ public class PortfolioService {
             .filter(h -> h.getTicker().equals(ticker))
             .findFirst()
             .orElse(null);
-
         if (holding == null) {
             return;
         }
-
         double shares = holding.getShares();
-
+        
         // Fetch and validate price BEFORE modifying portfolio
         double currentPrice = fetchTransactionPrice(ticker);
-
         portfolio.getHoldings().remove(holding);
         portfolioRepository.save(portfolio);
 
@@ -233,9 +217,7 @@ public class PortfolioService {
         transactionService.recordSellTransaction(ticker, shares, currentPrice);
     }
 
-    /**
-     * Sell a portion of a holding (partial sell).
-     */
+    // Sell a portion of a holding (partial sell).
     public void sellHolding(String ticker, double sharesToSell) {
         Portfolio portfolio = getPortfolio();
         if (portfolio == null) {
@@ -263,10 +245,9 @@ public class PortfolioService {
             portfolio.getHoldings().remove(holding);
             stopTrackingStock(ticker);
         } else {
-            // Partial sell - update shares
+            // Partial sell, update shares
             holding.setShares(holding.getShares() - sharesToSell);
         }
-
         portfolioRepository.save(portfolio);
     }
 
@@ -285,29 +266,6 @@ public class PortfolioService {
         return portfolioRepository.existsByUserId(userId);
     }
 
-
-    public void updatePortfolio(Portfolio portfolio) {
-        
-        /* System.out.println(getCurrentUserId());
-        Integer userId = getCurrentUserId();
-        portfolio.setId(userId);
-        if (portfolio != null && portfolio.getHoldings() != null) {
-            List<String> tickers = portfolio.getHoldings().stream()
-                .map(Holding::getTicker)
-                .distinct()
-                .toList();
-            System.out.println(portfolio.getHoldings().stream()
-                .map(Holding::getTicker)
-                .distinct()
-                .toList());
-            
-            stockService.updateMultipleStocks(tickers);
-            
-            portfolioRepository.save(portfolio);
-        }
-        */
-    } 
-
     public Portfolio getPortfolio() {
         Integer userId = getCurrentUserId();
         return portfolioRepository.findByUserId(userId).orElse(null);
@@ -322,15 +280,12 @@ public class PortfolioService {
         return stockService.getStockData(ticker, timestamp).orElse(null);
     }
 
-    /**
-     * Get top N trending stocks by holder count
-     */
-    public List<TrackedStock> getTopTrendingStocks(int limit) {
-        return trackedStockRepository.findTopTrackedStocks(limit);
+    public List<TrackedStock> getTopTrendingStocks(int n) {
+        return trackedStockRepository.findTopTrackedStocks(n);
     }
 
     /**
-     * Calculate total unrealized and realized P/L for the current user's portfolio.
+     * Calculate total, unrealized, and realized P/L for the current user's portfolio.
      * Uses average cost basis method per ticker.
      */
     public PnLSummaryDTO getPnLSummary() {
@@ -445,12 +400,12 @@ public class PortfolioService {
             Instant hourBucket = entry.getKey();
             Map<String, Stock> stocksAtHour = entry.getValue();
             
-            // Only include holdings that existed at this hour bucket
+            // Only include holdings that existed at this bucket
             List<Map.Entry<String, Holding>> activeHoldings = holdingsByTicker.entrySet().stream()
                 .filter(holdingEntry -> !holdingEntry.getValue().getBuyTimestamp().isAfter(hourBucket))
                 .toList();
             
-            // Check if we have data for all active holdings at this hour bucket
+            // Check if we have data for all active holdings at this bucket
             if (stocksAtHour.size() >= activeHoldings.size()) {
                 double totalValue = 0.0;
                 boolean hasAllData = true;
@@ -473,10 +428,8 @@ public class PortfolioService {
                 }
             }
         }
-        
-        // Sort by timestamp (oldest first for chart display)
+        // Sort, oldest first for chart display
         result.sort(Comparator.comparing(PortfolioHistoryDTO::getTimestamp));
-        
         return result;
     }
 

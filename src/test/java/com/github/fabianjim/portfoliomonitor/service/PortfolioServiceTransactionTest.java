@@ -80,8 +80,7 @@ public class PortfolioServiceTransactionTest {
     }
 
     @Test
-    void addHoldingRecordsBuyTransaction() {
-        // Given
+    void addHoldingRecordsBuyTransaction() {      
         String ticker = "AAPL";
         double shares = 10.0;
         double currentPrice = 150.0;
@@ -92,18 +91,15 @@ public class PortfolioServiceTransactionTest {
         when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
         when(transactionService.recordBuyTransaction(eq(ticker), eq(shares), eq(currentPrice)))
             .thenReturn(createTransaction(ticker, shares, currentPrice, TransactionType.BUY));
-
-        // When
+      
         portfolioService.addHolding(ticker, shares);
-
-        // Then
+   
         verify(stockService).updateStockData(ticker, Stock.StockType.INITIAL);
         verify(transactionService).recordBuyTransaction(ticker, shares, currentPrice);
     }
 
     @Test
-    void removeHoldingRecordsSellTransaction() {
-        // Given
+    void removeHoldingRecordsSellTransaction() {       
         String ticker = "GOOGL";
         double shares = 5.0;
         double currentPrice = 200.0;
@@ -116,18 +112,15 @@ public class PortfolioServiceTransactionTest {
             .thenReturn(createStock(ticker, currentPrice));
         when(transactionService.recordSellTransaction(eq(ticker), eq(shares), eq(currentPrice)))
             .thenReturn(createTransaction(ticker, shares, currentPrice, TransactionType.SELL));
-
-        // When
+     
         portfolioService.removeHolding(ticker);
 
-        // Then
         verify(stockService).updateStockData(ticker, Stock.StockType.INITIAL);
         verify(transactionService).recordSellTransaction(ticker, shares, currentPrice);
     }
 
     @Test
-    void sellHoldingRecordsSellTransactionWithLivePrice() {
-        // Given
+    void sellHoldingRecordsSellTransactionWithLivePrice() {   
         String ticker = "MSFT";
         double sharesOwned = 10.0;
         double sharesToSell = 3.0;
@@ -142,11 +135,9 @@ public class PortfolioServiceTransactionTest {
             .thenReturn(createStock(ticker, currentPrice));
         when(transactionService.recordSellTransaction(eq(ticker), eq(sharesToSell), eq(currentPrice)))
             .thenReturn(createTransaction(ticker, sharesToSell, currentPrice, TransactionType.SELL));
-
-        // When
+   
         portfolioService.sellHolding(ticker, sharesToSell);
-
-        // Then
+    
         verify(stockService).updateStockData(ticker, Stock.StockType.INITIAL);
         verify(transactionService).recordSellTransaction(ticker, sharesToSell, currentPrice);
         assertEquals(sharesOwned - sharesToSell, holding.getShares());
@@ -160,8 +151,7 @@ public class PortfolioServiceTransactionTest {
     }
 
     @Test
-    void addHoldingToExistingTickerAggregatesShares() {
-        // Given
+    void addHoldingToExistingTickerAggregatesShares() {    
         String ticker = "AAPL";
         double initialShares = 10.0;
         double additionalShares = 5.0;
@@ -176,11 +166,9 @@ public class PortfolioServiceTransactionTest {
         when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
         when(transactionService.recordBuyTransaction(eq(ticker), eq(additionalShares), eq(currentPrice)))
             .thenReturn(createTransaction(ticker, additionalShares, currentPrice, TransactionType.BUY));
-
-        // When
+      
         portfolioService.addHolding(ticker, additionalShares);
-
-        // Then
+  
         assertEquals(1, mockPortfolio.getHoldings().size());
         assertEquals(initialShares + additionalShares, mockPortfolio.getHoldings().get(0).getShares());
         verify(transactionService).recordBuyTransaction(ticker, additionalShares, currentPrice);

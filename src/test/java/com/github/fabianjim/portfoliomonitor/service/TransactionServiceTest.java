@@ -53,8 +53,7 @@ public class TransactionServiceTest {
     }
 
     @Test
-    void recordBuyTransaction() {
-        // Given
+    void recordBuyTransaction() {    
         String ticker = "AAPL";
         double shares = 10.0;
         double price = 150.0;
@@ -64,11 +63,9 @@ public class TransactionServiceTest {
             t.setId(1);
             return t;
         });
-
-        // When
+   
         Transaction result = transactionService.recordBuyTransaction(ticker, shares, price);
 
-        // Then
         assertNotNull(result);
         assertEquals(ticker, result.getTicker());
         assertEquals(shares, result.getShares(), 0.01);
@@ -86,8 +83,7 @@ public class TransactionServiceTest {
     }
 
     @Test
-    void recordSellTransaction() {
-        // Given
+    void recordSellTransaction() {    
         String ticker = "GOOGL";
         double shares = 5.0;
         double price = 200.0;
@@ -98,10 +94,8 @@ public class TransactionServiceTest {
             return t;
         });
 
-        // When
         Transaction result = transactionService.recordSellTransaction(ticker, shares, price);
 
-        // Then
         assertNotNull(result);
         assertEquals(ticker, result.getTicker());
         assertEquals(shares, result.getShares(), 0.01);
@@ -119,8 +113,7 @@ public class TransactionServiceTest {
     }
 
     @Test
-    void getTransactionHistoryForCurrentUser() {
-        // Given
+    void getTransactionHistoryForCurrentUser() { 
         Transaction transaction1 = new Transaction("AAPL", 10.0, 150.0, TransactionType.BUY);
         Transaction transaction2 = new Transaction("GOOGL", 5.0, 200.0, TransactionType.BUY);
         List<Transaction> mockTransactions = List.of(transaction1, transaction2);
@@ -128,10 +121,8 @@ public class TransactionServiceTest {
         when(transactionRepository.findByUserIdOrderByTimestampDesc(mockUser.getId()))
             .thenReturn(mockTransactions);
 
-        // When
         List<Transaction> result = transactionService.getTransactionHistory();
 
-        // Then
         assertNotNull(result);
         assertEquals(2, result.size());
         assertEquals("AAPL", result.get(0).getTicker());
@@ -140,19 +131,16 @@ public class TransactionServiceTest {
     }
 
     @Test
-    void getTransactionHistoryForSpecificTicker() {
-        // Given
+    void getTransactionHistoryForSpecificTicker() {  
         String ticker = "AAPL";
         Transaction transaction = new Transaction(ticker, 10.0, 150.0, TransactionType.BUY);
         List<Transaction> mockTransactions = List.of(transaction);
 
         when(transactionRepository.findByUserIdAndTicker(mockUser.getId(), ticker))
             .thenReturn(mockTransactions);
-
-        // When
+       
         List<Transaction> result = transactionService.getTransactionHistoryForTicker(ticker);
-
-        // Then
+    
         assertNotNull(result);
         assertEquals(1, result.size());
         assertEquals(ticker, result.get(0).getTicker());
@@ -161,14 +149,11 @@ public class TransactionServiceTest {
 
     @Test
     void getTransactionHistoryEmptyList() {
-        // Given
         when(transactionRepository.findByUserIdOrderByTimestampDesc(mockUser.getId()))
             .thenReturn(List.of());
-
-        // When
+      
         List<Transaction> result = transactionService.getTransactionHistory();
 
-        // Then
         assertNotNull(result);
         assertTrue(result.isEmpty());
     }

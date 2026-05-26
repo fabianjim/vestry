@@ -75,7 +75,6 @@ public class PortfolioServiceCreatePortfolioTest {
 
     @Test
     void createPortfolioRecordsBuyTransactionsForInitialHoldings() {
-        // Given
         String ticker1 = "AAPL";
         String ticker2 = "GOOGL";
         double shares1 = 10.0;
@@ -104,10 +103,9 @@ public class PortfolioServiceCreatePortfolioTest {
         when(transactionService.recordBuyTransaction(eq(ticker2), eq(shares2), eq(price2)))
             .thenReturn(createTransaction(ticker2, shares2, price2));
 
-        // When
+        
         portfolioService.createPortfolio(portfolio);
 
-        // Then
         verify(transactionService).recordBuyTransaction(ticker1, shares1, price1);
         verify(transactionService).recordBuyTransaction(ticker2, shares2, price2);
         
@@ -132,32 +130,28 @@ public class PortfolioServiceCreatePortfolioTest {
 
     @Test
     void createPortfolioWithEmptyHoldingsDoesNotRecordTransactions() {
-        // Given
         Portfolio portfolio = new Portfolio();
         portfolio.setHoldings(new ArrayList<>());
 
         when(userRepository.findById(1)).thenReturn(Optional.of(mockUser));
         when(portfolioRepository.save(any(Portfolio.class))).thenReturn(portfolio);
 
-        // When
+        
         portfolioService.createPortfolio(portfolio);
 
-        // Then
         verify(transactionService, never()).recordBuyTransaction(anyString(), anyDouble(), anyDouble());
     }
 
     @Test
     void createPortfolioWithNullHoldingsDoesNotRecordTransactions() {
-        // Given
         Portfolio portfolio = new Portfolio();
         portfolio.setHoldings(null);
 
         when(userRepository.findById(1)).thenReturn(Optional.of(mockUser));
 
-        // When
+        
         portfolioService.createPortfolio(portfolio);
 
-        // Then
         verify(transactionService, never()).recordBuyTransaction(anyString(), anyDouble(), anyDouble());
     }
 

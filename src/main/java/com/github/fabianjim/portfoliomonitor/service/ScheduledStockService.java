@@ -31,7 +31,6 @@ public class ScheduledStockService {
     /**
      * Fetches intraday stock data every hour during market hours (10 AM - 4 PM EST)
      * Fetches ALL tracked stocks once, shared across all users
-     * Cron expression: 0 0 10-16 * * MON-FRI (Eastern Time)
      */
     @Scheduled(cron = "0 0 10-16 * * MON-FRI", zone = "America/New_York")
     public void fetchIntradayStocks() {
@@ -66,7 +65,6 @@ public class ScheduledStockService {
     /**
      * Fetches End of Day (EOD) stock data at 4:30 PM EST
      * Fetches ALL tracked stocks once, shared across all users
-     * Cron expression: 0 30 16 * * MON-FRI (Eastern Time)
      */
     @Scheduled(cron = "0 30 16 * * MON-FRI", zone = "America/New_York")
     public void fetchEODStocks() {

@@ -62,8 +62,6 @@ export default function Login() {
       credentials: "include",
     })
     const hasPortfolio = await response.json()
-
-    console.log('Has portfolio:', hasPortfolio) // TODO: REMOVE
     
     if(hasPortfolio) {
       navigate('/dashboard')
@@ -93,7 +91,6 @@ export default function Login() {
         />
       </div>
 
-       {/* User is logging in */}
       <button
         onClick={handleSubmit}
         disabled={loading}
@@ -102,7 +99,6 @@ export default function Login() {
         {loading ? 'Loading...' : (isLogin ? 'Login' : 'Register')}
       </button>
 
-      {/* User is registering */}
       <button
         onClick={() => {
           setIsLogin(!isLogin) 

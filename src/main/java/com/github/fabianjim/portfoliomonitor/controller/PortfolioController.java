@@ -27,19 +27,10 @@ public class PortfolioController {
         this.transactionService = transactionService;
         this.nasdaqMetadataService = nasdaqMetadataService;
     }
-    @PostMapping
-    public void submitPortfolio(@RequestBody Portfolio portfolio) {
-        portfolioService.updatePortfolio(portfolio);
-    }
+    
     @PostMapping("/create")
     public void createPortfolio(@RequestBody Portfolio portfolio) {
         portfolioService.createPortfolio(portfolio);
-    }
-
-    // TODO
-    @PostMapping("/update")
-    public void updatePortfolio(@RequestBody Portfolio portfolio) {
-        portfolioService.updatePortfolio(portfolio);
     }
 
     @GetMapping
