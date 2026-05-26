@@ -10,7 +10,7 @@ export default function Analysis() {
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
 
   return (
-    <div className="max-w-6xl mx-auto mt-6 px-3">
+    <div className="max-w-6xl mx-auto mt-6 px-3 mb-8">
       <h2 className="text-2xl font-150 mb-6">Holding Analysis</h2>
 
       {error && <div className="text-error mb-4">{error}</div>}
