@@ -5,6 +5,7 @@ import { formatDateTime } from '../utils/dateUtils'
 
 export interface JournalPanelHandle {
   scrollToEntry: (id: number) => void
+  refreshEntries: () => void
 }
 
 interface JournalPanelProps {
@@ -31,6 +32,9 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
+    },
+    refreshEntries: () => {
+      fetchEntries()
     }
   }))
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
 import {
   LineChart,
   Line,
@@ -20,6 +20,10 @@ import { processHourlyData } from '../utils/chartData'
 interface HistoryData {
   timestamp: string
   portfolioValue: number
+}
+
+export interface PortfolioChartHandle {
+  refresh: () => void
 }
 
 interface Props {
@@ -146,7 +150,7 @@ function TransactionOverlay({
   )
 }
 
-export default function PortfolioChart({ onPinClick }: Props) {
+const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function PortfolioChart({ onPinClick }, ref) {
   const [data, setData] = useState<HistoryData[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
@@ -155,6 +159,12 @@ export default function PortfolioChart({ onPinClick }: Props) {
   const [viewMode, setViewMode] = useState<'hourly' | 'daily'>('hourly')
   const [currentDate, setCurrentDate] = useState<Date>(new Date())
   const hasAnimatedRef = useRef(false)
+
+  useImperativeHandle(ref, () => ({
+    refresh: () => {
+      loadData()
+    }
+  }))
 
   useEffect(() => {
     loadData()
@@ -430,4 +440,6 @@ export default function PortfolioChart({ onPinClick }: Props) {
       )}
     </div>
   )
-}
+})
+
+export default PortfolioChart

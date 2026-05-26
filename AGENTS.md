@@ -47,6 +47,8 @@ frontend/vite-project/src/
 └── index.css        # Global styles + custom font declarations
 ```
 
+**Component refresh coordination**: `PortfolioChart` and `JournalPanel` expose imperative handles via `forwardRef` + `useImperativeHandle` so parent components (e.g. `Dashboard`) can trigger data refreshes after mutations. This pattern is used after buy/sell flows complete and the journal prompt closes.
+
 ### Tech Stack
 - **Backend**: Spring Boot 3.5.3, Java 17, Maven (use `./mvnw`, never bare `mvn`)
 - **Frontend**: React 19, TypeScript ~5.8, Vite 7
@@ -226,6 +228,8 @@ npm run lint
 | `src/main/java/.../service/NasdaqMetadataService.java` | Stock metadata loader with ETF fallback |
 | `src/main/resources/data/ETFs.csv` | ETF metadata source (~1021 rows) |
 | `src/main/resources/data/nasdaq_metadata.csv` | Stock metadata source (~6996 rows) |
+| `frontend/.../components/PortfolioChart.tsx` | Exposes `PortfolioChartHandle` with `refresh()` via ref |
+| `frontend/.../components/JournalPanel.tsx` | Exposes `JournalPanelHandle` with `scrollToEntry()` and `refreshEntries()` via ref |
 
 ---
 

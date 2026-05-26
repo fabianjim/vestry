@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import PortfolioChart from '../components/PortfolioChart'
+import type { PortfolioChartHandle } from '../components/PortfolioChart'
 import JournalPrompt from '../components/JournalPrompt'
 import JournalPanel from '../components/JournalPanel'
 import type { JournalPanelHandle } from '../components/JournalPanel'
@@ -45,6 +46,7 @@ export default function Dashboard() {
   const [journalPromptTicker, setJournalPromptTicker] = useState('')
   const [journalPromptTradeType, setJournalPromptTradeType] = useState<'BUY' | 'SELL'>('BUY')
   const hasFetched = useRef(false)
+  const portfolioChartRef = useRef<PortfolioChartHandle>(null)
   const journalPanelRef = useRef<JournalPanelHandle>(null)
   const [activeJournalId, setActiveJournalId] = useState<number | null>(null)
   const [pnlSummary, setPnlSummary] = useState<PnLSummary | null>(null)
@@ -180,6 +182,8 @@ export default function Dashboard() {
   const submitJournalPrompt = async (body: string) => {
     if (!body) {
       setShowJournalPrompt(false)
+      portfolioChartRef.current?.refresh()
+      journalPanelRef.current?.refreshEntries()
       return
     }
     try {
@@ -193,6 +197,8 @@ export default function Dashboard() {
     } finally {
       setShowJournalPrompt(false)
       setJournalPromptTicker('')
+      portfolioChartRef.current?.refresh()
+      journalPanelRef.current?.refreshEntries()
     }
   }
 
@@ -278,6 +284,7 @@ export default function Dashboard() {
       <div className="mb-8">
         <h3 className="text-xl font-150 mb-4">Portfolio Performance</h3>
         <PortfolioChart
+          ref={portfolioChartRef}
           onPinClick={(id) => {
             setActiveJournalId(id)
             journalPanelRef.current?.scrollToEntry(id)
@@ -415,7 +422,11 @@ export default function Dashboard() {
       {/* Journal Prompt Modal */}
       <JournalPrompt
         isOpen={showJournalPrompt}
-        onClose={() => setShowJournalPrompt(false)}
+        onClose={() => {
+          setShowJournalPrompt(false)
+          portfolioChartRef.current?.refresh()
+          journalPanelRef.current?.refreshEntries()
+        }}
         onSubmit={submitJournalPrompt}
         ticker={journalPromptTicker}
         tradeType={journalPromptTradeType}
