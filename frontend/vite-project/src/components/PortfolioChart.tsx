@@ -339,7 +339,16 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
 
           <span className="text-sm text-muted min-w-[100px] text-center">
             {viewMode === 'hourly'
-              ? currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              ? (() => {
+                  const today = new Date()
+                  today.setHours(0, 0, 0, 0)
+                  const selected = new Date(currentDate)
+                  selected.setHours(0, 0, 0, 0)
+                  if (selected.getTime() === today.getTime()) {
+                    return 'Today'
+                  }
+                  return currentDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                })()
               : 'Last 5 Days'}
           </span>
 
