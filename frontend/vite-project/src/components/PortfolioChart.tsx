@@ -157,7 +157,23 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'hourly' | 'daily'>('hourly')
-  const [currentDate, setCurrentDate] = useState<Date>(new Date())
+  const getInitialDate = () => {
+    const today = new Date()
+    const day = today.getDay()
+    if (day === 6) {
+      const friday = new Date(today)
+      friday.setDate(today.getDate() - 1)
+      return friday
+    }
+    if (day === 0) {
+      const friday = new Date(today)
+      friday.setDate(today.getDate() - 2)
+      return friday
+    }
+    return today
+  }
+
+  const [currentDate, setCurrentDate] = useState<Date>(getInitialDate())
   const hasAnimatedRef = useRef(false)
 
   useImperativeHandle(ref, () => ({
@@ -233,25 +249,43 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
 
   const lineColor = isPositiveTrend ? '#10b981' : '#ef4444'
 
-  const handlePrevious = () => {
-    const newDate = new Date(currentDate)
+  const getPreviousTradingDay = (date: Date): Date => {
+    const newDate = new Date(date)
     if (viewMode === 'hourly') {
       newDate.setDate(newDate.getDate() - 1)
+      const day = newDate.getDay()
+      if (day === 0) newDate.setDate(newDate.getDate() - 2)
+      if (day === 6) newDate.setDate(newDate.getDate() - 1)
     } else {
       newDate.setDate(newDate.getDate() - 5)
     }
-    setCurrentDate(newDate)
+    return newDate
+  }
+
+  const handlePrevious = () => {
+    setCurrentDate(getPreviousTradingDay(currentDate))
+  }
+
+  const getNextTradingDay = (date: Date): Date => {
+    const newDate = new Date(date)
+    if (viewMode === 'hourly') {
+      newDate.setDate(newDate.getDate() + 1)
+      const day = newDate.getDay()
+      if (day === 6) newDate.setDate(newDate.getDate() + 2)
+      if (day === 0) newDate.setDate(newDate.getDate() + 1)
+    } else {
+      newDate.setDate(newDate.getDate() + 5)
+    }
+    return newDate
   }
 
   const handleNext = () => {
     const today = new Date()
-    const newDate = new Date(currentDate)
-    if (viewMode === 'hourly') {
-      newDate.setDate(newDate.getDate() + 1)
-    } else {
-      newDate.setDate(newDate.getDate() + 5)
-    }
-    if (newDate <= today) {
+    today.setHours(0, 0, 0, 0)
+    const newDate = getNextTradingDay(currentDate)
+    const newDateStart = new Date(newDate)
+    newDateStart.setHours(0, 0, 0, 0)
+    if (newDateStart <= today) {
       setCurrentDate(newDate)
     }
   }
@@ -268,9 +302,9 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
   const canGoForward = useMemo(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const current = new Date(currentDate)
-    current.setHours(0, 0, 0, 0)
-    return current < today
+    const nextTradingDay = getNextTradingDay(currentDate)
+    nextTradingDay.setHours(0, 0, 0, 0)
+    return nextTradingDay <= today
   }, [currentDate])
 
   // Dynamic ticks from actual data points (one tick per point)
