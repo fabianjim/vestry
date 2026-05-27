@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import type { Transaction, PnLSummary } from '../types/transaction'
 import { portfolioApi } from '../services/api'
 import { formatDateTime } from '../utils/dateUtils'
+import { exportToCSV } from '../utils/exportUtils'
 
 export default function TransactionHistory() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -13,12 +14,7 @@ export default function TransactionHistory() {
     setLoading(true)
     setError('')
     try {
-      const response = await fetch('/api/portfolio/transactions', {
-        method: 'GET',
-        credentials: 'include',
-      })
-      if (!response.ok) throw new Error('Failed to fetch transactions')
-      const data = await response.json()
+      const data = await portfolioApi.getTransactions() as Transaction[]
       setTransactions(data)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
@@ -26,6 +22,19 @@ export default function TransactionHistory() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleExport = () => {
+    const rows = transactions.map((t) => ({
+      Date: formatDateTime(t.timestamp),
+      Type: t.type,
+      Ticker: t.ticker,
+      Shares: t.shares,
+      'Share Price': `$${t.price.toFixed(2)}`,
+      'Total Value': `$${t.totalValue.toFixed(2)}`,
+    }))
+    const today = new Date().toISOString().split('T')[0]
+    exportToCSV(rows, `transactions_${today}.csv`)
   }
 
   const fetchPnLSummary = async () => {
@@ -74,7 +83,19 @@ export default function TransactionHistory() {
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto relative group">
+        <button
+          onClick={handleExport}
+          title="Export to CSV"
+          className="absolute top-2 right-2 z-10 p-1.5 rounded-md bg-surface-hover border border-border text-muted opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground cursor-pointer"
+          aria-label="Export to CSV"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        </button>
         <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="bg-elevated">
