@@ -23,7 +23,9 @@ src/main/java/com/github/fabianjim/portfoliomonitor/
 ├── api/              # External API clients (TiingoClient, MarketDataClient)
 ├── config/           # TestSchedulingConfig (profile-gated scheduling)
 ├── controller/       # REST endpoints (Portfolio, Auth, Stock, Watchlist, JournalEntry, Login)
+│   └── GlobalExceptionHandler.java  # @ControllerAdvice — maps exceptions to HTTP responses
 ├── dto/              # Data transfer objects
+├── exception/        # Custom exceptions: UnknownTickerException, PriceFetchException
 ├── model/            # JPA entities
 ├── repository/       # Spring Data JPA repositories
 ├── security/         # SecurityConfig (CORS, BCryptPasswordEncoder, session-based auth)
@@ -107,6 +109,13 @@ frontend/vite-project/src/
 - `StockMetadata` includes an `isEtf` boolean flag; the UI shows conditional labels ("Asset Class"/"Category"/"Region" for ETFs, "Sector"/"Industry"/"Country" for stocks)
 - Fetched once at time of buy/add, stored statically, never updated automatically
 - Powers the edge logic in the Holding Analysis graph
+
+### Buy/Sell Error Handling
+- `PortfolioService.fetchTransactionPrice()` fetches live prices before recording transactions
+- **Unknown tickers** (`UnknownTickerException`, e.g., "NIKE" instead of "NKE"): thrown immediately, **no retry** — saves an unnecessary API call
+- **Fetch failures** (`PriceFetchException`, e.g., API timeout): retried once after 500ms, then fails with a descriptive message
+- `GlobalExceptionHandler` maps these to HTTP 404 (unknown ticker) and 503 (fetch failure) with user-friendly JSON error messages
+- Frontend (`Dashboard.tsx`) reads `response.json().error` and displays it in the modal — no hardcoded error strings
 
 ### Journal Entry System
 - A journal entry has: type (`BUY`, `SELL`, `INSIGHT`, `MARKET_EVENT`), body text, optional ticker, timestamp, and snapshotted price at time of writing
@@ -222,6 +231,9 @@ npm run lint
 | `frontend/vite-project/vercel.json` | Production API routing |
 | `frontend/vite-project/vite.config.ts` | Dev proxy config |
 | `.github/workflows/aws.yml` | CI/CD for backend |
+| `src/main/java/.../exception/UnknownTickerException.java` | Thrown when a ticker symbol does not exist |
+| `src/main/java/.../exception/PriceFetchException.java` | Thrown on transient API fetch failures |
+| `src/main/java/.../controller/GlobalExceptionHandler.java` | Maps custom exceptions to HTTP 404/503 responses |
 | `src/main/java/.../dto/PnLSummaryDTO.java` | P/L summary data transfer object |
 | `src/main/java/.../service/PortfolioService.java` | Business logic incl. P/L calculation |
 | `src/main/java/.../service/EtfMetadataService.java` | ETF metadata loader (ETFs.csv → StockMetadata) |

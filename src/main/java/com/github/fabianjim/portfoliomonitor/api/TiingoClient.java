@@ -10,6 +10,9 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 
+import com.github.fabianjim.portfoliomonitor.exception.PriceFetchException;
+import com.github.fabianjim.portfoliomonitor.exception.UnknownTickerException;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
@@ -37,11 +40,17 @@ public class TiingoClient implements MarketDataClient {
         String url = baseUrl + "/iex/" + ticker;
         HttpEntity<String> entity = new HttpEntity<>(createAuthHeaders());
 
-        ResponseEntity<String> response = restTemplate.exchange(
-                url, HttpMethod.GET, entity, String.class
-        );
-        String json = response.getBody();
-        return parseStockData(json, ticker, type);
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url, HttpMethod.GET, entity, String.class
+            );
+            String json = response.getBody();
+            return parseStockData(json, ticker, type);
+        } catch (UnknownTickerException e) {
+            throw e;  // Propagate untouched — don't retry unknown tickers
+        } catch (Exception e) {
+            throw new PriceFetchException(ticker, e.getMessage(), e);
+        }
     }
 
     public Stock parseStockData(String json, String ticker, StockType type) {
@@ -76,11 +85,11 @@ public class TiingoClient implements MarketDataClient {
                 return new Stock(ticker, timestamp, currentPrice, open, prevClose, high, low, type, hourBucket);
             }
             else {
-                throw new RuntimeException("Invalid JSON data format for: " + ticker);
+                throw new UnknownTickerException(ticker);
             }
 
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("Error parsing JSON for ticker: " + ticker, e);
+            throw new PriceFetchException(ticker, "Error parsing JSON response", e);
         }
     }
 
@@ -90,22 +99,23 @@ public class TiingoClient implements MarketDataClient {
         String url = baseUrl + "/iex/" + ticker;
         HttpEntity<String> entity = new HttpEntity<>(createAuthHeaders());
 
-        ResponseEntity<String> response = restTemplate.exchange(
-                url, HttpMethod.GET, entity, String.class
-        );
-        String json = response.getBody();
-        ObjectMapper objectMapper = new ObjectMapper();
         try {
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url, HttpMethod.GET, entity, String.class
+            );
+            String json = response.getBody();
+            ObjectMapper objectMapper = new ObjectMapper();
             JsonNode root = objectMapper.readTree(json);
             if (root.isArray() && !root.isEmpty()) {
                 return root.get(0).get("tngoLast").asDouble();
             } else {
-                throw new RuntimeException("Empty response or invalid JSON format for: " + ticker);
+                throw new UnknownTickerException(ticker);
             }
+        } catch (UnknownTickerException e) {
+            throw e;  // Propagate untouched — don't retry unknown tickers
         } catch (Exception e) {
-            throw new RuntimeException("Error parsing JSON: " + e.getMessage(), e);
+            throw new PriceFetchException(ticker, e.getMessage(), e);
         }
-
     }
 
     @Override

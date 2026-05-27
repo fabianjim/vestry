@@ -2,6 +2,8 @@ package com.github.fabianjim.portfoliomonitor.service;
 
 import com.github.fabianjim.portfoliomonitor.dto.PnLSummaryDTO;
 import com.github.fabianjim.portfoliomonitor.dto.PortfolioHistoryDTO;
+import com.github.fabianjim.portfoliomonitor.exception.PriceFetchException;
+import com.github.fabianjim.portfoliomonitor.exception.UnknownTickerException;
 import com.github.fabianjim.portfoliomonitor.model.Holding;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;
 import com.github.fabianjim.portfoliomonitor.model.Stock;
@@ -131,7 +133,8 @@ public class PortfolioService {
     }
 
      
-    // Fetch live price for a transaction with one retry, throw exc if retry fails
+    // Fetch live price for a transaction with one retry on fetch failures.
+    // Unknown tickers are not retried — we fail fast to save API calls.
     private double fetchTransactionPrice(String ticker) {
         Exception lastError = null;
         for (int attempt = 1; attempt <= 2; attempt++) {
@@ -141,10 +144,13 @@ public class PortfolioService {
                     return stock.getCurrentPrice();
                 }
                 if (stock == null) {
-                    lastError = new RuntimeException("No stock data returned for " + ticker);
+                    lastError = new PriceFetchException(ticker, "No stock data returned");
                 } else {
-                    lastError = new RuntimeException("Invalid price (" + stock.getCurrentPrice() + ") for " + ticker);
+                    lastError = new PriceFetchException(ticker, "Invalid price (" + stock.getCurrentPrice() + ")");
                 }
+            } catch (UnknownTickerException e) {
+                // Do NOT retry for unknown tickers — saves an unnecessary API call
+                throw e;
             } catch (Exception e) {
                 lastError = e;
             }
@@ -154,12 +160,12 @@ public class PortfolioService {
                     TimeUnit.MILLISECONDS.sleep(500);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    throw new RuntimeException("Retry interrupted for " + ticker, ie);
+                    throw new PriceFetchException(ticker, "Retry interrupted", ie);
                 }
             }
         }
         
-        throw new RuntimeException("Unable to fetch valid price for " + ticker + " after 2 attempts. Last error: " + lastError.getMessage(), lastError);
+        throw new PriceFetchException(ticker, "Failed after 2 attempts. Last error: " + lastError.getMessage(), lastError);
     }
 
     public void addHolding(String ticker, double shares) {

@@ -1,5 +1,7 @@
 package com.github.fabianjim.portfoliomonitor.service;
 
+import com.github.fabianjim.portfoliomonitor.exception.PriceFetchException;
+import com.github.fabianjim.portfoliomonitor.exception.UnknownTickerException;
 import com.github.fabianjim.portfoliomonitor.model.Holding;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;
 import com.github.fabianjim.portfoliomonitor.model.Stock;
@@ -178,5 +180,59 @@ public class PortfolioServiceTransactionTest {
         Transaction transaction = new Transaction(ticker, shares, price, type);
         transaction.setId(1);
         return transaction;
+    }
+
+    @Test
+    void addHoldingWithUnknownTickerDoesNotRetry() {
+        String ticker = "NIKE";
+        double shares = 10.0;
+
+        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
+            .thenThrow(new UnknownTickerException(ticker));
+
+        UnknownTickerException exception = assertThrows(UnknownTickerException.class, () -> {
+            portfolioService.addHolding(ticker, shares);
+        });
+
+        assertEquals("Ticker 'NIKE' does not exist. Please check the symbol and try again.", exception.getMessage());
+        verify(stockService, times(1)).updateStockData(ticker, Stock.StockType.INITIAL);
+    }
+
+    @Test
+    void addHoldingWithPriceFetchExceptionRetriesOnce() {
+        String ticker = "AAPL";
+        double shares = 10.0;
+        double currentPrice = 150.0;
+
+        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
+            .thenThrow(new PriceFetchException(ticker, "API timeout"))
+            .thenReturn(createStock(ticker, currentPrice));
+        when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
+        when(transactionService.recordBuyTransaction(eq(ticker), eq(shares), eq(currentPrice)))
+            .thenReturn(createTransaction(ticker, shares, currentPrice, TransactionType.BUY));
+
+        portfolioService.addHolding(ticker, shares);
+
+        verify(stockService, times(2)).updateStockData(ticker, Stock.StockType.INITIAL);
+        verify(transactionService).recordBuyTransaction(ticker, shares, currentPrice);
+    }
+
+    @Test
+    void addHoldingWithPriceFetchExceptionFailsAfterTwoAttempts() {
+        String ticker = "AAPL";
+        double shares = 10.0;
+
+        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
+            .thenThrow(new PriceFetchException(ticker, "API timeout"));
+
+        PriceFetchException exception = assertThrows(PriceFetchException.class, () -> {
+            portfolioService.addHolding(ticker, shares);
+        });
+
+        assertTrue(exception.getMessage().contains("Failed after 2 attempts"));
+        verify(stockService, times(2)).updateStockData(ticker, Stock.StockType.INITIAL);
     }
 }

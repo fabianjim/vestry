@@ -113,7 +113,10 @@ export default function Dashboard() {
         credentials: 'include',
       })
 
-      if (!response.ok) throw new Error('Failed to add holding')
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to add holding')
+      }
 
       const boughtTicker = newTicker.trim().toUpperCase()
       setShowAddModal(false)
@@ -162,7 +165,10 @@ export default function Dashboard() {
         credentials: 'include',
       })
 
-      if (!response.ok) throw new Error('Failed to sell holding')
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to sell holding')
+      }
 
       const soldTicker = sellTicker
       closeSellModal()
@@ -350,7 +356,7 @@ export default function Dashboard() {
               />
             </div>
             <div className="flex items-center justify-end gap-2">
-              {error && <span className="text-error text-sm mr-auto">Error fetching price, try again.</span>}
+              {error && <span className="text-error text-sm mr-auto">{error}</span>}
               <button onClick={() => {
                 setShowAddModal(false)
                 setNewTicker('')
@@ -426,7 +432,7 @@ export default function Dashboard() {
             )}
             
             <div className="flex items-center justify-end gap-2">
-              {error && <span className="text-error text-sm mr-auto">Error fetching price, try again.</span>}
+              {error && <span className="text-error text-sm mr-auto">{error}</span>}
               <button onClick={closeSellModal} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">
                 Cancel
               </button>
