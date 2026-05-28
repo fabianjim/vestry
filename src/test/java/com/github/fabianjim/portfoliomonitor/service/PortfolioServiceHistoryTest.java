@@ -4,6 +4,8 @@ import com.github.fabianjim.portfoliomonitor.dto.PortfolioHistoryDTO;
 import com.github.fabianjim.portfoliomonitor.model.Holding;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;
 import com.github.fabianjim.portfoliomonitor.model.Stock;
+import com.github.fabianjim.portfoliomonitor.model.Transaction;
+import com.github.fabianjim.portfoliomonitor.model.Transaction.TransactionType;
 import com.github.fabianjim.portfoliomonitor.model.User;
 import com.github.fabianjim.portfoliomonitor.repository.PortfolioRepository;
 import com.github.fabianjim.portfoliomonitor.repository.StockRepository;
@@ -49,6 +51,9 @@ public class PortfolioServiceHistoryTest {
 
     @Mock
     private StockService stockService;
+
+    @Mock
+    private TransactionService transactionService;
 
     @Mock
     private SecurityContext securityContext;
@@ -107,8 +112,13 @@ public class PortfolioServiceHistoryTest {
             createStock("AAPL", now, 160.0)
         );
 
+        List<Transaction> transactions = List.of(
+            createTransaction("AAPL", 10.0, 150.0, TransactionType.BUY, now.minus(1, ChronoUnit.DAYS))
+        );
+
         when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockRepository.findByTickerOrderByTimestampDesc("AAPL")).thenReturn(stockHistory);
+        when(transactionService.getTransactionHistory()).thenReturn(transactions);
 
         
         List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
@@ -146,9 +156,15 @@ public class PortfolioServiceHistoryTest {
             createStock("GOOGL", timestamp2, 205.0)
         );
 
+        List<Transaction> transactions = List.of(
+            createTransaction("AAPL", 10.0, 150.0, TransactionType.BUY, now.minus(1, ChronoUnit.DAYS)),
+            createTransaction("GOOGL", 5.0, 200.0, TransactionType.BUY, now.minus(1, ChronoUnit.DAYS))
+        );
+
         when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockRepository.findByTickerOrderByTimestampDesc("AAPL")).thenReturn(aaplHistory);
         when(stockRepository.findByTickerOrderByTimestampDesc("GOOGL")).thenReturn(googlHistory);
+        when(transactionService.getTransactionHistory()).thenReturn(transactions);
 
         
         List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
@@ -188,9 +204,15 @@ public class PortfolioServiceHistoryTest {
             createStock("GOOGL", timestamp2, 205.0)
         );
 
+        List<Transaction> transactions = List.of(
+            createTransaction("AAPL", 10.0, 150.0, TransactionType.BUY, now.minus(1, ChronoUnit.DAYS)),
+            createTransaction("GOOGL", 5.0, 200.0, TransactionType.BUY, now.minus(1, ChronoUnit.DAYS))
+        );
+
         when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockRepository.findByTickerOrderByTimestampDesc("AAPL")).thenReturn(aaplHistory);
         when(stockRepository.findByTickerOrderByTimestampDesc("GOOGL")).thenReturn(googlHistory);
+        when(transactionService.getTransactionHistory()).thenReturn(transactions);
 
         
         List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
@@ -221,8 +243,13 @@ public class PortfolioServiceHistoryTest {
             createStock("AAPL", now, 160.0)
         );
 
+        List<Transaction> transactions = List.of(
+            createTransaction("AAPL", 10.0, 150.0, TransactionType.BUY, now.minus(3, ChronoUnit.HOURS))
+        );
+
         when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockRepository.findByTickerOrderByTimestampDesc("AAPL")).thenReturn(stockHistory);
+        when(transactionService.getTransactionHistory()).thenReturn(transactions);
 
         
         List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
@@ -272,9 +299,15 @@ public class PortfolioServiceHistoryTest {
         grabStock.setType(Stock.StockType.INITIAL);
         List<Stock> grabHistory = List.of(grabStock);
 
+        List<Transaction> transactions = List.of(
+            createTransaction("AAPL", 10.0, 150.0, TransactionType.BUY, tenAm.minus(1, ChronoUnit.DAYS)),
+            createTransaction("GRAB", 5.0, 20.0, TransactionType.BUY, ninePm)
+        );
+
         when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockRepository.findByTickerOrderByTimestampDesc("AAPL")).thenReturn(aaplHistory);
         when(stockRepository.findByTickerOrderByTimestampDesc("GRAB")).thenReturn(grabHistory);
+        when(transactionService.getTransactionHistory()).thenReturn(transactions);
 
         List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
 
@@ -331,9 +364,15 @@ public class PortfolioServiceHistoryTest {
         Stock grabIntraday = createStock("GRAB", twoPm, 21.0);
         List<Stock> grabHistory = List.of(grabInitial, grabIntraday);
 
+        List<Transaction> transactions = List.of(
+            createTransaction("AAPL", 10.0, 150.0, TransactionType.BUY, tenAm.minus(1, ChronoUnit.DAYS)),
+            createTransaction("GRAB", 5.0, 20.0, TransactionType.BUY, onePm.plus(17, ChronoUnit.MINUTES))
+        );
+
         when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockRepository.findByTickerOrderByTimestampDesc("AAPL")).thenReturn(aaplHistory);
         when(stockRepository.findByTickerOrderByTimestampDesc("GRAB")).thenReturn(grabHistory);
+        when(transactionService.getTransactionHistory()).thenReturn(transactions);
 
         List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
 
@@ -360,6 +399,50 @@ public class PortfolioServiceHistoryTest {
         assertEquals(twoPm, result.get(3).getTimestamp());
     }
 
+    // regression test: multiple buys of same ticker should show correct shares-at-time
+    @Test
+    void getPortfolioHistoryMultipleBuysSameTicker() {
+        Instant day1 = Instant.parse("2025-01-13T15:00:00Z"); // Monday 10am
+        Instant day2 = Instant.parse("2025-01-14T15:00:00Z"); // Tuesday 10am
+        Instant day3 = Instant.parse("2025-01-15T15:00:00Z"); // Wednesday 10am
+
+        Holding spyHolding = new Holding("SPY", 3.0);
+        spyHolding.setBuyTimestamp(day1);
+        mockPortfolio.getHoldings().add(spyHolding);
+
+        List<Stock> spyHistory = List.of(
+            createStock("SPY", day1, 100.0),
+            createStock("SPY", day2, 110.0),
+            createStock("SPY", day3, 120.0)
+        );
+
+        List<Transaction> transactions = List.of(
+            createTransaction("SPY", 1.0, 100.0, TransactionType.BUY, day1),
+            createTransaction("SPY", 1.0, 110.0, TransactionType.BUY, day2),
+            createTransaction("SPY", 1.0, 120.0, TransactionType.BUY, day3)
+        );
+
+        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(stockRepository.findByTickerOrderByTimestampDesc("SPY")).thenReturn(spyHistory);
+        when(transactionService.getTransactionHistory()).thenReturn(transactions);
+
+        List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
+
+        assertEquals(3, result.size());
+
+        // Day 1: 1 share @ $100 = $100
+        assertEquals(100.0, result.get(0).getPortfolioValue(), 0.01);
+        assertEquals(day1, result.get(0).getTimestamp());
+
+        // Day 2: 2 shares @ $110 = $220
+        assertEquals(220.0, result.get(1).getPortfolioValue(), 0.01);
+        assertEquals(day2, result.get(1).getTimestamp());
+
+        // Day 3: 3 shares @ $120 = $360
+        assertEquals(360.0, result.get(2).getPortfolioValue(), 0.01);
+        assertEquals(day3, result.get(2).getTimestamp());
+    }
+
     private Stock createStock(String ticker, Instant timestamp, double price) {
         Stock stock = new Stock();
         stock.setTicker(ticker);
@@ -372,5 +455,12 @@ public class PortfolioServiceHistoryTest {
         stock.setLow(price);
         stock.setType(Stock.StockType.INTRADAY);
         return stock;
+    }
+
+    private Transaction createTransaction(String ticker, double shares, double price, TransactionType type, Instant timestamp) {
+        Transaction tx = new Transaction(ticker, shares, price, type);
+        tx.setTimestamp(timestamp);
+        tx.setId(1);
+        return tx;
     }
 }

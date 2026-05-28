@@ -134,7 +134,6 @@ public class PortfolioService {
 
      
     // Fetch live price for a transaction with one retry on fetch failures.
-    // Unknown tickers are not retried — we fail fast to save API calls.
     private double fetchTransactionPrice(String ticker) {
         Exception lastError = null;
         for (int attempt = 1; attempt <= 2; attempt++) {
@@ -149,12 +148,12 @@ public class PortfolioService {
                     lastError = new PriceFetchException(ticker, "Invalid price (" + stock.getCurrentPrice() + ")");
                 }
             } catch (UnknownTickerException e) {
-                // Do NOT retry for unknown tickers — saves an unnecessary API call
+                // no retry for unknown tickers saves a api call
                 throw e;
             } catch (Exception e) {
                 lastError = e;
             }
-            
+                // retry once after 500ms 
             if (attempt == 1) {
                 try {
                     TimeUnit.MILLISECONDS.sleep(500);
@@ -165,7 +164,7 @@ public class PortfolioService {
             }
         }
         
-        throw new PriceFetchException(ticker, "Failed after 2 attempts. Last error: " + lastError.getMessage(), lastError);
+        throw new PriceFetchException(ticker, lastError.getMessage(), lastError);
     }
 
     public void addHolding(String ticker, double shares) {
@@ -362,6 +361,8 @@ public class PortfolioService {
     /**
      * Calculate portfolio value history for the current user's portfolio.
      * Returns list of portfolio values grouped by hour bucket.
+     * Uses the transaction ledger to determine actual shares owned at each point in time,
+     * which correctly handles multiple purchases of the same ticker.
      */
     public List<PortfolioHistoryDTO> getPortfolioHistory() {
         Portfolio portfolio = getPortfolio();
@@ -370,27 +371,30 @@ public class PortfolioService {
         }
 
         List<Holding> holdings = portfolio.getHoldings();
-        
+
+        // Fetch all transactions to calculate shares-at-time accurately
+        List<Transaction> transactions = transactionService.getTransactionHistory();
+        Map<String, List<Transaction>> transactionsByTicker = new HashMap<>();
+        for (Transaction tx : transactions) {
+            transactionsByTicker
+                .computeIfAbsent(tx.getTicker(), k -> new ArrayList<>())
+                .add(tx);
+        }
+
         // Map to store all stock data grouped by hour bucket
         Map<Instant, Map<String, Stock>> dataByHourBucket = new HashMap<>();
-        
-        // Track which tickers we need data for and their holdings
-        Map<String, Holding> holdingsByTicker = new HashMap<>();
-        for (Holding holding : holdings) {
-            holdingsByTicker.put(holding.getTicker(), holding);
-        }
 
         // Fetch historical data for each holding
         for (Holding holding : holdings) {
             List<Stock> stockHistory = stockRepository.findByTickerOrderByTimestampDesc(holding.getTicker());
-            
+
             for (Stock stock : stockHistory) {
                 // Only include INTRADAY and INITIAL data, exclude EOD
                 if (stock.getType() == Stock.StockType.EOD) {
                     continue;
                 }
-                
-                // Only include data from buy time onward
+
+                // Only include data from first buy time onward
                 if (!stock.getHourBucket().isBefore(holding.getBuyTimestamp())) {
                     dataByHourBucket
                         .computeIfAbsent(stock.getHourBucket(), k -> new HashMap<>())
@@ -401,35 +405,51 @@ public class PortfolioService {
 
         // Calculate portfolio value at each hour bucket
         List<PortfolioHistoryDTO> result = new ArrayList<>();
-        
+
         for (Map.Entry<Instant, Map<String, Stock>> entry : dataByHourBucket.entrySet()) {
             Instant hourBucket = entry.getKey();
             Map<String, Stock> stocksAtHour = entry.getValue();
-            
-            // Only include holdings that existed at this bucket
-            List<Map.Entry<String, Holding>> activeHoldings = holdingsByTicker.entrySet().stream()
-                .filter(holdingEntry -> !holdingEntry.getValue().getBuyTimestamp().isAfter(hourBucket))
-                .toList();
-            
-            // Check if we have data for all active holdings at this bucket
-            if (stocksAtHour.size() >= activeHoldings.size()) {
+
+            // Calculate actual shares owned for each ticker at this hour bucket
+            // by summing all buy transactions and subtracting sell transactions
+            // that occurred at or before this hour bucket
+            Map<String, Double> sharesAtTime = new HashMap<>();
+            for (Map.Entry<String, List<Transaction>> tickerTxs : transactionsByTicker.entrySet()) {
+                String ticker = tickerTxs.getKey();
+                double shares = 0;
+                for (Transaction tx : tickerTxs.getValue()) {
+                    if (!tx.getTimestamp().isAfter(hourBucket)) {
+                        if (tx.getType() == Transaction.TransactionType.BUY) {
+                            shares += tx.getShares();
+                        } else {
+                            shares -= tx.getShares();
+                        }
+                    }
+                }
+                if (shares > 0) {
+                    sharesAtTime.put(ticker, shares);
+                }
+            }
+
+            // Check if we have stock data for all tickers with shares > 0
+            if (stocksAtHour.size() >= sharesAtTime.size()) {
                 double totalValue = 0.0;
                 boolean hasAllData = true;
-                
-                for (Map.Entry<String, Holding> holdingEntry : activeHoldings) {
-                    String ticker = holdingEntry.getKey();
-                    Holding holding = holdingEntry.getValue();
+
+                for (Map.Entry<String, Double> shareEntry : sharesAtTime.entrySet()) {
+                    String ticker = shareEntry.getKey();
+                    double shares = shareEntry.getValue();
                     Stock stock = stocksAtHour.get(ticker);
-                    
+
                     if (stock == null) {
                         hasAllData = false;
                         break;
                     }
-                    
-                    totalValue += stock.getCurrentPrice() * holding.getShares();
+
+                    totalValue += stock.getCurrentPrice() * shares;
                 }
-                
-                if (hasAllData && !activeHoldings.isEmpty()) {
+
+                if (hasAllData && !sharesAtTime.isEmpty()) {
                     result.add(new PortfolioHistoryDTO(hourBucket, totalValue));
                 }
             }

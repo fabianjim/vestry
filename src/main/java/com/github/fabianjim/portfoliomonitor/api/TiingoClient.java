@@ -112,7 +112,7 @@ public class TiingoClient implements MarketDataClient {
                 throw new UnknownTickerException(ticker);
             }
         } catch (UnknownTickerException e) {
-            throw e;  // Propagate untouched — don't retry unknown tickers
+            throw e;
         } catch (Exception e) {
             throw new PriceFetchException(ticker, e.getMessage(), e);
         }
