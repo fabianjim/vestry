@@ -168,14 +168,18 @@ public class PortfolioService {
     }
 
     public void addHolding(String ticker, double shares) {
+        addHolding(ticker, shares, null, null);
+    }
+
+    public void addHolding(String ticker, double shares, Double price, Instant timestamp) {
         Portfolio portfolio = getPortfolio();
         if (portfolio == null) {
             throw new RuntimeException("No portfolio found for current user");
         }
 
-        // Fetch and validate price BEFORE modifying portfolio
+        // Fetch and validate price BEFORE modifying portfolio (unless manually provided)
         startTrackingStock(ticker);
-        double currentPrice = fetchTransactionPrice(ticker);
+        double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
 
         Holding existingHolding = portfolio.getHoldings().stream()
             .filter(h -> h.getTicker().equals(ticker))
@@ -192,10 +196,14 @@ public class PortfolioService {
         portfolioRepository.save(portfolio);
 
         // Record buy transaction with validated price
-        transactionService.recordBuyTransaction(ticker, shares, currentPrice);
+        transactionService.recordBuyTransaction(ticker, shares, currentPrice, timestamp);
     }
 
     public void removeHolding(String ticker) {
+        removeHolding(ticker, null, null);
+    }
+
+    public void removeHolding(String ticker, Double price, Instant timestamp) {
         Portfolio portfolio = getPortfolio();
         if (portfolio == null) {
             throw new RuntimeException("No portfolio found for current user");
@@ -210,8 +218,8 @@ public class PortfolioService {
         }
         double shares = holding.getShares();
         
-        // Fetch and validate price BEFORE modifying portfolio
-        double currentPrice = fetchTransactionPrice(ticker);
+        // Fetch and validate price BEFORE modifying portfolio (unless manually provided)
+        double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
         portfolio.getHoldings().remove(holding);
         portfolioRepository.save(portfolio);
 
@@ -219,11 +227,15 @@ public class PortfolioService {
         stopTrackingStock(ticker);
 
         // Record sell transaction with validated price
-        transactionService.recordSellTransaction(ticker, shares, currentPrice);
+        transactionService.recordSellTransaction(ticker, shares, currentPrice, timestamp);
     }
 
     // Sell a portion of a holding (partial sell).
     public void sellHolding(String ticker, double sharesToSell) {
+        sellHolding(ticker, sharesToSell, null, null);
+    }
+
+    public void sellHolding(String ticker, double sharesToSell, Double price, Instant timestamp) {
         Portfolio portfolio = getPortfolio();
         if (portfolio == null) {
             throw new RuntimeException("No portfolio found for current user");
@@ -238,11 +250,11 @@ public class PortfolioService {
             throw new RuntimeException("Cannot sell more shares than owned");
         }
 
-        // Fetch and validate price BEFORE modifying portfolio
-        double currentPrice = fetchTransactionPrice(ticker);
+        // Fetch and validate price BEFORE modifying portfolio (unless manually provided)
+        double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
 
         // Record sell transaction with validated price
-        transactionService.recordSellTransaction(ticker, sharesToSell, currentPrice);
+        transactionService.recordSellTransaction(ticker, sharesToSell, currentPrice, timestamp);
 
         // Update or remove holding
         if (sharesToSell == holding.getShares()) {

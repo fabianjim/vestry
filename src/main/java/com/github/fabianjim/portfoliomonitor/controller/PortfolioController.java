@@ -11,6 +11,7 @@ import com.github.fabianjim.portfoliomonitor.service.PortfolioService;
 import com.github.fabianjim.portfoliomonitor.service.TransactionService;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -57,13 +58,17 @@ public class PortfolioController {
     public void addHolding(@RequestBody Map<String, Object> request) {
         String ticker = (String) request.get("ticker");
         double shares = ((Number) request.get("shares")).doubleValue();
-        portfolioService.addHolding(ticker, shares);
+        Double price = request.containsKey("price") ? ((Number) request.get("price")).doubleValue() : null;
+        Instant timestamp = request.containsKey("timestamp") ? Instant.parse((String) request.get("timestamp")) : null;
+        portfolioService.addHolding(ticker, shares, price, timestamp);
     }
 
     @PostMapping("/holdings/remove")
-    public void removeHolding(@RequestBody Map<String, String> request) {
-        String ticker = request.get("ticker");
-        portfolioService.removeHolding(ticker);
+    public void removeHolding(@RequestBody Map<String, Object> request) {
+        String ticker = (String) request.get("ticker");
+        Double price = request.containsKey("price") ? ((Number) request.get("price")).doubleValue() : null;
+        Instant timestamp = request.containsKey("timestamp") ? Instant.parse((String) request.get("timestamp")) : null;
+        portfolioService.removeHolding(ticker, price, timestamp);
     }
 
     @GetMapping("/trending")
@@ -90,7 +95,9 @@ public class PortfolioController {
     public void sellHolding(@RequestBody Map<String, Object> request) {
         String ticker = (String) request.get("ticker");
         double shares = ((Number) request.get("shares")).doubleValue();
-        portfolioService.sellHolding(ticker, shares);
+        Double price = request.containsKey("price") ? ((Number) request.get("price")).doubleValue() : null;
+        Instant timestamp = request.containsKey("timestamp") ? Instant.parse((String) request.get("timestamp")) : null;
+        portfolioService.sellHolding(ticker, shares, price, timestamp);
     }
 
 }

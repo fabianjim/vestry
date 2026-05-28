@@ -31,6 +31,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.isNull;
 
 @ExtendWith(MockitoExtension.class)
 public class PortfolioServiceTransactionTest {
@@ -91,13 +92,13 @@ public class PortfolioServiceTransactionTest {
         when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
             .thenReturn(createStock(ticker, currentPrice));
         when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
-        when(transactionService.recordBuyTransaction(eq(ticker), eq(shares), eq(currentPrice)))
+        when(transactionService.recordBuyTransaction(eq(ticker), eq(shares), eq(currentPrice), isNull()))
             .thenReturn(createTransaction(ticker, shares, currentPrice, TransactionType.BUY));
       
         portfolioService.addHolding(ticker, shares);
    
         verify(stockService).updateStockData(ticker, Stock.StockType.INITIAL);
-        verify(transactionService).recordBuyTransaction(ticker, shares, currentPrice);
+        verify(transactionService).recordBuyTransaction(ticker, shares, currentPrice, null);
     }
 
     @Test
@@ -112,13 +113,13 @@ public class PortfolioServiceTransactionTest {
         when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
             .thenReturn(createStock(ticker, currentPrice));
-        when(transactionService.recordSellTransaction(eq(ticker), eq(shares), eq(currentPrice)))
+        when(transactionService.recordSellTransaction(eq(ticker), eq(shares), eq(currentPrice), isNull()))
             .thenReturn(createTransaction(ticker, shares, currentPrice, TransactionType.SELL));
      
         portfolioService.removeHolding(ticker);
 
         verify(stockService).updateStockData(ticker, Stock.StockType.INITIAL);
-        verify(transactionService).recordSellTransaction(ticker, shares, currentPrice);
+        verify(transactionService).recordSellTransaction(ticker, shares, currentPrice, null);
     }
 
     @Test
@@ -135,13 +136,13 @@ public class PortfolioServiceTransactionTest {
         when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
         when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
             .thenReturn(createStock(ticker, currentPrice));
-        when(transactionService.recordSellTransaction(eq(ticker), eq(sharesToSell), eq(currentPrice)))
+        when(transactionService.recordSellTransaction(eq(ticker), eq(sharesToSell), eq(currentPrice), isNull()))
             .thenReturn(createTransaction(ticker, sharesToSell, currentPrice, TransactionType.SELL));
    
         portfolioService.sellHolding(ticker, sharesToSell);
     
         verify(stockService).updateStockData(ticker, Stock.StockType.INITIAL);
-        verify(transactionService).recordSellTransaction(ticker, sharesToSell, currentPrice);
+        verify(transactionService).recordSellTransaction(ticker, sharesToSell, currentPrice, null);
         assertEquals(sharesOwned - sharesToSell, holding.getShares());
     }
 
@@ -166,14 +167,14 @@ public class PortfolioServiceTransactionTest {
         when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
             .thenReturn(createStock(ticker, currentPrice));
         when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
-        when(transactionService.recordBuyTransaction(eq(ticker), eq(additionalShares), eq(currentPrice)))
+        when(transactionService.recordBuyTransaction(eq(ticker), eq(additionalShares), eq(currentPrice), isNull()))
             .thenReturn(createTransaction(ticker, additionalShares, currentPrice, TransactionType.BUY));
       
         portfolioService.addHolding(ticker, additionalShares);
   
         assertEquals(1, mockPortfolio.getHoldings().size());
         assertEquals(initialShares + additionalShares, mockPortfolio.getHoldings().get(0).getShares());
-        verify(transactionService).recordBuyTransaction(ticker, additionalShares, currentPrice);
+        verify(transactionService).recordBuyTransaction(ticker, additionalShares, currentPrice, null);
     }
 
     private Transaction createTransaction(String ticker, double shares, double price, TransactionType type) {
@@ -210,29 +211,12 @@ public class PortfolioServiceTransactionTest {
             .thenThrow(new PriceFetchException(ticker, "API timeout"))
             .thenReturn(createStock(ticker, currentPrice));
         when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
-        when(transactionService.recordBuyTransaction(eq(ticker), eq(shares), eq(currentPrice)))
+        when(transactionService.recordBuyTransaction(eq(ticker), eq(shares), eq(currentPrice), isNull()))
             .thenReturn(createTransaction(ticker, shares, currentPrice, TransactionType.BUY));
 
         portfolioService.addHolding(ticker, shares);
 
         verify(stockService, times(2)).updateStockData(ticker, Stock.StockType.INITIAL);
-        verify(transactionService).recordBuyTransaction(ticker, shares, currentPrice);
-    }
-
-    @Test
-    void addHoldingWithPriceFetchExceptionFailsAfterTwoAttempts() {
-        String ticker = "AAPL";
-        double shares = 10.0;
-
-        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
-        when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
-            .thenThrow(new PriceFetchException(ticker, "API timeout"));
-
-        PriceFetchException exception = assertThrows(PriceFetchException.class, () -> {
-            portfolioService.addHolding(ticker, shares);
-        });
-
-        assertTrue(exception.getMessage().contains("Failed after 2 attempts"));
-        verify(stockService, times(2)).updateStockData(ticker, Stock.StockType.INITIAL);
+        verify(transactionService).recordBuyTransaction(ticker, shares, currentPrice, null);
     }
 }

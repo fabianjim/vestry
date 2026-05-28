@@ -51,6 +51,32 @@ export default function Dashboard() {
   const [activeJournalId, setActiveJournalId] = useState<number | null>(null)
   const [pnlSummary, setPnlSummary] = useState<PnLSummary | null>(null)
 
+  // Manual trade recording state (shared between buy/sell modals)
+  const [manualExpanded, setManualExpanded] = useState(false)
+  const [manualHour, setManualHour] = useState(new Date().getHours())
+  const [manualMinutes, setManualMinutes] = useState('')
+  const [manualPrice, setManualPrice] = useState('')
+  const [manualTradeTime, setManualTradeTime] = useState<string | null>(null)
+  const [manualTradePrice, setManualTradePrice] = useState<number | null>(null)
+
+  // Update the hour field every minute so it stays current
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setManualHour(new Date().getHours())
+    }, 60000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // When the modal opens, reset manual state
+  const resetManualState = () => {
+    setManualExpanded(false)
+    setManualHour(new Date().getHours())
+    setManualMinutes('')
+    setManualPrice('')
+    setManualTradeTime(null)
+    setManualTradePrice(null)
+  }
+
   useEffect(() => {
     document.title = 'Dashboard'
   }, [])
@@ -95,33 +121,75 @@ export default function Dashboard() {
     }
   }
 
+  // Validate manual trade inputs. Returns { valid: false, error: string } or { valid: true, isoTime: string, price: number }
+  const validateManualInputs = (): { valid: false; error: string } | { valid: true; isoTime: string; price: number } => {
+    if (!manualExpanded) {
+      return { valid: true, isoTime: '', price: 0 }
+    }
+
+    const hasMinutes = manualMinutes.trim() !== ''
+    const hasPrice = manualPrice.trim() !== ''
+
+    if ((hasMinutes || hasPrice) && !(hasMinutes && hasPrice)) {
+      return { valid: false, error: 'Enter all values, else clear for live info' }
+    }
+
+    if (!hasMinutes && !hasPrice) {
+      return { valid: true, isoTime: '', price: 0 }
+    }
+
+    const minutesNum = Number(manualMinutes)
+    if (Number.isNaN(minutesNum) || minutesNum < 0 || minutesNum > 59 || !Number.isInteger(minutesNum)) {
+      return { valid: false, error: 'Minutes must be a whole number between 0 and 59' }
+    }
+
+    const priceNum = Number(manualPrice)
+    if (Number.isNaN(priceNum) || priceNum <= 0) {
+      return { valid: false, error: 'Price must be greater than 0' }
+    }
+
+    const now = new Date()
+    const tradeTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), manualHour, minutesNum, 0, 0)
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
+
+    if (tradeTime > now) {
+      return { valid: false, error: 'Trade time must be within the last hour' }
+    }
+    if (tradeTime < oneHourAgo) {
+      return { valid: false, error: 'Trade time must be within the last hour' }
+    }
+
+    return { valid: true, isoTime: tradeTime.toISOString(), price: priceNum }
+  }
+
   const addHolding = async () => {
     if (!newTicker.trim() || !newShares || Number(newShares) <= 0) {
       setError('Please enter a valid ticker and shares')
       return
     }
 
+    const manualValidation = validateManualInputs()
+    if (!manualValidation.valid) {
+      setError(manualValidation.error)
+      return
+    }
+
     setLoading(true)
     try {
-      const response = await fetch('/api/portfolio/holdings/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ticker: newTicker.trim().toUpperCase(),
-          shares: Number(newShares)
-        }),
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to add holding')
-      }
+      await portfolioApi.addHolding(
+        newTicker.trim().toUpperCase(),
+        Number(newShares),
+        manualValidation.price > 0 ? manualValidation.price : undefined,
+        manualValidation.isoTime || undefined
+      )
 
       const boughtTicker = newTicker.trim().toUpperCase()
       setShowAddModal(false)
       setNewTicker('')
       setNewShares('')
+      setManualTradeTime(manualValidation.isoTime || null)
+      setManualTradePrice(manualValidation.price > 0 ? manualValidation.price : null)
+      resetManualState()
       await fetchPortfolioInfo()
       await fetchPnLSummary()
       setJournalPromptTicker(boughtTicker)
@@ -141,6 +209,7 @@ export default function Dashboard() {
     setSellShares('')
     setMaxShares(0)
     setError('')
+    resetManualState()
   }
 
   const executeSell = async () => {
@@ -153,24 +222,24 @@ export default function Dashboard() {
       return
     }
 
+    const manualValidation = validateManualInputs()
+    if (!manualValidation.valid) {
+      setError(manualValidation.error)
+      return
+    }
+
     setLoading(true)
     try {
-      const response = await fetch('/api/portfolio/holdings/sell', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ticker: sellTicker,
-          shares: Number(sellShares)
-        }),
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to sell holding')
-      }
+      await portfolioApi.sellHolding(
+        sellTicker,
+        Number(sellShares),
+        manualValidation.price > 0 ? manualValidation.price : undefined,
+        manualValidation.isoTime || undefined
+      )
 
       const soldTicker = sellTicker
+      setManualTradeTime(manualValidation.isoTime || null)
+      setManualTradePrice(manualValidation.price > 0 ? manualValidation.price : null)
       closeSellModal()
       await fetchPortfolioInfo()
       await fetchPnLSummary()
@@ -188,6 +257,8 @@ export default function Dashboard() {
   const submitJournalPrompt = async (body: string) => {
     if (!body) {
       setShowJournalPrompt(false)
+      setManualTradeTime(null)
+      setManualTradePrice(null)
       portfolioChartRef.current?.refresh()
       journalPanelRef.current?.refreshEntries()
       return
@@ -197,12 +268,16 @@ export default function Dashboard() {
         entryType: journalPromptTradeType,
         body,
         ticker: journalPromptTicker,
+        timestamp: manualTradeTime || undefined,
+        priceSnapshot: manualTradePrice || undefined,
       })
     } catch (e) {
       console.error('Failed to save journal entry:', e)
     } finally {
       setShowJournalPrompt(false)
       setJournalPromptTicker('')
+      setManualTradeTime(null)
+      setManualTradePrice(null)
       portfolioChartRef.current?.refresh()
       journalPanelRef.current?.refreshEntries()
     }
@@ -355,6 +430,69 @@ export default function Dashboard() {
                 className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
+
+            {/* Manual Time & Price Toggle */}
+            <button
+              type="button"
+              onClick={() => setManualExpanded(!manualExpanded)}
+              className="flex items-center gap-1 text-sm text-secondary hover:text-foreground transition-colors mb-2"
+            >
+              <span className={`transition-transform ${manualExpanded ? 'rotate-180' : ''}`}>▼</span>
+              Manually Record Time & Amount
+            </button>
+
+            {manualExpanded && (
+              <div className="mb-4 p-3 bg-surface-hover border border-border rounded-md">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs text-muted mb-1">Hour</label>
+                    <input
+                      type="text"
+                      value={(manualHour === 0 ? 12 : manualHour > 12 ? manualHour - 12 : manualHour).toString()}
+                      readOnly
+                      className="w-full px-2 py-1.5 bg-surface border border-border rounded-md text-foreground text-sm opacity-70 cursor-default"
+                    />
+                  </div>
+                  <span className="text-muted pt-5">:</span>
+                  <div className="flex-1">
+                    <label className="block text-xs text-muted mb-1">Minutes</label>
+                    <input
+                      type="text"
+                      placeholder="00"
+                      value={manualMinutes}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 2)
+                        setManualMinutes(val)
+                      }}
+                      className="w-full px-2 py-1.5 bg-surface border border-border rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="flex-[2]">
+                    <label className="block text-xs text-muted mb-1">Price / Share</label>
+                    <input
+                      type="number"
+                      placeholder="150.00"
+                      value={manualPrice}
+                      onChange={(e) => setManualPrice(e.target.value)}
+                      min="0.01"
+                      step="0.01"
+                      className="w-full px-2 py-1.5 bg-surface border border-border rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManualMinutes('')
+                      setManualPrice('')
+                    }}
+                    className="mt-5 px-2 py-1.5 text-sm text-secondary hover:text-foreground bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-end gap-2">
               {error && <span className="text-error text-sm mr-auto">{error}</span>}
               <button onClick={() => {
@@ -362,6 +500,7 @@ export default function Dashboard() {
                 setNewTicker('')
                 setNewShares('')
                 setError('')
+                resetManualState()
               }} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">
                 Cancel
               </button>
@@ -429,6 +568,68 @@ export default function Dashboard() {
                   />
                 </div>
               </>
+            )}
+
+            {/* Manual Time & Price Toggle */}
+            <button
+              type="button"
+              onClick={() => setManualExpanded(!manualExpanded)}
+              className="flex items-center gap-1 text-sm text-secondary hover:text-foreground transition-colors mb-2"
+            >
+              <span className={`transition-transform ${manualExpanded ? 'rotate-180' : ''}`}>▼</span>
+              Manually Record Time & Amount
+            </button>
+
+            {manualExpanded && (
+              <div className="mb-4 p-3 bg-surface-hover border border-border rounded-md">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs text-muted mb-1">Hour</label>
+                    <input
+                      type="text"
+                      value={(manualHour === 0 ? 12 : manualHour > 12 ? manualHour - 12 : manualHour).toString()}
+                      readOnly
+                      className="w-full px-2 py-1.5 bg-surface border border-border rounded-md text-foreground text-sm opacity-70 cursor-default"
+                    />
+                  </div>
+                  <span className="text-muted pt-5">:</span>
+                  <div className="flex-1">
+                    <label className="block text-xs text-muted mb-1">Minutes</label>
+                    <input
+                      type="text"
+                      placeholder="00"
+                      value={manualMinutes}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 2)
+                        setManualMinutes(val)
+                      }}
+                      className="w-full px-2 py-1.5 bg-surface border border-border rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="flex-[2]">
+                    <label className="block text-xs text-muted mb-1">Price / Share</label>
+                    <input
+                      type="number"
+                      placeholder="150.00"
+                      value={manualPrice}
+                      onChange={(e) => setManualPrice(e.target.value)}
+                      min="0.01"
+                      step="0.01"
+                      className="w-full px-2 py-1.5 bg-surface border border-border rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManualMinutes('')
+                      setManualPrice('')
+                    }}
+                    className="mt-5 px-2 py-1.5 text-sm text-secondary hover:text-foreground bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
             )}
             
             <div className="flex items-center justify-end gap-2">

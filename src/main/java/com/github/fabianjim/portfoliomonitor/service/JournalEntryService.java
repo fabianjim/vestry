@@ -44,11 +44,13 @@ public class JournalEntryService {
             entry.setTimestamp(Instant.now());
         }
 
-        if (entry.getTicker() != null && !entry.getTicker().isBlank()) {
-            Optional<Stock> stockOpt = stockService.getLatestStockData(entry.getTicker());
-            entry.setPriceSnapshot(stockOpt.map(Stock::getCurrentPrice).orElse(0.0));
-        } else {
-            entry.setPriceSnapshot(null);
+        if (entry.getPriceSnapshot() == null) {
+            if (entry.getTicker() != null && !entry.getTicker().isBlank()) {
+                Optional<Stock> stockOpt = stockService.getLatestStockData(entry.getTicker());
+                entry.setPriceSnapshot(stockOpt.map(Stock::getCurrentPrice).orElse(0.0));
+            } else {
+                entry.setPriceSnapshot(null);
+            }
         }
 
         return journalEntryRepository.save(entry);

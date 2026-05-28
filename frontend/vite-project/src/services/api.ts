@@ -45,11 +45,14 @@ export const portfolioApi = {
   getHoldings: () =>
     apiClient('/portfolio/holdings'),
 
-  addHolding: (ticker: string, shares: number) =>
-    apiClient('/portfolio/holdings/add', { method: 'POST', body: { ticker, shares } }),
+  addHolding: (ticker: string, shares: number, price?: number, timestamp?: string) =>
+    apiClient('/portfolio/holdings/add', { method: 'POST', body: { ticker, shares, price, timestamp } }),
 
-  removeHolding: (ticker: string) =>
-    apiClient('/portfolio/holdings/remove', { method: 'POST', body: { ticker } }),
+  removeHolding: (ticker: string, price?: number, timestamp?: string) =>
+    apiClient('/portfolio/holdings/remove', { method: 'POST', body: { ticker, price, timestamp } }),
+
+  sellHolding: (ticker: string, shares: number, price?: number, timestamp?: string) =>
+    apiClient('/portfolio/holdings/sell', { method: 'POST', body: { ticker, shares, price, timestamp } }),
 
   portfolioExists: () =>
     apiClient('/portfolio/exists'),
@@ -83,7 +86,7 @@ export const stockApi = {
 
 // Journal API
 export const journalApi = {
-  createEntry: (entry: { entryType: string; body: string; ticker?: string | null }) =>
+  createEntry: (entry: { entryType: string; body: string; ticker?: string | null; timestamp?: string; priceSnapshot?: number }) =>
     apiClient('/journal', { method: 'POST', body: entry }),
 
   getEntries: () =>

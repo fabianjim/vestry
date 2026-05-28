@@ -10,6 +10,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -40,13 +41,27 @@ public class TransactionService {
     }
 
     public Transaction recordBuyTransaction(String ticker, double shares, double price) {
+        return recordBuyTransaction(ticker, shares, price, null);
+    }
+
+    public Transaction recordBuyTransaction(String ticker, double shares, double price, Instant timestamp) {
         Transaction transaction = new Transaction(ticker, shares, price, TransactionType.BUY);
+        if (timestamp != null) {
+            transaction.setTimestamp(timestamp);
+        }
         transaction.setUser(getCurrentUser());
         return transactionRepository.save(transaction);
     }
 
     public Transaction recordSellTransaction(String ticker, double shares, double price) {
+        return recordSellTransaction(ticker, shares, price, null);
+    }
+
+    public Transaction recordSellTransaction(String ticker, double shares, double price, Instant timestamp) {
         Transaction transaction = new Transaction(ticker, shares, price, TransactionType.SELL);
+        if (timestamp != null) {
+            transaction.setTimestamp(timestamp);
+        }
         transaction.setUser(getCurrentUser());
         return transactionRepository.save(transaction);
     }
