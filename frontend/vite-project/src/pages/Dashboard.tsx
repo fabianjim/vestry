@@ -471,7 +471,7 @@ export default function Dashboard() {
                     <label className="block text-xs text-muted mb-1">Price / Share</label>
                     <input
                       type="number"
-                      placeholder="150.00"
+                      placeholder="0.00"
                       value={manualPrice}
                       onChange={(e) => setManualPrice(e.target.value)}
                       min="0.01"
