@@ -41,11 +41,15 @@ public class TransactionService {
     }
 
     public Transaction recordBuyTransaction(String ticker, double shares, double price) {
-        return recordBuyTransaction(ticker, shares, price, null);
+        return recordBuyTransaction(ticker, shares, price, null, false);
     }
 
     public Transaction recordBuyTransaction(String ticker, double shares, double price, Instant timestamp) {
-        Transaction transaction = new Transaction(ticker, shares, price, TransactionType.BUY);
+        return recordBuyTransaction(ticker, shares, price, timestamp, false);
+    }
+
+    public Transaction recordBuyTransaction(String ticker, double shares, double price, Instant timestamp, boolean isInitial) {
+        Transaction transaction = new Transaction(ticker, shares, price, TransactionType.BUY, isInitial);
         if (timestamp != null) {
             transaction.setTimestamp(timestamp);
         }

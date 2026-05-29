@@ -50,8 +50,10 @@ export function processHourlyData(
     }))
 
   // Filter transactions to current day AND trading hours (10am-4pm)
+  // Exclude initial portfolio creation transactions — they are not graph events
   const dayTransactions = transactions
     .filter((tx) => {
+      if (tx.initial) return false
       const txDate = new Date(tx.timestamp)
       const isSameDay = txDate.toDateString() === currentDate.toDateString()
       return isSameDay && isTradingHours(tx.timestamp)
@@ -65,14 +67,9 @@ export function processHourlyData(
     const txTime = new Date(tx.timestamp).getTime()
 
     // Find closest previous point (hourly OR already-inserted transaction)
-    let prevPoint = merged
+    const prevPoint = merged
       .filter((p) => p.timestamp <= txTime)
       .sort((a, b) => b.timestamp - a.timestamp)[0]
-
-    if (!prevPoint && merged.length > 0) {
-      // Use first available point if no previous
-      prevPoint = merged[0]
-    }
 
     if (!prevPoint) continue
 

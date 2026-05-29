@@ -79,6 +79,7 @@ frontend/vite-project/src/
   - After-hours buys don't wipe existing intraday history (the new holding simply isn't counted in earlier buckets)
 - A bucket is only included if **all active holdings** (those that existed at that time) have price data
 - EOD data is explicitly excluded from history calculations
+- **Stock data `hourBucket` behavior**: `INTRADAY` data rounds to nearest hour; `EOD` data pins to 4:00 PM; `INITIAL` data (fetched when buying or creating a portfolio) uses the **exact timestamp** so the graph shows the precise portfolio creation time rather than rounding to the next hour
 
 ### P/L Tracking
 - **Total P/L** shown on Dashboard using average cost basis method per ticker
@@ -120,6 +121,12 @@ frontend/vite-project/src/
 ### Journal Entry System
 - A journal entry has: type (`BUY`, `SELL`, `INSIGHT`, `MARKET_EVENT`), body text, optional ticker, timestamp, and snapshotted price at time of writing
 - Created automatically (prompted after buy/sell — non-blocking, skippable) or manually
+
+### Transaction Semantics
+- `Transaction` entity carries an `isInitial` boolean flag (default `false`)
+- **Initial transactions**: Set to `true` only when recording holdings during `PortfolioService.createPortfolio()`. These are the baseline portfolio state, not trading events.
+- **Non-initial transactions**: Regular `BUY`/`SELL` operations via `addHolding()`, `sellHolding()`, etc. (`isInitial=false`)
+- The frontend (`processHourlyData` in `chartData.ts`) filters out `initial=true` transactions so they are **not rendered as buy/sell event pins** on the portfolio performance graph
 
 ---
 
@@ -240,8 +247,11 @@ npm run lint
 | `src/main/java/.../service/NasdaqMetadataService.java` | Stock metadata loader with ETF fallback |
 | `src/main/resources/data/ETFs.csv` | ETF metadata source (~1021 rows) |
 | `src/main/resources/data/nasdaq_metadata.csv` | Stock metadata source (~6996 rows) |
+| `src/main/java/.../model/Transaction.java` | Transaction entity with `isInitial` flag distinguishing portfolio creation from buys |
+| `src/main/java/.../api/TiingoClient.java` | Tiingo API client; `INITIAL` stock data uses exact timestamp (not rounded) for graph accuracy |
 | `frontend/.../components/PortfolioChart.tsx` | Exposes `PortfolioChartHandle` with `refresh()` via ref |
 | `frontend/.../components/JournalPanel.tsx` | Exposes `JournalPanelHandle` with `scrollToEntry()` and `refreshEntries()` via ref |
+| `frontend/.../utils/chartData.ts` | Processes portfolio history + transactions into chart data; filters out `initial` transactions |
 
 ---
 

@@ -26,9 +26,6 @@ public class TrackedStock {
     @Column(nullable = true)
     private Instant lastSuccessfulFetch;
     
-    @Column(nullable = true)
-    private String lastErrorMessage;
-    
     public TrackedStock() {}
     
     public TrackedStock(String ticker) {
@@ -91,14 +88,6 @@ public class TrackedStock {
     
     public void setLastSuccessfulFetch(Instant lastSuccessfulFetch) {
         this.lastSuccessfulFetch = lastSuccessfulFetch;
-    }
-    
-    public String getLastErrorMessage() {
-        return lastErrorMessage;
-    }
-    
-    public void setLastErrorMessage(String lastErrorMessage) {
-        this.lastErrorMessage = lastErrorMessage;
     }
     
     public boolean isStale() {

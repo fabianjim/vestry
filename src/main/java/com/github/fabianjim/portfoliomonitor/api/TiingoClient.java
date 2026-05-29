@@ -74,8 +74,12 @@ public class TiingoClient implements MarketDataClient {
                     // EOD data always goes to 4:00 PM
                     hourBucket = timestamp.truncatedTo(ChronoUnit.DAYS)
                             .plus(16, ChronoUnit.HOURS);
+                } else if (type == StockType.INITIAL) {
+                    // INITIAL stock data uses exact timestamp (not rounded)
+                    // so portfolio creation shows the correct time/value on the graph
+                    hourBucket = timestamp;
                 } else {
-                    // Round to nearest hour for INTRADAY and INITIAL
+                    // Round to nearest hour for INTRADAY
                     long epochSeconds = timestamp.getEpochSecond();
                     long hourInSeconds = 3600;
                     long roundedSeconds = Math.round((double) epochSeconds / hourInSeconds) * hourInSeconds;

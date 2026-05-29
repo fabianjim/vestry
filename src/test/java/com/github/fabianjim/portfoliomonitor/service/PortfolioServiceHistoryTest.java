@@ -443,6 +443,61 @@ public class PortfolioServiceHistoryTest {
         assertEquals(day3, result.get(2).getTimestamp());
     }
 
+    // regression test: portfolio creation at mid-hour shows exact timestamp, not rounded
+    @Test
+    void getPortfolioHistoryPortfolioCreationUsesExactTimestamp() {
+        // Simulate portfolio created at 3:53 PM EST
+        Instant threeFiftyThreePm = Instant.parse("2025-01-15T20:53:00Z"); // 3:53 PM EST
+
+        Holding nvdaHolding = new Holding("NVDA", 3.0);
+        nvdaHolding.setBuyTimestamp(threeFiftyThreePm);
+
+        Holding vooHolding = new Holding("VOO", 2.0);
+        vooHolding.setBuyTimestamp(threeFiftyThreePm);
+
+        Holding snowHolding = new Holding("SNOW", 3.0);
+        snowHolding.setBuyTimestamp(threeFiftyThreePm);
+
+        mockPortfolio.getHoldings().add(nvdaHolding);
+        mockPortfolio.getHoldings().add(vooHolding);
+        mockPortfolio.getHoldings().add(snowHolding);
+
+        // Stock data with exact timestamp (not rounded to 4:00 PM)
+        // This simulates INITIAL fetch behavior where hourBucket = exact timestamp
+        Stock nvdaStock = createStock("NVDA", threeFiftyThreePm, 213.89);
+        nvdaStock.setType(Stock.StockType.INITIAL);
+        Stock vooStock = createStock("VOO", threeFiftyThreePm, 693.91);
+        vooStock.setType(Stock.StockType.INITIAL);
+        Stock snowStock = createStock("SNOW", threeFiftyThreePm, 239.54);
+        snowStock.setType(Stock.StockType.INITIAL);
+
+        List<Stock> nvdaHistory = List.of(nvdaStock);
+        List<Stock> vooHistory = List.of(vooStock);
+        List<Stock> snowHistory = List.of(snowStock);
+
+        // Total: (3 * 213.89) + (2 * 693.91) + (3 * 239.54) = 4245.34
+        double expectedValue = (3.0 * 213.89) + (2.0 * 693.91) + (3.0 * 239.54);
+
+        List<Transaction> transactions = List.of(
+            createTransaction("NVDA", 3.0, 213.89, TransactionType.BUY, threeFiftyThreePm),
+            createTransaction("VOO", 2.0, 693.91, TransactionType.BUY, threeFiftyThreePm),
+            createTransaction("SNOW", 3.0, 239.54, TransactionType.BUY, threeFiftyThreePm)
+        );
+
+        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(stockRepository.findByTickerOrderByTimestampDesc("NVDA")).thenReturn(nvdaHistory);
+        when(stockRepository.findByTickerOrderByTimestampDesc("VOO")).thenReturn(vooHistory);
+        when(stockRepository.findByTickerOrderByTimestampDesc("SNOW")).thenReturn(snowHistory);
+        when(transactionService.getTransactionHistory()).thenReturn(transactions);
+
+        List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
+
+        // Should have exactly 1 data point at 3:53 PM, not rounded to 4:00 PM
+        assertEquals(1, result.size());
+        assertEquals(threeFiftyThreePm, result.get(0).getTimestamp());
+        assertEquals(expectedValue, result.get(0).getPortfolioValue(), 0.01);
+    }
+
     private Stock createStock(String ticker, Instant timestamp, double price) {
         Stock stock = new Stock();
         stock.setTicker(ticker);

@@ -95,10 +95,10 @@ public class PortfolioService {
 
             portfolioRepository.save(portfolio);
 
-            // Record buy transactions with validated prices
+            // Record buy transactions with validated prices (mark as initial portfolio creation)
             for (Holding holding : portfolio.getHoldings()) {
                 double price = tickerPrices.get(holding.getTicker());
-                transactionService.recordBuyTransaction(holding.getTicker(), holding.getShares(), price);
+                transactionService.recordBuyTransaction(holding.getTicker(), holding.getShares(), price, null, true);
             }
         }
     }

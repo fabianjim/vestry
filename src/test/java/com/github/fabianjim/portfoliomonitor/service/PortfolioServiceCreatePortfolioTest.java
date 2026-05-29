@@ -97,35 +97,38 @@ public class PortfolioServiceCreatePortfolioTest {
         when(stockService.updateStockData(ticker1, Stock.StockType.INITIAL)).thenReturn(stock1);
         when(stockService.updateStockData(ticker2, Stock.StockType.INITIAL)).thenReturn(stock2);
         
-        // Mock transaction recording
-        when(transactionService.recordBuyTransaction(eq(ticker1), eq(shares1), eq(price1)))
+        // Mock transaction recording (portfolio creation uses 5-arg with isInitial=true)
+        when(transactionService.recordBuyTransaction(eq(ticker1), eq(shares1), eq(price1), isNull(), eq(true)))
             .thenReturn(createTransaction(ticker1, shares1, price1));
-        when(transactionService.recordBuyTransaction(eq(ticker2), eq(shares2), eq(price2)))
+        when(transactionService.recordBuyTransaction(eq(ticker2), eq(shares2), eq(price2), isNull(), eq(true)))
             .thenReturn(createTransaction(ticker2, shares2, price2));
 
         
         portfolioService.createPortfolio(portfolio);
 
-        verify(transactionService).recordBuyTransaction(ticker1, shares1, price1);
-        verify(transactionService).recordBuyTransaction(ticker2, shares2, price2);
+        verify(transactionService).recordBuyTransaction(ticker1, shares1, price1, null, true);
+        verify(transactionService).recordBuyTransaction(ticker2, shares2, price2, null, true);
         
         // Verify the transactions were recorded with correct values
         ArgumentCaptor<String> tickerCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Double> sharesCaptor = ArgumentCaptor.forClass(Double.class);
         ArgumentCaptor<Double> priceCaptor = ArgumentCaptor.forClass(Double.class);
-        
-        verify(transactionService, times(2)).recordBuyTransaction(tickerCaptor.capture(), sharesCaptor.capture(), priceCaptor.capture());
-        
+        ArgumentCaptor<Boolean> initialCaptor = ArgumentCaptor.forClass(Boolean.class);
+
+        verify(transactionService, times(2)).recordBuyTransaction(tickerCaptor.capture(), sharesCaptor.capture(), priceCaptor.capture(), isNull(), initialCaptor.capture());
+
         List<String> capturedTickers = tickerCaptor.getAllValues();
         List<Double> capturedShares = sharesCaptor.getAllValues();
         List<Double> capturedPrices = priceCaptor.getAllValues();
-        
+        List<Boolean> capturedInitial = initialCaptor.getAllValues();
+
         assertTrue(capturedTickers.contains(ticker1));
         assertTrue(capturedTickers.contains(ticker2));
         assertTrue(capturedPrices.contains(price1));
         assertTrue(capturedPrices.contains(price2));
         assertTrue(capturedShares.contains(shares1));
         assertTrue(capturedShares.contains(shares2));
+        assertTrue(capturedInitial.stream().allMatch(Boolean::booleanValue), "All portfolio creation transactions should be marked as initial");
     }
 
     @Test
