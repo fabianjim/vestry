@@ -7,6 +7,7 @@ import com.github.fabianjim.portfoliomonitor.model.Portfolio;
 import com.github.fabianjim.portfoliomonitor.model.Stock;
 import com.github.fabianjim.portfoliomonitor.model.Transaction;
 import com.github.fabianjim.portfoliomonitor.model.Transaction.TransactionType;
+import com.github.fabianjim.portfoliomonitor.model.TrackedStock;
 import com.github.fabianjim.portfoliomonitor.model.User;
 import com.github.fabianjim.portfoliomonitor.repository.PortfolioRepository;
 import com.github.fabianjim.portfoliomonitor.repository.StockRepository;
@@ -218,5 +219,28 @@ public class PortfolioServiceTransactionTest {
 
         verify(stockService, times(2)).updateStockData(ticker, Stock.StockType.INITIAL);
         verify(transactionService).recordBuyTransaction(ticker, shares, currentPrice, null);
+    }
+
+    @Test
+    void addHoldingUpdatesTrackedStockTimestamps() {
+        String ticker = "AAPL";
+        double shares = 10.0;
+        double currentPrice = 150.0;
+        TrackedStock tracked = new TrackedStock(ticker);
+
+        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
+            .thenReturn(createStock(ticker, currentPrice));
+        when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
+        when(transactionService.recordBuyTransaction(eq(ticker), eq(shares), eq(currentPrice), isNull()))
+            .thenReturn(createTransaction(ticker, shares, currentPrice, TransactionType.BUY));
+        when(trackedStockRepository.findByTicker(ticker)).thenReturn(Optional.of(tracked));
+
+        portfolioService.addHolding(ticker, shares);
+
+        assertNotNull(tracked.getLastFetchAttempt(), "lastFetchAttempt should be set");
+        assertNotNull(tracked.getLastSuccessfulFetch(), "lastSuccessfulFetch should be set");
+        assertFalse(tracked.isStale(), "Data should not be stale immediately after fetch");
+        verify(trackedStockRepository, times(2)).save(tracked);
     }
 }

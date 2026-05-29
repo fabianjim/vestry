@@ -105,7 +105,6 @@ public class ScheduledStockService {
         if (trackedStock != null) {
             trackedStock.setLastFetchAttempt(Instant.now());
             trackedStock.setLastSuccessfulFetch(Instant.now());
-            trackedStock.setLastErrorMessage(null);
             trackedStockRepository.save(trackedStock);
         }
     }
@@ -116,7 +115,6 @@ public class ScheduledStockService {
 
         if (trackedStock != null) {
             trackedStock.setLastFetchAttempt(Instant.now());
-            trackedStock.setLastErrorMessage(errorMessage);
             trackedStockRepository.save(trackedStock);
         }
     }

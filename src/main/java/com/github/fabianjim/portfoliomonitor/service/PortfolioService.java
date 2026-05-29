@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -88,9 +89,10 @@ public class PortfolioService {
             // Validate all tickers by fetching prices before saving
             Map<String, Double> tickerPrices = new HashMap<>();
             for (Holding holding : portfolio.getHoldings()) {
+                // Start tracking FIRST so fetchTransactionPrice can update timestamps
+                startTrackingStock(holding.getTicker());
                 double price = fetchTransactionPrice(holding.getTicker());
                 tickerPrices.put(holding.getTicker(), price);
-                startTrackingStock(holding.getTicker());
             }
 
             portfolioRepository.save(portfolio);
@@ -134,12 +136,21 @@ public class PortfolioService {
 
      
     // Fetch live price for a transaction with one retry on fetch failures.
+    // Also updates TrackedStock timestamps so the data doesn't show as stale.
     private double fetchTransactionPrice(String ticker) {
         Exception lastError = null;
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
                 Stock stock = stockService.updateStockData(ticker, Stock.StockType.INITIAL);
                 if (stock != null && stock.getCurrentPrice() > 0.0) {
+                    // Update tracked stock timestamps after successful fetch
+                    TrackedStock tracked = trackedStockRepository.findByTicker(ticker).orElse(null);
+                    if (tracked != null) {
+                        Instant now = Instant.now();
+                        tracked.setLastFetchAttempt(now);
+                        tracked.setLastSuccessfulFetch(now);
+                        trackedStockRepository.save(tracked);
+                    }
                     return stock.getCurrentPrice();
                 }
                 if (stock == null) {
@@ -153,7 +164,7 @@ public class PortfolioService {
             } catch (Exception e) {
                 lastError = e;
             }
-                // retry once after 500ms 
+                // retry once after 500ms
             if (attempt == 1) {
                 try {
                     TimeUnit.MILLISECONDS.sleep(500);
@@ -163,7 +174,7 @@ public class PortfolioService {
                 }
             }
         }
-        
+
         throw new PriceFetchException(ticker, lastError.getMessage(), lastError);
     }
 
@@ -406,10 +417,19 @@ public class PortfolioService {
                     continue;
                 }
 
-                // Only include data from first buy time onward
-                if (!stock.getHourBucket().isBefore(holding.getBuyTimestamp())) {
+                // Determine the effective bucket for this stock data point
+                Instant effectiveBucket = stock.getHourBucket();
+                if (stock.getType() == Stock.StockType.INITIAL) {
+                    // Truncate to nearest minute so simultaneous buys share a bucket
+                    effectiveBucket = effectiveBucket.truncatedTo(ChronoUnit.MINUTES);
+                }
+
+                // INITIAL data always included (it's the creation/buy price point)
+                // INTRADAY data only from first buy time onward
+                if (stock.getType() == Stock.StockType.INITIAL ||
+                    !effectiveBucket.isBefore(holding.getBuyTimestamp())) {
                     dataByHourBucket
-                        .computeIfAbsent(stock.getHourBucket(), k -> new HashMap<>())
+                        .computeIfAbsent(effectiveBucket, k -> new HashMap<>())
                         .put(stock.getTicker(), stock);
                 }
             }
@@ -430,7 +450,10 @@ public class PortfolioService {
                 String ticker = tickerTxs.getKey();
                 double shares = 0;
                 for (Transaction tx : tickerTxs.getValue()) {
-                    if (!tx.getTimestamp().isAfter(hourBucket)) {
+                    // Truncate transaction timestamp to minute for comparison
+                    // so simultaneous buys in portfolio creation match the bucket
+                    Instant txMinute = tx.getTimestamp().truncatedTo(ChronoUnit.MINUTES);
+                    if (!txMinute.isAfter(hourBucket)) {
                         if (tx.getType() == Transaction.TransactionType.BUY) {
                             shares += tx.getShares();
                         } else {
