@@ -7,6 +7,7 @@ type StockData = {
   stale: boolean
   staleWarning: string | null
   lastSuccessfulFetch: string | null
+  eod?: boolean
 }
 
 type Stock = {
@@ -113,6 +114,7 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
               const dayChangePercent = prevClose > 0 ? (dayChange / prevClose) * 100 : 0
               const marketValue = holding.shares * currentPrice
               const isStale = holding.stockData?.stale ?? false
+              const isEod = holding.stockData?.eod ?? false
               
               if (!isOpen) {
                 return (
@@ -143,8 +145,8 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
                   </div>
                   <div className="flex justify-between mt-1 text-xs">
                     <span className="text-muted">${marketValue.toFixed(2)}</span>
-                    <span className={`${isStale ? 'text-error' : 'text-muted'}`}>
-                      {isStale ? 'Stale' : (holding.stockData?.stock?.timestamp ? roundToMinute(holding.stockData.stock.timestamp) : 'Live')}
+                    <span className={`${isStale ? 'text-error' : isEod ? 'text-primary' : 'text-muted'}`}>
+                      {isStale ? 'Stale' : isEod ? 'EOD' : (holding.stockData?.stock?.timestamp ? roundToMinute(holding.stockData.stock.timestamp) : 'Live')}
                     </span>
                   </div>
                 </div>

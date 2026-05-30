@@ -9,12 +9,18 @@ public class StockDataDTO {
     private boolean stale;
     private String staleWarning;
     private Instant lastSuccessfulFetch;
+    private boolean eod;
 
     public StockDataDTO(Stock stock, boolean stale, String staleWarning, Instant lastSuccessfulFetch) {
+        this(stock, stale, staleWarning, lastSuccessfulFetch, false);
+    }
+
+    public StockDataDTO(Stock stock, boolean stale, String staleWarning, Instant lastSuccessfulFetch, boolean eod) {
         this.stock = stock;
         this.stale = stale;
         this.staleWarning = staleWarning;
         this.lastSuccessfulFetch = lastSuccessfulFetch;
+        this.eod = eod;
     }
 
     public Stock getStock() {
@@ -47,5 +53,13 @@ public class StockDataDTO {
 
     public void setLastSuccessfulFetch(Instant lastSuccessfulFetch) {
         this.lastSuccessfulFetch = lastSuccessfulFetch;
+    }
+
+    public boolean isEod() {
+        return eod;
+    }
+
+    public void setEod(boolean eod) {
+        this.eod = eod;
     }
 }
