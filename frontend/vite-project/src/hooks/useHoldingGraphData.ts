@@ -41,6 +41,7 @@ export type HoldingValueItem = {
 type Holding = {
   ticker: string
   shares: number
+  buyTimestamp?: string
   metadata: StockMetadata | null
   stockData?: {
     stock?: {
@@ -214,5 +215,10 @@ export function useHoldingGraphData() {
     return watchlistItem?.metadata || null
   }
 
-  return { nodes, edges, sectorData, holdingsValueData, totalValue, error, getMetadata, refetch: fetchData }
+  const getTrackingStartDate = (ticker: string): string | null => {
+    const holding = holdings.find((h) => h.ticker === ticker)
+    return holding?.buyTimestamp ?? null
+  }
+
+  return { nodes, edges, sectorData, holdingsValueData, totalValue, error, getMetadata, getTrackingStartDate, refetch: fetchData }
 }

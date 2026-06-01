@@ -17,6 +17,8 @@ type NodeDetailPanelProps = {
   ticker: string
   metadata: StockMetadata | null
   onClose: () => void
+  isWatchlist: boolean
+  trackingStartDate: string | null
 }
 
 type StockHistoryPoint = {
@@ -44,7 +46,7 @@ const SECTOR_COLORS: Record<string, string> = {
   Utilities: '#6b7280',
 }
 
-export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetailPanelProps) {
+export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist, trackingStartDate }: NodeDetailPanelProps) {
   const [history, setHistory] = useState<StockHistoryPoint[]>([])
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(false)
@@ -55,12 +57,16 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
       setLoading(true)
       setError('')
       try {
-        const [histData, journalData] = await Promise.all([
-          stockApi.getHistoricalData(ticker) as Promise<StockHistoryPoint[]>,
-          journalApi.getEntriesForTicker(ticker) as Promise<JournalEntry[]>,
-        ])
-        setHistory(histData || [])
+        const journalData = (await journalApi.getEntriesForTicker(ticker)) as JournalEntry[]
         setJournalEntries(journalData || [])
+
+        if (!isWatchlist) {
+          const fromParam = trackingStartDate || undefined
+          const histData = (await stockApi.getHistoricalData(ticker, fromParam)) as StockHistoryPoint[]
+          setHistory(histData || [])
+        } else {
+          setHistory([])
+        }
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Unexpected error'
         setError(message)
@@ -69,7 +75,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
       }
     }
     load()
-  }, [ticker])
+  }, [ticker, isWatchlist, trackingStartDate])
 
   const chartData: ChartPoint[] = useMemo(() => {
     if (!history || history.length === 0) return []
@@ -142,50 +148,52 @@ export default function NodeDetailPanel({ ticker, metadata, onClose }: NodeDetai
 
       {error && <div className="text-error mb-4">{error}</div>}
 
-      <div className="mb-6">
-        <h4 className="text-lg font-150 mb-3">Price History</h4>
-        {loading && chartData.length === 0 ? (
-          <div className="text-muted">Loading chart...</div>
-        ) : chartData.length === 0 ? (
-          <div className="text-muted">No price history available.</div>
-        ) : (
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                <XAxis dataKey="time" stroke="#6b7280" fontSize={12} tickLine={false} />
-                <YAxis
-                  stroke="#6b7280"
-                  fontSize={12}
-                  tickLine={false}
-                  tickFormatter={(value) => `$${value.toFixed(2)}`}
-                  domain={[(dataMin: number) => dataMin * 0.99, (dataMax: number) => dataMax * 1.01]}
-                />
-                <Tooltip
-                  formatter={(value: number) => {
-                    return [formatCurrency(value), 'Price']
-                  }}
-                  labelFormatter={(label) => `Date: ${label}`}
-                  contentStyle={{
-                    backgroundColor: '#32393d',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: '6px',
-                    color: '#bdbdbd',
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="price"
-                  stroke={lineColor}
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 5 }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </div>
+      {!isWatchlist && (
+        <div className="mb-6">
+          <h4 className="text-lg font-150 mb-3">Price History</h4>
+          {loading && chartData.length === 0 ? (
+            <div className="text-muted">Loading chart...</div>
+          ) : chartData.length === 0 ? (
+            <div className="text-muted">No price history available.</div>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                  <XAxis dataKey="time" stroke="#6b7280" fontSize={12} tickLine={false} />
+                  <YAxis
+                    stroke="#6b7280"
+                    fontSize={12}
+                    tickLine={false}
+                    tickFormatter={(value) => `$${value.toFixed(2)}`}
+                    domain={[(dataMin: number) => dataMin * 0.99, (dataMax: number) => dataMax * 1.01]}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => {
+                      return [formatCurrency(value), 'Price']
+                    }}
+                    labelFormatter={(label) => `Date: ${label}`}
+                    contentStyle={{
+                      backgroundColor: '#32393d',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: '6px',
+                      color: '#bdbdbd',
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="price"
+                    stroke={lineColor}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 5 }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
 
       <div>
         <h4 className="text-lg font-150 mb-3">Journal Entries</h4>

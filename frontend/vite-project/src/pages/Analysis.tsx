@@ -6,8 +6,12 @@ import HoldingsValueChart from '../components/HoldingsValueChart'
 import { useHoldingGraphData } from '../hooks/useHoldingGraphData'
 
 export default function Analysis() {
-  const { nodes, edges, sectorData, holdingsValueData, error, getMetadata } = useHoldingGraphData()
+  const { nodes, edges, sectorData, holdingsValueData, error, getMetadata, getTrackingStartDate } = useHoldingGraphData()
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
+
+  const selectedNode = selectedTicker ? nodes.find((n) => n.ticker === selectedTicker) : undefined
+  const isWatchlist = selectedNode?.type === 'watchlist'
+  const trackingStartDate = selectedTicker ? getTrackingStartDate(selectedTicker) : null
 
   return (
     <div className="max-w-6xl mx-auto mt-6 px-3 mb-8">
@@ -44,6 +48,8 @@ export default function Analysis() {
           ticker={selectedTicker}
           metadata={getMetadata(selectedTicker)}
           onClose={() => setSelectedTicker(null)}
+          isWatchlist={isWatchlist}
+          trackingStartDate={trackingStartDate}
         />
       )}
     </div>
