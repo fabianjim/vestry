@@ -64,7 +64,8 @@ public class StockController {
     }
 
     /**
-     * Check if the latest stock data is EOD from today.
+     * Check if the latest stock data is EOD from the most recent trading day.
+     * EOD data is valid through the weekend until the next trading day's intraday fetch.
      * EOD data has type=EOD and hourBucket pinned to 4:00 PM of the trading day.
      */
     private boolean isEodData(Stock stock) {
@@ -77,7 +78,23 @@ public class StockController {
         }
         ZonedDateTime estNow = ZonedDateTime.now(ZoneId.of("America/New_York"));
         ZonedDateTime estBucket = hourBucket.atZone(ZoneId.of("America/New_York"));
-        return estBucket.toLocalDate().equals(estNow.toLocalDate());
+
+        // EOD data is valid if it's from today (Mon-Fri)
+        if (estBucket.toLocalDate().equals(estNow.toLocalDate())) {
+            return true;
+        }
+
+        // Friday EOD is valid through the weekend and Monday pre-market
+        // (Mon before 10 AM when no intraday data exists yet)
+        if (estBucket.getDayOfWeek().getValue() == 5) { // Friday = 5
+            int today = estNow.getDayOfWeek().getValue();
+            // Saturday(6), Sunday(7), or Monday(1)
+            if (today == 6 || today == 7 || today == 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // Get historical data for a ticker from a specific timestamp

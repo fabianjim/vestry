@@ -2,6 +2,16 @@ import { useState, useEffect } from 'react'
 import { roundToMinute } from '../utils/dateUtils'
 import WatchlistPanel from './WatchlistPanel'
 
+// Get the abbreviated day name in EST (e.g., "Mon", "Tue", "Fri", "Sat", "Sun")
+const getEstDayName = (timestamp: string): string => {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    timeZone: 'America/New_York',
+  })
+}
+
 type StockData = {
   stock: Stock | null
   stale: boolean
@@ -146,7 +156,25 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
                   <div className="flex justify-between mt-1 text-xs">
                     <span className="text-muted">${marketValue.toFixed(2)}</span>
                     <span className={`${isStale ? 'text-error' : isEod ? 'text-primary' : 'text-muted'}`}>
-                      {isStale ? 'Stale' : isEod ? 'EOD' : (holding.stockData?.stock?.timestamp ? roundToMinute(holding.stockData.stock.timestamp) : 'Live')}
+                      {(() => {
+                        if (isStale) return 'Stale'
+                        if (isEod) {
+                          // Check if EOD data is from Friday
+                          const eodDay = getEstDayName(holding.stockData?.stock?.timestamp ?? '')
+                          return eodDay === 'Fri' ? 'Fri EOD' : 'EOD'
+                        }
+                        // Not EOD - show timestamp
+                        const timestamp = holding.stockData?.stock?.timestamp
+                        if (!timestamp) return 'Live'
+                        const day = getEstDayName(timestamp)
+                        const time = roundToMinute(timestamp)
+                        // Weekend buys show day + time
+                        if (day === 'Sat' || day === 'Sun') {
+                          return `${day} ${time}`
+                        }
+                        // Weekday buys show just time
+                        return time
+                      })()}
                     </span>
                   </div>
                 </div>
