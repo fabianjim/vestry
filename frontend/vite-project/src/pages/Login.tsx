@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 export default function Login() {
   const navigate = useNavigate()
-  
+
   useEffect(() => {
     document.title = 'Login'
   }, [])
-  
+
   const [isLogin, setIsLogin] = useState(true)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -15,10 +15,11 @@ export default function Login() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
     setError('')
     setSuccess('')
-    
+
     if (!username || !password) {
       setError('Please fill in all fields')
       return
@@ -74,14 +75,14 @@ export default function Login() {
     <div className="max-w-sm mx-auto mt-12 px-5">
       <h2 className="text-2xl font-150 mb-4">{isLogin ? 'Login' : 'Register'}</h2>
 
-      <div className="mb-4 space-y-2">
+      <form onSubmit={handleSubmit} className="mb-4 space-y-2">
         <input
           placeholder="Username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           className="w-full px-3 py-2 bg-surface border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary"
         />
-        
+
         <input
           placeholder="Password"
           type="password"
@@ -89,15 +90,15 @@ export default function Login() {
           onChange={(e) => setPassword(e.target.value)}
           className="w-full px-3 py-2 bg-surface border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary"
         />
-      </div>
 
-      <button
-        onClick={handleSubmit}
-        disabled={loading}
-        className="w-full px-3 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer disabled:cursor-not-allowed mb-4 hover:bg-primary-hover transition-colors"
-      >
-        {loading ? 'Loading...' : (isLogin ? 'Login' : 'Register')}
-      </button>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full px-3 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer disabled:cursor-not-allowed hover:bg-primary-hover transition-colors"
+        >
+          {loading ? 'Loading...' : (isLogin ? 'Login' : 'Register')}
+        </button>
+      </form>
 
       <button
         onClick={() => {
