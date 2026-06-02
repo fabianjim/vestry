@@ -163,8 +163,8 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
                           const eodDay = getEstDayName(holding.stockData?.stock?.timestamp ?? '')
                           return eodDay === 'Fri' ? 'Fri EOD' : 'EOD'
                         }
-                        // Not EOD - show timestamp
-                        const timestamp = holding.stockData?.stock?.timestamp
+                        // Not EOD - show last successful fetch time (when we actually fetched/verified the data)
+                        const timestamp = holding.stockData?.lastSuccessfulFetch
                         if (!timestamp) return 'Live'
                         const day = getEstDayName(timestamp)
                         const time = roundToMinute(timestamp)

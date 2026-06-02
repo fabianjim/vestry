@@ -73,8 +73,6 @@ export default function Dashboard() {
     setManualHour(new Date().getHours())
     setManualMinutes('')
     setManualPrice('')
-    setManualTradeTime(null)
-    setManualTradePrice(null)
   }
 
   useEffect(() => {
