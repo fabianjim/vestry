@@ -67,4 +67,25 @@ public class JournalEntryService {
     public List<JournalEntry> getEntriesInRange(Instant from, Instant to) {
         return journalEntryRepository.findByUserIdAndTimestampBetween(getCurrentUserId(), from, to);
     }
+
+    public void deleteEntry(int id) {
+        int userId = getCurrentUserId();
+        JournalEntry entry = journalEntryRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Journal entry not found"));
+        if (entry.getUser().getId() != userId) {
+            throw new RuntimeException("Journal entry not found");
+        }
+        journalEntryRepository.deleteById(id);
+    }
+
+    public JournalEntry updateEntry(int id, String body) {
+        int userId = getCurrentUserId();
+        JournalEntry entry = journalEntryRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Journal entry not found"));
+        if (entry.getUser().getId() != userId) {
+            throw new RuntimeException("Journal entry not found");
+        }
+        entry.setBody(body);
+        return journalEntryRepository.save(entry);
+    }
 }

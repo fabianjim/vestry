@@ -166,4 +166,86 @@ public class JournalEntryServiceTest {
         List<JournalEntry> result = journalEntryService.getEntriesInRange(from, to);
         assertEquals(1, result.size());
     }
+
+    @Test
+    void deleteEntrySuccess() {
+        JournalEntry entry = new JournalEntry();
+        entry.setId(1);
+        entry.setUser(mockUser);
+        when(journalEntryRepository.findById(1)).thenReturn(Optional.of(entry));
+
+        journalEntryService.deleteEntry(1);
+
+        verify(journalEntryRepository).deleteById(1);
+    }
+
+    @Test
+    void deleteEntryNotFound() {
+        when(journalEntryRepository.findById(1)).thenReturn(Optional.empty());
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            journalEntryService.deleteEntry(1);
+        });
+        assertEquals("Journal entry not found", exception.getMessage());
+    }
+
+    @Test
+    void deleteEntryWrongUser() {
+        User otherUser = new User();
+        otherUser.setId(2);
+        otherUser.setUsername("otheruser");
+
+        JournalEntry entry = new JournalEntry();
+        entry.setId(1);
+        entry.setUser(otherUser);
+        when(journalEntryRepository.findById(1)).thenReturn(Optional.of(entry));
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            journalEntryService.deleteEntry(1);
+        });
+        assertEquals("Journal entry not found", exception.getMessage());
+    }
+
+    @Test
+    void updateEntrySuccess() {
+        JournalEntry entry = new JournalEntry();
+        entry.setId(1);
+        entry.setBody("Original body");
+        entry.setUser(mockUser);
+        when(journalEntryRepository.findById(1)).thenReturn(Optional.of(entry));
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        JournalEntry result = journalEntryService.updateEntry(1, "Updated body");
+
+        assertEquals("Updated body", result.getBody());
+        verify(journalEntryRepository).save(entry);
+    }
+
+    @Test
+    void updateEntryNotFound() {
+        when(journalEntryRepository.findById(1)).thenReturn(Optional.empty());
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            journalEntryService.updateEntry(1, "Updated body");
+        });
+        assertEquals("Journal entry not found", exception.getMessage());
+    }
+
+    @Test
+    void updateEntryWrongUser() {
+        User otherUser = new User();
+        otherUser.setId(2);
+        otherUser.setUsername("otheruser");
+
+        JournalEntry entry = new JournalEntry();
+        entry.setId(1);
+        entry.setBody("Original body");
+        entry.setUser(otherUser);
+        when(journalEntryRepository.findById(1)).thenReturn(Optional.of(entry));
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            journalEntryService.updateEntry(1, "Updated body");
+        });
+        assertEquals("Journal entry not found", exception.getMessage());
+    }
 }

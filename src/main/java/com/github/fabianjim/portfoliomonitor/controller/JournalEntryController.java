@@ -36,4 +36,14 @@ public class JournalEntryController {
     public List<JournalEntry> getEntriesInRange(@RequestParam Instant from, @RequestParam Instant to) {
         return journalEntryService.getEntriesInRange(from, to);
     }
+
+    @DeleteMapping("/{id}")
+    public void deleteEntry(@PathVariable int id) {
+        journalEntryService.deleteEntry(id);
+    }
+
+    @PutMapping("/{id}")
+    public JournalEntry updateEntry(@PathVariable int id, @RequestBody JournalEntry entry) {
+        return journalEntryService.updateEntry(id, entry.getBody());
+    }
 }

@@ -121,6 +121,10 @@ frontend/vite-project/src/
 ### Journal Entry System
 - A journal entry has: type (`BUY`, `SELL`, `INSIGHT`, `MARKET_EVENT`), body text, optional ticker, timestamp, and snapshotted price at time of writing
 - Created automatically (prompted after buy/sell — non-blocking, skippable) or manually
+- **Edit & Delete**: Entries in the `JournalPanel` show Edit/Delete buttons on hover (bottom right of the card)
+  - **Edit**: Inline editing — the body text becomes a borderless textarea (`bg-surface` vs card's `bg-surface-hover`) with Save/Cancel buttons
+  - **Delete**: Confirmation modal (`bg-overlay`) with "Delete Journal Entry?" prompt, Confirm (red) and Cancel buttons
+  - Backend endpoints: `PUT /api/journal/{id}` (body only) and `DELETE /api/journal/{id}` with user ownership verification
 
 ### Transaction Semantics
 - `Transaction` entity carries an `isInitial` boolean flag (default `false`)
@@ -250,7 +254,7 @@ npm run lint
 | `src/main/java/.../model/Transaction.java` | Transaction entity with `isInitial` flag distinguishing portfolio creation from buys |
 | `src/main/java/.../api/TiingoClient.java` | Tiingo API client; `INITIAL` stock data uses exact timestamp (not rounded) for graph accuracy |
 | `frontend/.../components/PortfolioChart.tsx` | Exposes `PortfolioChartHandle` with `refresh()` via ref |
-| `frontend/.../components/JournalPanel.tsx` | Exposes `JournalPanelHandle` with `scrollToEntry()` and `refreshEntries()` via ref |
+| `frontend/.../components/JournalPanel.tsx` | Exposes `JournalPanelHandle` with `scrollToEntry()` and `refreshEntries()` via ref; supports inline edit and delete with hover actions |
 | `frontend/.../utils/chartData.ts` | Processes portfolio history + transactions into chart data; filters out `initial` transactions |
 
 ---

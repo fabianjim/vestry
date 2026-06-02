@@ -97,6 +97,12 @@ export const journalApi = {
 
   getEntriesInRange: (from: string, to: string) =>
     apiClient(`/journal/range?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+
+  deleteEntry: (id: number) =>
+    apiClient(`/journal/${id}`, { method: 'DELETE' }),
+
+  updateEntry: (id: number, body: string) =>
+    apiClient(`/journal/${id}`, { method: 'PUT', body: { body } }),
 }
 
 // Watchlist API

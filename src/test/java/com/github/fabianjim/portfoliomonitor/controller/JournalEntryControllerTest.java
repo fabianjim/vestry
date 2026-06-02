@@ -21,8 +21,10 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -101,5 +103,41 @@ public class JournalEntryControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()").value(1))
             .andExpect(jsonPath("$[0].ticker").value("AAPL"));
+    }
+
+    @Test
+    @WithMockUser(username = "testuser")
+    void deleteJournalEntry() throws Exception {
+        mockMvc.perform(delete("/api/journal/1")
+                .with(csrf()))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "testuser")
+    void updateJournalEntry() throws Exception {
+        User user = new User();
+        user.setId(1);
+        user.setUsername("testuser");
+
+        JournalEntry entry = new JournalEntry();
+        entry.setId(1);
+        entry.setEntryType(JournalEntryType.INSIGHT);
+        entry.setBody("Updated insight");
+        entry.setTimestamp(Instant.now());
+        entry.setUser(user);
+
+        when(journalEntryService.updateEntry(1, "Updated insight")).thenReturn(entry);
+
+        JournalEntry updateRequest = new JournalEntry();
+        updateRequest.setBody("Updated insight");
+
+        mockMvc.perform(put("/api/journal/1")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateRequest)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(1))
+            .andExpect(jsonPath("$.body").value("Updated insight"));
     }
 }

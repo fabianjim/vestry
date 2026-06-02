@@ -14,3 +14,7 @@ export type CreateJournalEntryRequest = {
   body: string
   ticker?: string | null
 }
+
+export type UpdateJournalEntryRequest = {
+  body: string
+}
