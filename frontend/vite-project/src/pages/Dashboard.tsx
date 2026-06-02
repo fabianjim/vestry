@@ -5,6 +5,7 @@ import JournalPrompt from '../components/JournalPrompt'
 import JournalPanel from '../components/JournalPanel'
 import type { JournalPanelHandle } from '../components/JournalPanel'
 import RightSidebar from '../components/RightSidebar'
+import InfoTooltip from '../components/InfoTooltip'
 import type { PnLSummary } from '../types/transaction'
 import { journalApi, portfolioApi } from '../services/api'
 
@@ -363,27 +364,7 @@ export default function Dashboard() {
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-4">
           <h3 className="text-xl font-150">Portfolio Performance</h3>
-          <div className="group relative">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-muted group-hover:text-secondary cursor-help transition-colors"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 16v-4" />
-              <path d="M12 8h.01" />
-            </svg>
-            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-80 p-3 bg-surface-hover border border-border rounded-md text-sm text-secondary opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 shadow-lg">
-              Updated hourly on trading days (10am-4pm)
-            </div>
-          </div>
+          <InfoTooltip text="Updated hourly on trading days (10am-4pm)" />
         </div>
         <PortfolioChart
           ref={portfolioChartRef}
@@ -430,14 +411,17 @@ export default function Dashboard() {
             </div>
 
             {/* Manual Time & Price Toggle */}
-            <button
-              type="button"
-              onClick={() => setManualExpanded(!manualExpanded)}
-              className="flex items-center gap-1 text-sm text-secondary hover:text-foreground transition-colors mb-2"
-            >
-              <span className={`transition-transform ${manualExpanded ? 'rotate-180' : ''}`}>▼</span>
-              Manually Record Time & Amount
-            </button>
+            <div className="flex items-center gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => setManualExpanded(!manualExpanded)}
+                className="flex items-center gap-1 text-sm text-secondary hover:text-foreground transition-colors"
+              >
+                <span className={`transition-transform ${manualExpanded ? 'rotate-180' : ''}`}>▼</span>
+                Manually Record Time & Amount
+              </button>
+              <InfoTooltip text="There is no function currently to backfill holding information. To allow for accurate figures, transactions can only be recorded up to the previous hourly fetch." />
+            </div>
 
             {manualExpanded && (
               <div className="mb-4 p-3 bg-surface-hover border border-border rounded-md">
@@ -569,14 +553,17 @@ export default function Dashboard() {
             )}
 
             {/* Manual Time & Price Toggle */}
-            <button
-              type="button"
-              onClick={() => setManualExpanded(!manualExpanded)}
-              className="flex items-center gap-1 text-sm text-secondary hover:text-foreground transition-colors mb-2"
-            >
-              <span className={`transition-transform ${manualExpanded ? 'rotate-180' : ''}`}>▼</span>
-              Manually Record Time & Amount
-            </button>
+            <div className="flex items-center gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => setManualExpanded(!manualExpanded)}
+                className="flex items-center gap-1 text-sm text-secondary hover:text-foreground transition-colors"
+              >
+                <span className={`transition-transform ${manualExpanded ? 'rotate-180' : ''}`}>▼</span>
+                Manually Record Time & Amount
+              </button>
+              <InfoTooltip text="There is no function currently to backfill holding information. To allow for accurate figures, transactions can only be recorded up to the previous hourly fetch." />
+            </div>
 
             {manualExpanded && (
               <div className="mb-4 p-3 bg-surface-hover border border-border rounded-md">
