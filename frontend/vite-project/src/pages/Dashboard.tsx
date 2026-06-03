@@ -6,7 +6,9 @@ import JournalPanel from '../components/JournalPanel'
 import type { JournalPanelHandle } from '../components/JournalPanel'
 import RightSidebar from '../components/RightSidebar'
 import InfoTooltip from '../components/InfoTooltip'
+import NodeDetailPanel from '../components/NodeDetailPanel'
 import type { PnLSummary } from '../types/transaction'
+import type { StockMetadata } from '../types/watchlist'
 import { journalApi, portfolioApi } from '../services/api'
 
 type StockData = {
@@ -30,6 +32,8 @@ type Holding = {
   ticker: string
   shares: number
   stockData?: StockData | null
+  metadata?: StockMetadata | null
+  buyTimestamp?: string
 }
 
 export default function Dashboard() {
@@ -51,6 +55,11 @@ export default function Dashboard() {
   const journalPanelRef = useRef<JournalPanelHandle>(null)
   const [activeJournalId, setActiveJournalId] = useState<number | null>(null)
   const [pnlSummary, setPnlSummary] = useState<PnLSummary | null>(null)
+  const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
+
+  const selectedHolding = selectedTicker
+    ? results.find((h) => h.ticker === selectedTicker)
+    : undefined
 
   // Manual trade recording state (shared between buy/sell modals)
   const [manualExpanded, setManualExpanded] = useState(false)
@@ -654,7 +663,19 @@ export default function Dashboard() {
         loading={loading}
         onBuyClick={() => setShowAddModal(true)}
         onSellClick={() => setShowSellModal(true)}
+        onHoldingClick={(ticker) => setSelectedTicker(ticker)}
       />
+
+      {/* Node Detail Panel */}
+      {selectedTicker && selectedHolding && (
+        <NodeDetailPanel
+          ticker={selectedTicker}
+          metadata={selectedHolding.metadata ?? null}
+          onClose={() => setSelectedTicker(null)}
+          isWatchlist={false}
+          trackingStartDate={selectedHolding.buyTimestamp ?? null}
+        />
+      )}
     </div>
   )
 }

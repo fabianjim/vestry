@@ -41,9 +41,10 @@ interface RightSidebarProps {
   loading: boolean
   onBuyClick: () => void
   onSellClick: () => void
+  onHoldingClick?: (ticker: string) => void
 }
 
-export default function RightSidebar({ holdings, loading, onBuyClick, onSellClick }: RightSidebarProps) {
+export default function RightSidebar({ holdings, loading, onBuyClick, onSellClick, onHoldingClick }: RightSidebarProps) {
   const [isOpen, setIsOpen] = useState(() => window.innerWidth >= 768)
   const [userManuallyClosed, setUserManuallyClosed] = useState(false)
   const [watchlistCount, setWatchlistCount] = useState(0)
@@ -132,7 +133,12 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
                     key={holding.ticker}
                     className="flex justify-between items-center py-1 px-2 text-sm hover:bg-surface-hover rounded transition-colors"
                   >
-                    <span className="font-130">{holding.ticker}</span>
+                    <button
+                      onClick={() => onHoldingClick?.(holding.ticker)}
+                      className="font-130 text-foreground hover:text-primary transition-colors cursor-pointer bg-transparent border-0 p-0"
+                    >
+                      {holding.ticker}
+                    </button>
                     <span className="text-muted">{holding.shares}</span>
                   </div>
                 )
@@ -144,7 +150,12 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
                   className={`p-2 mb-1 rounded text-sm ${isStale ? 'bg-surface-hover' : 'bg-background/50'}`}
                 >
                   <div className="flex justify-between items-center">
-                    <span className="font-130 text-foreground">{holding.ticker}</span>
+                    <button
+                      onClick={() => onHoldingClick?.(holding.ticker)}
+                      className="font-130 text-foreground hover:text-primary transition-colors cursor-pointer bg-transparent border-0 p-0"
+                    >
+                      {holding.ticker}
+                    </button>
                     <span className="text-muted text-xs">{holding.shares} shares</span>
                   </div>
                   <div className="flex justify-between mt-1 text-xs">
