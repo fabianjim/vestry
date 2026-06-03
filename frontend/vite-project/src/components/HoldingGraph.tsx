@@ -80,8 +80,20 @@ export default function HoldingGraph({
 
       svg.call(zoom)
 
+      // Initialize nodes in a circular layout around the center
+      const centerX = width / 2
+      const centerY = height / 2
+      const radius = Math.min(width, height) * 0.25
+      nodes.forEach((n, i) => {
+        const angle = (2 * Math.PI * i) / Math.max(nodes.length, 1)
+        n.x = centerX + radius * Math.cos(angle)
+        n.y = centerY + radius * Math.sin(angle)
+      })
+
       const simulation = d3
         .forceSimulation<GraphNode>(nodes)
+        .alphaDecay(0.03)
+        .velocityDecay(0.5)
         .force(
           'link',
           d3
@@ -90,7 +102,7 @@ export default function HoldingGraph({
             .distance(185)
             .strength((d) => d.strength * 0.5)
         )
-        .force('charge', d3.forceManyBody<GraphNode>().strength(-400))
+        .force('charge', d3.forceManyBody<GraphNode>().strength(-300).distanceMax(200))
         .force('center', d3.forceCenter<GraphNode>(width / 2, height / 2))
         .force('collision', d3.forceCollide<GraphNode>().radius((d) => d.radius + 8))
 
@@ -210,7 +222,7 @@ export default function HoldingGraph({
         node.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`)
       })
 
-      simulation.alpha(1).restart()
+      simulation.alpha(0.5).restart()
       isFirstRender.current = false
 
       return () => {
