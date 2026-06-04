@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { portfolioApi, watchlistApi, stockApi } from '../services/api'
 import type { StockMetadata } from '../types/watchlist'
+import { getNodeColor } from '../constants/colors'
 
 export type GraphNode = {
   id: string
@@ -54,25 +55,6 @@ type WatchlistItem = {
   id: number
   ticker: string
   metadata: StockMetadata | null
-}
-
-const SECTOR_COLORS: Record<string, string> = {
-  Technology: '#5e9ed6',
-  'Health Care': '#10b981',
-  Finance: '#f59e0b',
-  Industrials: '#8b5cf6',
-  'Consumer Discretionary': '#f97316',
-  'Consumer Staples': '#14b8a6',
-  'Communication Services': '#ec4899',
-  Energy: '#ef4444',
-  Materials: '#06b6d4',
-  'Real Estate': '#a78bfa',
-  Utilities: '#6b7280',
-}
-
-function getNodeColor(sector: string | null | undefined) {
-  if (!sector) return '#6b7280'
-  return SECTOR_COLORS[sector] || '#6b7280'
 }
 
 export function useHoldingGraphData() {
