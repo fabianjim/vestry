@@ -87,7 +87,7 @@ export default function TransactionHistory() {
         <button
           onClick={handleExport}
           title="Export to CSV"
-          className="absolute top-2 right-2 z-10 p-1.5 rounded-md bg-surface-hover border border-border text-muted opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground cursor-pointer"
+          className="absolute top-2 right-2 z-10 p-1.5 rounded-md bg-surface-hover border border-border text-secondary opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground cursor-pointer"
           aria-label="Export to CSV"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
