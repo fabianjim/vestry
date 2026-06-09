@@ -20,6 +20,7 @@ type NodeDetailPanelProps = {
   onClose: () => void
   isWatchlist: boolean
   trackingStartDate: string | null
+  onEntryClick?: (entry: JournalEntry) => void
 }
 
 type StockHistoryPoint = {
@@ -33,7 +34,7 @@ type ChartPoint = {
   fullTimestamp: string
 }
 
-export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist, trackingStartDate }: NodeDetailPanelProps) {
+export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist, trackingStartDate, onEntryClick }: NodeDetailPanelProps) {
   const [history, setHistory] = useState<StockHistoryPoint[]>([])
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(false)
@@ -191,7 +192,8 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
             {journalEntries.map((entry) => (
               <div
                 key={entry.id}
-                className="p-3 rounded-md transition-colors bg-surface-hover border border-border"
+                onClick={() => onEntryClick?.(entry)}
+                className="p-3 rounded-md transition-colors bg-surface-hover border border-border cursor-pointer hover:bg-elevated"
               >
                 <div className="flex justify-between mb-1">
                   <span

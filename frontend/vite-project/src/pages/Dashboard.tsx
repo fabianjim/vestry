@@ -690,6 +690,10 @@ export default function Dashboard() {
           onClose={() => setSelectedTicker(null)}
           isWatchlist={false}
           trackingStartDate={selectedHolding.buyTimestamp ?? null}
+          onEntryClick={(entry) => {
+            setSelectedJournalEntry(entry)
+            setSelectedTicker(null)
+          }}
         />
       )}
 
