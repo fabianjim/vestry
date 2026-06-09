@@ -218,13 +218,6 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
         >
           {loading ? 'Saving…' : 'Save Entry'}
         </button>
-        <button
-          onClick={fetchEntries}
-          disabled={loading}
-          className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors disabled:opacity-50"
-        >
-          Refresh
-        </button>
       </div>
 
       {error && <div className="text-error mb-4">{error}</div>}

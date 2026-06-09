@@ -12,6 +12,7 @@ import type { JournalEntry } from '../types/journal'
 import type { StockMetadata } from '../types/watchlist'
 import { stockApi, journalApi } from '../services/api'
 import { formatDateTime } from '../utils/dateUtils'
+import { SECTOR_COLORS } from '../constants/colors'
 
 type NodeDetailPanelProps = {
   ticker: string
@@ -30,20 +31,6 @@ type ChartPoint = {
   time: string
   price: number
   fullTimestamp: string
-}
-
-const SECTOR_COLORS: Record<string, string> = {
-  Technology: '#5e9ed6',
-  'Health Care': '#10b981',
-  Finance: '#f59e0b',
-  Industrials: '#8b5cf6',
-  'Consumer Discretionary': '#f97316',
-  'Consumer Staples': '#14b8a6',
-  'Communication Services': '#ec4899',
-  Energy: '#ef4444',
-  Materials: '#06b6d4',
-  'Real Estate': '#a78bfa',
-  Utilities: '#6b7280',
 }
 
 export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist, trackingStartDate }: NodeDetailPanelProps) {
