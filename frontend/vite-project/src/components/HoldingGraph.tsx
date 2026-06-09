@@ -1,20 +1,19 @@
 import { useEffect, useRef } from 'react'
 import * as d3 from 'd3'
 
-function getClusterKey(node: GraphNode): string {
-  if (node.metadata?.etf) return 'ETF'
+function getSectorKey(node: GraphNode): string {
   return node.metadata?.sector || 'Unknown'
 }
 
-function computeClusterCenters(
+function computeSectorStartPositions(
   nodes: GraphNode[],
   width: number,
   height: number
 ): Map<string, { x: number; y: number }> {
-  const sectors = Array.from(new Set(nodes.map(getClusterKey)))
+  const sectors = Array.from(new Set(nodes.map(getSectorKey)))
   const centerX = width / 2
   const centerY = height / 2
-  const radius = Math.min(width, height) * 0.3
+  const radius = Math.min(width, height) * 0.22
   const map = new Map<string, { x: number; y: number }>()
   sectors.forEach((sector, i) => {
     const angle = (2 * Math.PI * i) / Math.max(sectors.length, 1)
@@ -26,56 +25,73 @@ function computeClusterCenters(
   return map
 }
 
-function configureClusterForces(
-  simulation: d3.Simulation<GraphNode, undefined>,
+function scatterFromCenter(
   nodes: GraphNode[],
+  centerX: number,
+  centerY: number
+) {
+  nodes.forEach((n) => {
+    n.x = centerX + (Math.random() - 0.5) * 900
+    n.y = centerY + (Math.random() - 0.5) * 600
+  })
+}
+
+function createSectorGroupingForce(
   width: number,
   height: number,
-  groupBySector: boolean
-) {
-  if (groupBySector) {
-    const clusterCenters = computeClusterCenters(nodes, width, height)
-    const forceStrength = 0.15
-    const centerX = width / 2
-    const centerY = height / 2
-    simulation
-      .force(
-        'clusterX',
-        d3
-          .forceX<GraphNode>((d) => clusterCenters.get(getClusterKey(d))?.x ?? centerX)
-          .strength(forceStrength)
-      )
-      .force(
-        'clusterY',
-        d3
-          .forceY<GraphNode>((d) => clusterCenters.get(getClusterKey(d))?.y ?? centerY)
-          .strength(forceStrength)
-      )
-  } else {
-    simulation.force('clusterX', null).force('clusterY', null)
+  getGroupBySector: () => boolean
+): d3.Force<GraphNode, undefined> {
+  let nodes: GraphNode[] = []
+  let centers = new Map<string, { x: number; y: number }>()
+  let centersInitialized = false
+
+  function force(alpha: number) {
+    if (!getGroupBySector() || alpha < 0.1) return
+    if (!centersInitialized) {
+      centers = computeSectorStartPositions(nodes, width, height)
+      centersInitialized = true
+    }
+    const strength = 0.015 * alpha
+    for (const d of nodes) {
+      if (d.fx != null || d.fy != null) continue
+      const center = centers.get(getSectorKey(d))
+      if (!center || d.x == null || d.y == null) continue
+      d.vx = (d.vx || 0) + (center.x - d.x) * strength
+      d.vy = (d.vy || 0) + (center.y - d.y) * strength
+    }
   }
+
+  force.initialize = (newNodes: GraphNode[]) => {
+    nodes = newNodes
+    centersInitialized = false
+  }
+
+  return force
 }
 
 function createDragBehavior(simulation: d3.Simulation<GraphNode, undefined>) {
-  return (
-    d3
-      .drag<Element, GraphNode>()
-      .on('start', (event, d) => {
-        if (!event.active) simulation.alphaTarget(0.3).restart()
-        d.fx = d.x ?? null
-        d.fy = d.y ?? null
-      })
-      .on('drag', (event, d) => {
-        d.fx = event.x
-        d.fy = event.y
-      })
-      .on('end', (event, d) => {
-        if (!event.active) simulation.alphaTarget(0)
-        d.fx = null
-        d.fy = null
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      }) as any
-  )
+  return d3
+    .drag<Element, GraphNode>()
+    .on('start', (event, d) => {
+      d.fx = d.x ?? null
+      d.fy = d.y ?? null
+      ;(d as any).__dragMoved = false
+    })
+    .on('drag', (event, d) => {
+      if (!(d as any).__dragMoved) {
+        simulation.alphaTarget(0.2).restart()
+        ;(d as any).__dragMoved = true
+      }
+      d.fx = event.x
+      d.fy = event.y
+    })
+    .on('end', (event, d) => {
+      if (!event.active) simulation.alphaTarget(0)
+      d.fx = null
+      d.fy = null
+      delete (d as any).__dragMoved
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any
 }
 
 function appendNodeVisuals(
@@ -183,13 +199,16 @@ export default function HoldingGraph({
   const prevNodeIds = useRef('')
   const prevEdgeIds = useRef('')
   const prevGroupBySector = useRef(groupBySector)
+  const groupBySectorRef = useRef(groupBySector)
 
-  // Keep callback ref up to date without restarting simulation
   useEffect(() => {
     onNodeClickRef.current = onNodeClick
   }, [onNodeClick])
 
-  // Single effect handles both initial setup and data updates
+  useEffect(() => {
+    groupBySectorRef.current = groupBySector
+  }, [groupBySector])
+
   useEffect(() => {
     if (!svgRef.current || nodes.length === 0) return
 
@@ -197,7 +216,6 @@ export default function HoldingGraph({
     const edgeIds = edges.map((e) => `${e.source}-${e.target}`).join(',')
 
     if (!isFirstRender.current) {
-      // Skip entirely if data hasn't actually changed
       if (
         nodeIds === prevNodeIds.current &&
         edgeIds === prevEdgeIds.current &&
@@ -211,15 +229,12 @@ export default function HoldingGraph({
     prevEdgeIds.current = edgeIds
     prevGroupBySector.current = groupBySector
 
-    // Work with edge copies so D3 mutations don't leak back to parent
     const edgesCopy = edges.map((e) => ({ ...e }))
-
     const centerX = width / 2
     const centerY = height / 2
     const svg = d3.select(svgRef.current)
 
     if (isFirstRender.current) {
-      // FIRST MOUNT: Create everything from scratch
       svg.selectAll('*').remove()
 
       const g = svg.append('g')
@@ -233,45 +248,26 @@ export default function HoldingGraph({
 
       svg.call(zoom)
 
-      // Initialize nodes in a circular layout around the center
-      if (groupBySector) {
-        const clusterCenters = computeClusterCenters(nodes, width, height)
-        nodes.forEach((n) => {
-          const center = clusterCenters.get(getClusterKey(n))
-          if (center) {
-            n.x = center.x + (Math.random() - 0.5) * 40
-            n.y = center.y + (Math.random() - 0.5) * 40
-          }
-        })
-      } else {
-        const radius = Math.min(width, height) * 0.25
-        nodes.forEach((n, i) => {
-          const angle = (2 * Math.PI * i) / Math.max(nodes.length, 1)
-          n.x = centerX + radius * Math.cos(angle)
-          n.y = centerY + radius * Math.sin(angle)
-        })
-      }
+      scatterFromCenter(nodes, centerX, centerY)
 
       const simulation = d3
         .forceSimulation<GraphNode>(nodes)
-        .alphaDecay(0.03)
-        .velocityDecay(0.5)
+        .alphaDecay(0.06)
+        .velocityDecay(0.6)
         .force(
           'link',
           d3
             .forceLink<GraphNode, GraphEdge>(edgesCopy)
             .id((d) => d.id)
-            .distance(185)
-            .strength((d) => d.strength * 0.5)
+            .distance(150)
+            .strength((d) => d.strength * 0.03)
         )
-        .force('charge', d3.forceManyBody<GraphNode>().strength(-300).distanceMax(200))
-        .force('center', d3.forceCenter<GraphNode>(width / 2, height / 2))
-        .force('collision', d3.forceCollide<GraphNode>().radius((d) => d.radius + 8))
+        .force('charge', d3.forceManyBody<GraphNode>().strength(-80).distanceMax(200))
+        .force('collision', d3.forceCollide<GraphNode>().radius((d) => d.radius + 10))
+        .force('sector', createSectorGroupingForce(width, height, () => groupBySectorRef.current))
 
-      configureClusterForces(simulation, nodes, width, height, groupBySector)
       simulationRef.current = simulation
 
-      // Edge lines
       const link = g
         .append('g')
         .attr('stroke', 'rgba(255,255,255,0.45)')
@@ -292,7 +288,6 @@ export default function HoldingGraph({
         .attr('stroke', 'rgba(255,255,255,0.08)')
         .attr('rx', 4)
 
-      // Node groups
       const node = g
         .append('g')
         .selectAll('g')
@@ -318,7 +313,7 @@ export default function HoldingGraph({
         node.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`)
       })
 
-      simulation.alpha(0.5).restart()
+      simulation.alpha(1).restart()
       isFirstRender.current = false
 
       return () => {
@@ -328,14 +323,12 @@ export default function HoldingGraph({
       }
     }
 
-    // SUBSEQUENT RENDERS: Data changed, update in place
     const simulation = simulationRef.current
     if (!simulation) return
 
     const g = svg.select<SVGGElement>('g')
     if (g.empty()) return
 
-    // Update links
     const link = g
       .selectAll<SVGLineElement, GraphEdge>('line')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -345,16 +338,11 @@ export default function HoldingGraph({
     const linkMerged = linkEnter.merge(link)
     linkMerged.attr('stroke-width', (d) => Math.max(1, d.strength * 1.5))
 
-    // Update force link data
     const linkForce = simulation.force<d3.ForceLink<GraphNode, GraphEdge>>('link')
     if (linkForce) {
       linkForce.links(edgesCopy)
     }
 
-    // Update cluster forces when groupBySector changes
-    configureClusterForces(simulation, nodes, width, height, groupBySector)
-
-    // Update nodes
     const tooltip = g.select<SVGGElement>('.tooltip')
 
     const node = g
@@ -377,7 +365,6 @@ export default function HoldingGraph({
 
     const nodeMerged = nodeEnter.merge(node)
 
-    // Update tick handler to use merged selections
     simulation.on('tick', () => {
       linkMerged
         .attr('x1', (d) => (d.source as GraphNode).x ?? 0)
@@ -388,9 +375,13 @@ export default function HoldingGraph({
       nodeMerged.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`)
     })
 
-    // Update simulation nodes and warm-restart
     simulation.nodes(nodes)
-    simulation.alpha(0.1).restart()
+
+    if (groupBySector !== prevGroupBySector.current) {
+      simulation.alpha(0.4).restart()
+    } else {
+      simulation.alpha(0.1).restart()
+    }
   }, [nodes, edges, width, height, groupBySector])
 
   return (

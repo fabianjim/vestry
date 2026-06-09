@@ -42,7 +42,7 @@ Entry point: PortfolioMonitorApplication.java (has @EnableScheduling)
 frontend/vite-project/src/
 ├── pages/           # Route components: Login.tsx, Dashboard.tsx, Portfolio.tsx, Analysis.tsx
 ├── components/      # UI components: PortfolioChart, WatchlistPanel, JournalPanel,
-│                    #   TransactionHistory, NodeGraph, ChartPinLayer, etc.
+│                    #   TransactionHistory, HoldingGraph, ChartPinLayer, etc.
 ├── services/        # API layer (api.ts) — all backend calls go through here
 ├── types/           # TypeScript interfaces (transaction.ts, watchlist.ts, journal.ts)
 ├── utils/           # Helper functions (dateUtils.ts, chartPins.ts)
@@ -89,12 +89,18 @@ frontend/vite-project/src/
 - Backend endpoint: `GET /api/portfolio/pnl` returns `PnLSummaryDTO`
 
 ### Holding Analysis View (`/analysis` route)
-- Force-directed node graph (D3.js) showing holdings and watchlist stocks as nodes
+- Interactive node graph (`HoldingGraph.tsx`) using D3.js to visualize holdings and watchlist stocks
 - Edges drawn between nodes sharing metadata characteristics (sector, country, market cap tier)
 - Edge thickness reflects number of shared characteristics
 - Real holdings: solid filled nodes sized by market value
 - Watchlist stocks: hollow/outlined nodes, uniform size
 - Clicking a node opens a detail panel with ticker metadata and linked journal entries
+- **Graph physics prioritize user control over rigid clustering:**
+  - Forces (attraction, repulsion, collision) are intentionally weak and decay with alpha
+  - Nodes bloom outward from the center on startup with an organic scatter animation
+  - "Group by Sector" is a startup placement hint only: same-sector nodes initialize near each other and a transient sector force nudges them during the bloom, but it fades once alpha decays
+  - Users can freely drag nodes; collision prevents overlap while preserving fluidity
+  - All force parameters are centralized in `HoldingGraph.tsx` and tuned for subtle motion rather than automatic reorganization
 
 ### Watchlist
 - Users add tickers to a watchlist — these are NOT price fetched
@@ -255,6 +261,7 @@ npm run lint
 | `src/main/java/.../api/TiingoClient.java` | Tiingo API client; `INITIAL` stock data uses exact timestamp (not rounded) for graph accuracy |
 | `frontend/.../components/PortfolioChart.tsx` | Exposes `PortfolioChartHandle` with `refresh()` via ref |
 | `frontend/.../components/JournalPanel.tsx` | Exposes `JournalPanelHandle` with `scrollToEntry()` and `refreshEntries()` via ref; supports inline edit and delete with hover actions |
+| `frontend/.../components/HoldingGraph.tsx` | D3 force graph for the Analysis page; tuned for subtle, user-controlled motion with weak attraction/repulsion and alpha-decayed sector grouping |
 | `frontend/.../utils/chartData.ts` | Processes portfolio history + transactions into chart data; filters out `initial` transactions |
 
 ---
