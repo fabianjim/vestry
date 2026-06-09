@@ -382,8 +382,6 @@ export default function Dashboard() {
           ref={portfolioChartRef}
           onPinClick={(entry) => {
             setActiveJournalId(entry.id)
-            setSelectedJournalEntry(entry)
-            setSelectedTicker(null)
             journalPanelRef.current?.scrollToEntry(entry.id)
           }}
         />
