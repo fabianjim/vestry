@@ -72,7 +72,7 @@ function createSectorGroupingForce(
 function createDragBehavior(simulation: d3.Simulation<GraphNode, undefined>) {
   return d3
     .drag<Element, GraphNode>()
-    .on('start', (event, d) => {
+    .on('start', (d) => {
       d.fx = d.x ?? null
       d.fy = d.y ?? null
       ;(d as any).__dragMoved = false
