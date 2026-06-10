@@ -13,7 +13,7 @@ function computeSectorStartPositions(
   const sectors = Array.from(new Set(nodes.map(getSectorKey)))
   const centerX = width / 2
   const centerY = height / 2
-  const radius = Math.min(width, height) * 0.22
+  const radius = Math.min(width, height) * 0.50
   const map = new Map<string, { x: number; y: number }>()
   sectors.forEach((sector, i) => {
     const angle = (2 * Math.PI * i) / Math.max(sectors.length, 1)
@@ -33,6 +33,20 @@ function scatterFromCenter(
   nodes.forEach((n) => {
     n.x = centerX + (Math.random() - 0.5) * 900
     n.y = centerY + (Math.random() - 0.5) * 600
+  })
+}
+
+function scatterBySector(nodes: GraphNode[], width: number, height: number) {
+  const centers = computeSectorStartPositions(nodes, width, height)
+  nodes.forEach((n) => {
+    const center = centers.get(getSectorKey(n))
+    if (center) {
+      n.x = center.x + (Math.random() - 0.5) * 100
+      n.y = center.y + (Math.random() - 0.5) * 100
+    } else {
+      n.x = width / 2 + (Math.random() - 0.5) * 900
+      n.y = height / 2 + (Math.random() - 0.5) * 600
+    }
   })
 }
 
@@ -248,7 +262,11 @@ export default function HoldingGraph({
 
       svg.call(zoom)
 
-      scatterFromCenter(nodes, centerX, centerY)
+      if (groupBySector) {
+        scatterBySector(nodes, width, height)
+      } else {
+        scatterFromCenter(nodes, centerX, centerY)
+      }
 
       const simulation = d3
         .forceSimulation<GraphNode>(nodes)
@@ -260,7 +278,7 @@ export default function HoldingGraph({
             .forceLink<GraphNode, GraphEdge>(edgesCopy)
             .id((d) => d.id)
             .distance(150)
-            .strength((d) => d.strength * 0.03)
+            .strength((d) => d.strength * 0.015)
         )
         .force('charge', d3.forceManyBody<GraphNode>().strength(-80).distanceMax(200))
         .force('collision', d3.forceCollide<GraphNode>().radius((d) => d.radius + 10))
