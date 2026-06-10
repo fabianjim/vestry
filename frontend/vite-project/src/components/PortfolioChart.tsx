@@ -27,7 +27,7 @@ export interface PortfolioChartHandle {
 }
 
 interface Props {
-  onPinClick?: (journalEntryId: number) => void
+  onPinClick?: (entry: JournalEntry) => void
 }
 
 // Extract cubic bezier segments from a d3 monotone path.
@@ -72,10 +72,12 @@ function TransactionOverlay({
   data,
   lineColor,
   onPinClick,
+  journalEntries,
 }: {
   data: ChartDataPoint[]
   lineColor: string
-  onPinClick?: (journalEntryId: number) => void
+  onPinClick?: (entry: JournalEntry) => void
+  journalEntries: JournalEntry[]
 }) {
   const xAxis = useXAxis(0)
   const yAxis = useYAxis(0)
@@ -139,7 +141,8 @@ function TransactionOverlay({
               style={{ cursor: point.journalEntryId ? 'pointer' : 'default' }}
               onClick={() => {
                 if (point.journalEntryId && onPinClick) {
-                  onPinClick(point.journalEntryId)
+                  const entry = journalEntries.find((e) => e.id === point.journalEntryId)
+                  if (entry) onPinClick(entry)
                 }
               }}
             />
@@ -466,6 +469,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
                       data={processedData}
                       lineColor={lineColor}
                       onPinClick={onPinClick}
+                      journalEntries={journalEntries}
                     />
                   )}
                 />

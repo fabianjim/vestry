@@ -7,8 +7,10 @@ import type { JournalPanelHandle } from '../components/JournalPanel'
 import RightSidebar from '../components/RightSidebar'
 import InfoTooltip from '../components/InfoTooltip'
 import NodeDetailPanel from '../components/NodeDetailPanel'
+import JournalDetailPanel from '../components/JournalDetailPanel'
 import type { PnLSummary } from '../types/transaction'
 import type { StockMetadata } from '../types/watchlist'
+import type { JournalEntry } from '../types/journal'
 import { journalApi, portfolioApi } from '../services/api'
 
 type StockData = {
@@ -56,6 +58,7 @@ export default function Dashboard() {
   const [activeJournalId, setActiveJournalId] = useState<number | null>(null)
   const [pnlSummary, setPnlSummary] = useState<PnLSummary | null>(null)
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
+  const [selectedJournalEntry, setSelectedJournalEntry] = useState<JournalEntry | null>(null)
 
   const selectedHolding = selectedTicker
     ? results.find((h) => h.ticker === selectedTicker)
@@ -377,9 +380,9 @@ export default function Dashboard() {
         </div>
         <PortfolioChart
           ref={portfolioChartRef}
-          onPinClick={(id) => {
-            setActiveJournalId(id)
-            journalPanelRef.current?.scrollToEntry(id)
+          onPinClick={(entry) => {
+            setActiveJournalId(entry.id)
+            journalPanelRef.current?.scrollToEntry(entry.id)
           }}
         />
       </div>
@@ -388,7 +391,15 @@ export default function Dashboard() {
       {/* Journal Section */}
       <div className="mb-8">
         <h3 className="text-xl font-150 mt-4 mb-4">Journal</h3>
-        <JournalPanel ref={journalPanelRef} activeJournalId={activeJournalId} onClearActive={() => setActiveJournalId(null)} />
+        <JournalPanel
+          ref={journalPanelRef}
+          activeJournalId={activeJournalId}
+          onClearActive={() => setActiveJournalId(null)}
+          onEntryClick={(entry) => {
+            setSelectedJournalEntry(entry)
+            setSelectedTicker(null)
+          }}
+        />
       </div>
 
       {/* Add Stock Modal */}
@@ -663,7 +674,10 @@ export default function Dashboard() {
         loading={loading}
         onBuyClick={() => setShowAddModal(true)}
         onSellClick={() => setShowSellModal(true)}
-        onHoldingClick={(ticker) => setSelectedTicker(ticker)}
+        onHoldingClick={(ticker) => {
+          setSelectedTicker(ticker)
+          setSelectedJournalEntry(null)
+        }}
       />
 
       {/* Node Detail Panel */}
@@ -674,6 +688,19 @@ export default function Dashboard() {
           onClose={() => setSelectedTicker(null)}
           isWatchlist={false}
           trackingStartDate={selectedHolding.buyTimestamp ?? null}
+          onEntryClick={(entry) => {
+            setSelectedJournalEntry(entry)
+            setSelectedTicker(null)
+          }}
+        />
+      )}
+
+      {/* Journal Detail Panel */}
+      {selectedJournalEntry && (
+        <JournalDetailPanel
+          entry={selectedJournalEntry}
+          onClose={() => setSelectedJournalEntry(null)}
+          onEntryClick={(entry) => setSelectedJournalEntry(entry)}
         />
       )}
     </div>

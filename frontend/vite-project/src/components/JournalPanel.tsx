@@ -11,10 +11,11 @@ export interface JournalPanelHandle {
 interface JournalPanelProps {
   activeJournalId?: number | null
   onClearActive?: () => void
+  onEntryClick?: (entry: JournalEntry) => void
 }
 
 const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function JournalPanel(
-  { activeJournalId, onClearActive },
+  { activeJournalId, onClearActive, onEntryClick },
   ref
 ) {
   const [entries, setEntries] = useState<JournalEntry[]>([])
@@ -232,7 +233,8 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
               ref={(el) => {
                 if (el) entryRefs.current.set(entry.id, el)
               }}
-              className={`relative group p-3 bg-surface-hover rounded-md border border-border ${getTypeBg(entry.entryType)} ${activeJournalId === entry.id ? 'outline-2 outline-primary outline-offset-2' : ''}`}
+              onClick={() => onEntryClick?.(entry)}
+              className={`relative group p-3 bg-surface-hover rounded-md border border-border cursor-pointer hover:bg-elevated transition-colors ${getTypeBg(entry.entryType)} ${activeJournalId === entry.id ? 'outline-2 outline-primary outline-offset-2' : ''}`}
             >
               <div className="flex justify-between items-start mb-1">
                 <div className="flex items-center gap-2">
@@ -283,14 +285,20 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
                   <div className="text-sm text-foreground whitespace-pre-wrap">{entry.body}</div>
                   <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
-                      onClick={() => handleEditClick(entry)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleEditClick(entry)
+                      }}
                       className="px-2 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover transition-colors"
                       title="Edit"
                     >
                       Edit
                     </button>
                     <button
-                      onClick={() => handleDeleteClick(entry.id)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteClick(entry.id)
+                      }}
                       className="px-2 py-1 text-xs text-error hover:text-error bg-surface border border-border rounded hover:bg-error/10 transition-colors"
                       title="Delete"
                     >
