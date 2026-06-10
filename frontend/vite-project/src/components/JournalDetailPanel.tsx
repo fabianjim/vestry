@@ -197,7 +197,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
       case 'INSIGHT':
         return '#5e9ed6'
       case 'MARKET_EVENT':
-        return '#9ca3af'
+        return '#d6965e'
       default:
         return '#6b7280'
     }
@@ -229,6 +229,8 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
                 ? 'text-loss'
                 : entry.entryType === 'INSIGHT'
                 ? 'text-primary'
+                : entry.entryType === 'MARKET_EVENT'
+                ? 'text-event'
                 : 'text-secondary'
             }`}
           >
@@ -263,12 +265,16 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
         <div className="text-sm text-muted mb-1">
           <span className="font-130">Snapshot:</span>{' '}
           {entry.priceSnapshot != null ? formatCurrency(entry.priceSnapshot) : '-'}
-          {' · '}
-          <span className="font-130">Shares:</span>{' '}
-          {matchedTransaction ? matchedTransaction.shares : '-'}
-          {' · '}
-          <span className="font-130">Total:</span>{' '}
-          {matchedTransaction ? formatCurrency(matchedTransaction.totalValue) : '-'}
+          {(entry.entryType === 'BUY' || entry.entryType === 'SELL') && (
+            <>
+              {' · '}
+              <span className="font-130">Shares:</span>{' '}
+              {matchedTransaction ? matchedTransaction.shares : '-'}
+              {' · '}
+              <span className="font-130">Total:</span>{' '}
+              {matchedTransaction ? formatCurrency(matchedTransaction.totalValue) : '-'}
+            </>
+          )}
         </div>
         <div className="text-sm text-foreground mt-3 whitespace-pre-wrap">{entry.body}</div>
       </div>
@@ -433,6 +439,8 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
                         ? 'text-loss'
                         : relatedEntry.entryType === 'INSIGHT'
                         ? 'text-primary'
+                        : relatedEntry.entryType === 'MARKET_EVENT'
+                        ? 'text-event'
                         : 'text-secondary'
                     }`}
                   >
