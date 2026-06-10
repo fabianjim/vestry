@@ -308,10 +308,6 @@ public class PortfolioService {
         return stockService.getStockData(ticker, timestamp).orElse(null);
     }
 
-    public List<TrackedStock> getTopTrendingStocks(int n) {
-        return trackedStockRepository.findTopTrackedStocks(n);
-    }
-
     /**
      * Calculate total, unrealized, and realized P/L for the current user's portfolio.
      * Uses average cost basis method per ticker.

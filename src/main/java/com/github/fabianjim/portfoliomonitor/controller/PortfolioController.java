@@ -5,7 +5,7 @@ import com.github.fabianjim.portfoliomonitor.dto.PortfolioHistoryDTO;
 import com.github.fabianjim.portfoliomonitor.model.Holding;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;
 import com.github.fabianjim.portfoliomonitor.model.Transaction;
-import com.github.fabianjim.portfoliomonitor.model.TrackedStock;
+
 import com.github.fabianjim.portfoliomonitor.service.NasdaqMetadataService;
 import com.github.fabianjim.portfoliomonitor.service.PortfolioService;
 import com.github.fabianjim.portfoliomonitor.service.TransactionService;
@@ -69,11 +69,6 @@ public class PortfolioController {
         Double price = request.containsKey("price") ? ((Number) request.get("price")).doubleValue() : null;
         Instant timestamp = request.containsKey("timestamp") ? Instant.parse((String) request.get("timestamp")) : null;
         portfolioService.removeHolding(ticker, price, timestamp);
-    }
-
-    @GetMapping("/trending")
-    public List<TrackedStock> getTrendingStocks() {
-        return portfolioService.getTopTrendingStocks(3);
     }
 
     @GetMapping("/history")

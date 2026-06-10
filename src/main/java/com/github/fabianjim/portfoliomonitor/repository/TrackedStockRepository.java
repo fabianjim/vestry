@@ -15,11 +15,6 @@ public interface TrackedStockRepository extends JpaRepository<TrackedStock, Inte
     
     boolean existsByTicker(String ticker);
     
-    List<TrackedStock> findByHolderCountGreaterThan(int count);
-    
-    @Query("SELECT ts FROM TrackedStock ts WHERE ts.holderCount > 0 ORDER BY ts.holderCount DESC, ts.firstTrackedAt DESC")
-    List<TrackedStock> findTopTrackedStocks(int limit);
-    
     @Query("SELECT ts.ticker FROM TrackedStock ts WHERE ts.holderCount > 0")
     List<String> findAllActiveTickers();
 }
