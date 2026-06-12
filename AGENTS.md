@@ -65,6 +65,7 @@ frontend/vite-project/src/
 
 ### Dashboard (Price Analysis)
 - Displays total portfolio value, day's change, **total P/L** (unrealized + realized with percentage)
+- Dashboard top header shows a **Next Update** timer pill next to the page title. It counts down to the next scheduled hourly fetch and displays the info tooltip: "Portfolio data is updated hourly on trading days (10am-4pm)". Driven by `useNextUpdate.ts` and `NextUpdateTimer.tsx`.
 - Right sidebar shows **holdings count** and **watchlist count** next to their respective headers
 - Portfolio performance chart (hourly + daily toggle, date navigation)
 - Holdings table with ticker, shares, current price, day change, market value, last updated
@@ -260,8 +261,11 @@ npm run lint
 | `src/main/java/.../model/Transaction.java` | Transaction entity with `isInitial` flag distinguishing portfolio creation from buys |
 | `src/main/java/.../api/TiingoClient.java` | Tiingo API client; `INITIAL` stock data uses exact timestamp (not rounded) for graph accuracy |
 | `frontend/.../components/PortfolioChart.tsx` | Exposes `PortfolioChartHandle` with `refresh()` via ref |
+| `frontend/.../components/NextUpdateTimer.tsx` | Dashboard header pill showing countdown to next scheduled price fetch |
+| `frontend/.../hooks/useNextUpdate.ts` | Hook computing next market update; updates every minute synced to wall clock |
 | `frontend/.../components/JournalPanel.tsx` | Exposes `JournalPanelHandle` with `scrollToEntry()` and `refreshEntries()` via ref; supports inline edit and delete with hover actions |
 | `frontend/.../components/HoldingGraph.tsx` | D3 force graph for the Analysis page; tuned for subtle, user-controlled motion with weak attraction/repulsion and alpha-decayed sector grouping |
+| `frontend/.../utils/dateUtils.ts` | Date helpers incl. `getNextMarketUpdate` and `formatNextUpdate` for the next-update timer |
 | `frontend/.../utils/chartData.ts` | Processes portfolio history + transactions into chart data; filters out `initial` transactions |
 
 ---

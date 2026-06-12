@@ -5,6 +5,7 @@ import JournalPrompt from '../components/JournalPrompt'
 import JournalPanel from '../components/JournalPanel'
 import type { JournalPanelHandle } from '../components/JournalPanel'
 import RightSidebar from '../components/RightSidebar'
+import NextUpdateTimer from '../components/NextUpdateTimer'
 import InfoTooltip from '../components/InfoTooltip'
 import NodeDetailPanel from '../components/NodeDetailPanel'
 import JournalDetailPanel from '../components/JournalDetailPanel'
@@ -346,7 +347,10 @@ export default function Dashboard() {
     <div className="flex min-h-screen gap-6"> {/* if modifying sidebar gap also update Layout.tsx */}
       {/* Main Content */}
       <div className="flex-1 max-w-6xl mx-auto mt-6 px-3">
-        <h2 className="text-2xl font-150 mb-6">Dashboard</h2>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-150">Dashboard</h2>
+          <NextUpdateTimer />
+        </div>
 
       {/* Portfolio Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -374,10 +378,7 @@ export default function Dashboard() {
 
       {/* Portfolio History Chart */}
       <div className="mb-8">
-        <div className="flex items-center gap-2 mb-4">
-          <h3 className="text-xl font-150">Portfolio Performance</h3>
-          <InfoTooltip text="Updated hourly on trading days (10am-4pm)" />
-        </div>
+        <h3 className="text-xl font-150 mb-4">Portfolio Performance</h3>
         <PortfolioChart
           ref={portfolioChartRef}
           onPinClick={(entry) => {
