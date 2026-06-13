@@ -24,6 +24,8 @@ interface HistoryData {
 
 export interface PortfolioChartHandle {
   refresh: () => void
+  setHourlyDate: (date: Date) => void
+  scrollIntoView: () => void
 }
 
 interface Props {
@@ -178,11 +180,19 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
 
   const [currentDate, setCurrentDate] = useState<Date>(getInitialDate())
   const hasAnimatedRef = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useImperativeHandle(ref, () => ({
     refresh: () => {
       loadData()
-    }
+    },
+    setHourlyDate: (date: Date) => {
+      setViewMode('hourly')
+      setCurrentDate(date)
+    },
+    scrollIntoView: () => {
+      containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    },
   }))
 
   useEffect(() => {
@@ -340,7 +350,10 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
   }
 
   return (
-    <div className="bg-surface p-5 rounded-lg border border-border">
+    <div
+      ref={containerRef}
+      className="bg-surface p-5 rounded-lg border border-border"
+    >
       <div className="flex justify-between items-center mb-5">
         <div>
           <button
@@ -465,12 +478,12 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
               {viewMode === 'hourly' && (
                 <Customized
                   component={() => (
-                    <TransactionOverlay
-                      data={processedData}
-                      lineColor={lineColor}
-                      onPinClick={onPinClick}
-                      journalEntries={journalEntries}
-                    />
+                <TransactionOverlay
+                  data={processedData}
+                  lineColor={lineColor}
+                  onPinClick={onPinClick}
+                  journalEntries={journalEntries}
+                />
                   )}
                 />
               )}

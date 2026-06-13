@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import type { JournalEntry, JournalEntryType } from '../types/journal'
 import { journalApi } from '../services/api'
-import { formatDateTime } from '../utils/dateUtils'
+import { formatDateTime, isTradingHours } from '../utils/dateUtils'
 
 export interface JournalPanelHandle {
   scrollToEntry: (id: number) => void
@@ -12,10 +12,11 @@ interface JournalPanelProps {
   activeJournalId?: number | null
   onClearActive?: () => void
   onEntryClick?: (entry: JournalEntry) => void
+  onViewOnChart?: (entry: JournalEntry) => void
 }
 
 const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function JournalPanel(
-  { activeJournalId, onClearActive, onEntryClick },
+  { activeJournalId, onClearActive, onEntryClick, onViewOnChart },
   ref
 ) {
   const [entries, setEntries] = useState<JournalEntry[]>([])
@@ -284,6 +285,18 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
                 <>
                   <div className="text-sm text-foreground whitespace-pre-wrap">{entry.body}</div>
                   <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {(entry.entryType === 'BUY' || entry.entryType === 'SELL') && isTradingHours(entry.timestamp) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onViewOnChart?.(entry)
+                        }}
+                        className="px-2 py-1 text-xs text-foreground bg-surface border border-border rounded hover:bg-surface-hover transition-colors"
+                        title="View on chart"
+                      >
+                        View
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation()

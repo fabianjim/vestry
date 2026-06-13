@@ -400,6 +400,10 @@ export default function Dashboard() {
             setSelectedJournalEntry(entry)
             setSelectedTicker(null)
           }}
+          onViewOnChart={(entry) => {
+            portfolioChartRef.current?.setHourlyDate(new Date(entry.timestamp))
+            portfolioChartRef.current?.scrollIntoView()
+          }}
         />
       </div>
 

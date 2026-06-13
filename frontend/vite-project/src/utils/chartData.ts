@@ -1,5 +1,6 @@
 import type { Transaction } from '../types/transaction'
 import type { JournalEntry } from '../types/journal'
+import { isTradingHours, isSameMarketDay } from './dateUtils'
 
 interface HistoryData {
   timestamp: string
@@ -16,14 +17,6 @@ export interface ChartDataPoint {
   journalEntryId?: number
 }
 
-function isTradingHours(timestamp: string | number | Date): boolean {
-  const date = new Date(timestamp)
-  const hour = date.getHours()
-  const minute = date.getMinutes()
-  const timeValue = hour + minute / 60
-  return timeValue >= 10 && timeValue <= 16
-}
-
 export function processHourlyData(
   data: HistoryData[],
   transactions: Transaction[],
@@ -33,9 +26,7 @@ export function processHourlyData(
   // Filter portfolio history to current day AND trading hours (10am-4pm)
   const dayHistory = data
     .filter((item) => {
-      const itemDate = new Date(item.timestamp)
-      const isSameDay = itemDate.toDateString() === currentDate.toDateString()
-      return isSameDay && isTradingHours(item.timestamp)
+      return isSameMarketDay(item.timestamp, currentDate) && isTradingHours(item.timestamp)
     })
     .map((item) => ({
       timestamp: new Date(item.timestamp).getTime(),
@@ -54,9 +45,7 @@ export function processHourlyData(
   const dayTransactions = transactions
     .filter((tx) => {
       if (tx.initial) return false
-      const txDate = new Date(tx.timestamp)
-      const isSameDay = txDate.toDateString() === currentDate.toDateString()
-      return isSameDay && isTradingHours(tx.timestamp)
+      return isSameMarketDay(tx.timestamp, currentDate) && isTradingHours(tx.timestamp)
     })
     .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 

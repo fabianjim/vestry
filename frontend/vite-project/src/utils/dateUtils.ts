@@ -70,6 +70,27 @@ const buildMarketDate = (year: number, month: number, day: number, hour: number,
 }
 
 /**
+ * Checks whether the given instant falls on a US market weekday (Mon–Fri)
+ * between 10:00 and 16:00 Eastern Time.
+ */
+export const isTradingHours = (timestamp: string | number | Date): boolean => {
+  const date = timestamp instanceof Date ? timestamp : new Date(timestamp)
+  const { weekday, hour, minute } = getMarketParts(date)
+  if (weekday === 0 || weekday === 6) return false
+  const timeValue = hour + minute / 60
+  return timeValue >= 10 && timeValue <= 16
+}
+
+/**
+ * Checks whether two instants fall on the same calendar day in Eastern Time.
+ */
+export const isSameMarketDay = (timestamp: string | number | Date, date: Date): boolean => {
+  const a = getMarketParts(new Date(timestamp))
+  const b = getMarketParts(date)
+  return a.year === b.year && a.month === b.month && a.day === b.day
+}
+
+/**
  * Computes the next scheduled portfolio price update in America/New_York time.
  * Mirrors the backend schedule:
  *   - Weekdays before 10:00: today at 10:00
