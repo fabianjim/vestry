@@ -11,10 +11,12 @@ import com.github.fabianjim.portfoliomonitor.model.Stock;
 import com.github.fabianjim.portfoliomonitor.model.Transaction;
 import com.github.fabianjim.portfoliomonitor.model.User;
 import com.github.fabianjim.portfoliomonitor.model.WatchlistItem;
+import com.github.fabianjim.portfoliomonitor.model.TrackedStock;
 import com.github.fabianjim.portfoliomonitor.repository.HoldingRepository;
 import com.github.fabianjim.portfoliomonitor.repository.JournalEntryRepository;
 import com.github.fabianjim.portfoliomonitor.repository.PortfolioRepository;
 import com.github.fabianjim.portfoliomonitor.repository.StockRepository;
+import com.github.fabianjim.portfoliomonitor.repository.TrackedStockRepository;
 import com.github.fabianjim.portfoliomonitor.repository.TransactionRepository;
 import com.github.fabianjim.portfoliomonitor.repository.WatchlistItemRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +53,8 @@ public class DemoSessionServiceTest {
     private StockRepository stockRepository;
     @Mock
     private StockService stockService;
+    @Mock
+    private TrackedStockRepository trackedStockRepository;
 
     @InjectMocks
     private DemoSessionService demoSessionService;
@@ -119,6 +123,8 @@ public class DemoSessionServiceTest {
 
         Stock stock = new Stock("META", Instant.now(), 300.0, 295.0, 290.0, 305.0, 294.0, Stock.StockType.INITIAL, Instant.now());
         when(stockService.updateStockData("META", Stock.StockType.INITIAL)).thenReturn(stock);
+        when(trackedStockRepository.findByTicker("META")).thenReturn(Optional.empty());
+        when(trackedStockRepository.save(any(TrackedStock.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         demoSessionService.addHolding(session, demoUser, "META", 5, null, null);
 
@@ -128,6 +134,7 @@ public class DemoSessionServiceTest {
         assertEquals(5, portfolio.getHoldings().get(0).getShares());
         assertEquals(1, session.getTransactions().size());
         assertEquals(300.0, session.getTransactions().get(0).getPrice());
+        verify(trackedStockRepository).save(any(TrackedStock.class));
     }
 
     @Test
@@ -142,7 +149,10 @@ public class DemoSessionServiceTest {
         session.setPortfolio(portfolio);
 
         Stock stock = new Stock("NVDA", Instant.now(), 200.0, 195.0, 190.0, 205.0, 194.0, Stock.StockType.INITIAL, Instant.now());
+        TrackedStock tracked = new TrackedStock("NVDA");
+        tracked.setHolderCount(1);
         when(stockService.updateStockData("NVDA", Stock.StockType.INITIAL)).thenReturn(stock);
+        when(trackedStockRepository.findByTicker("NVDA")).thenReturn(Optional.of(tracked));
 
         demoSessionService.sellHolding(session, demoUser, "NVDA", 10, null, null);
 
@@ -150,6 +160,7 @@ public class DemoSessionServiceTest {
         assertTrue(portfolio.getHoldings().isEmpty());
         assertEquals(1, session.getTransactions().size());
         assertEquals(Transaction.TransactionType.SELL, session.getTransactions().get(0).getType());
+        verify(trackedStockRepository).delete(tracked);
     }
 
     @Test
@@ -163,6 +174,8 @@ public class DemoSessionServiceTest {
 
         Stock stock = new Stock("AAPL", Instant.now(), 150.0, 145.0, 140.0, 155.0, 144.0, Stock.StockType.INITIAL, Instant.now());
         when(stockService.updateStockData("AAPL", Stock.StockType.INITIAL)).thenReturn(stock);
+        when(trackedStockRepository.findByTicker("AAPL")).thenReturn(Optional.empty());
+        when(trackedStockRepository.save(any(TrackedStock.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         demoSessionService.addHolding(session, demoUser, "AAPL", 1, null, null);
         demoSessionService.addHolding(session, demoUser, "AAPL", 1, null, null);
@@ -235,5 +248,52 @@ public class DemoSessionServiceTest {
 
         assertEquals(100.0, summary.getUnrealizedPnL(), 0.001);
         assertEquals(10.0, summary.getUnrealizedPnLPercent(), 0.001);
+    }
+
+    @Test
+    void addHoldingIncrementsExistingTrackedStock() {
+        DemoSession session = new DemoSession();
+        Portfolio portfolio = new Portfolio();
+        portfolio.setId(session.nextId());
+        portfolio.setUser(demoUser);
+        portfolio.setHoldings(new ArrayList<>());
+        session.setPortfolio(portfolio);
+
+        Stock stock = new Stock("TSLA", Instant.now(), 250.0, 245.0, 240.0, 255.0, 244.0, Stock.StockType.INITIAL, Instant.now());
+        TrackedStock tracked = new TrackedStock("TSLA");
+        tracked.setHolderCount(2);
+        when(stockService.updateStockData("TSLA", Stock.StockType.INITIAL)).thenReturn(stock);
+        when(trackedStockRepository.findByTicker("TSLA")).thenReturn(Optional.of(tracked));
+        when(trackedStockRepository.save(tracked)).thenReturn(tracked);
+
+        demoSessionService.addHolding(session, demoUser, "TSLA", 2, null, null);
+
+        assertEquals(3, tracked.getHolderCount());
+        verify(trackedStockRepository).save(tracked);
+    }
+
+    @Test
+    void removeHoldingDecrementsTrackedStock() {
+        DemoSession session = new DemoSession();
+        Portfolio portfolio = new Portfolio();
+        portfolio.setId(session.nextId());
+        portfolio.setUser(demoUser);
+        Holding holding = new Holding("MSFT", 5);
+        holding.setId(session.nextId());
+        portfolio.setHoldings(new ArrayList<>(List.of(holding)));
+        session.setPortfolio(portfolio);
+
+        Stock stock = new Stock("MSFT", Instant.now(), 400.0, 395.0, 390.0, 405.0, 394.0, Stock.StockType.INITIAL, Instant.now());
+        TrackedStock tracked = new TrackedStock("MSFT");
+        tracked.setHolderCount(2);
+        when(stockService.updateStockData("MSFT", Stock.StockType.INITIAL)).thenReturn(stock);
+        when(trackedStockRepository.findByTicker("MSFT")).thenReturn(Optional.of(tracked));
+        when(trackedStockRepository.save(tracked)).thenReturn(tracked);
+
+        demoSessionService.removeHolding(session, demoUser, "MSFT", null, null);
+
+        assertEquals(1, tracked.getHolderCount());
+        verify(trackedStockRepository).save(tracked);
+        verify(trackedStockRepository, never()).delete(any(TrackedStock.class));
     }
 }

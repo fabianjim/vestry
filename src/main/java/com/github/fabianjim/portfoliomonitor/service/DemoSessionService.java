@@ -12,10 +12,12 @@ import com.github.fabianjim.portfoliomonitor.model.Portfolio;
 import com.github.fabianjim.portfoliomonitor.model.Stock;
 import com.github.fabianjim.portfoliomonitor.model.Transaction;
 import com.github.fabianjim.portfoliomonitor.model.WatchlistItem;
+import com.github.fabianjim.portfoliomonitor.model.TrackedStock;
 import com.github.fabianjim.portfoliomonitor.repository.HoldingRepository;
 import com.github.fabianjim.portfoliomonitor.repository.JournalEntryRepository;
 import com.github.fabianjim.portfoliomonitor.repository.PortfolioRepository;
 import com.github.fabianjim.portfoliomonitor.repository.StockRepository;
+import com.github.fabianjim.portfoliomonitor.repository.TrackedStockRepository;
 import com.github.fabianjim.portfoliomonitor.repository.TransactionRepository;
 import com.github.fabianjim.portfoliomonitor.repository.WatchlistItemRepository;
 import org.springframework.stereotype.Service;
@@ -40,6 +42,7 @@ public class DemoSessionService {
     private final WatchlistItemRepository watchlistItemRepository;
     private final StockRepository stockRepository;
     private final StockService stockService;
+    private final TrackedStockRepository trackedStockRepository;
 
     public DemoSessionService(PortfolioRepository portfolioRepository,
                               HoldingRepository holdingRepository,
@@ -47,7 +50,8 @@ public class DemoSessionService {
                               JournalEntryRepository journalEntryRepository,
                               WatchlistItemRepository watchlistItemRepository,
                               StockRepository stockRepository,
-                              StockService stockService) {
+                              StockService stockService,
+                              TrackedStockRepository trackedStockRepository) {
         this.portfolioRepository = portfolioRepository;
         this.holdingRepository = holdingRepository;
         this.transactionRepository = transactionRepository;
@@ -55,6 +59,7 @@ public class DemoSessionService {
         this.watchlistItemRepository = watchlistItemRepository;
         this.stockRepository = stockRepository;
         this.stockService = stockService;
+        this.trackedStockRepository = trackedStockRepository;
     }
 
     public DemoSession createSession(com.github.fabianjim.portfoliomonitor.model.User user) {
@@ -157,6 +162,7 @@ public class DemoSessionService {
             for (Holding holding : aggregated) {
                 double price = tickerPrices.get(holding.getTicker());
                 recordBuyTransaction(session, user, holding.getTicker(), holding.getShares(), price, holding.getBuyTimestamp(), true);
+                startTrackingStock(holding.getTicker());
             }
         }
     }
@@ -184,6 +190,7 @@ public class DemoSessionService {
                 newHolding.setBuyTimestamp(timestamp);
             }
             portfolio.getHoldings().add(newHolding);
+            startTrackingStock(ticker);
         }
 
         session.setRemainingTrades(session.getRemainingTrades() - 1);
@@ -208,6 +215,7 @@ public class DemoSessionService {
         double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
 
         portfolio.getHoldings().remove(holding);
+        stopTrackingStock(ticker);
         session.setRemainingTrades(session.getRemainingTrades() - 1);
         recordSellTransaction(session, user, ticker, shares, currentPrice, timestamp);
     }
@@ -235,6 +243,7 @@ public class DemoSessionService {
 
         if (sharesToSell == holding.getShares()) {
             portfolio.getHoldings().remove(holding);
+            stopTrackingStock(ticker);
         } else {
             holding.setShares(holding.getShares() - sharesToSell);
         }
@@ -274,6 +283,33 @@ public class DemoSessionService {
             }
         }
         throw new PriceFetchException(ticker, lastError.getMessage(), lastError);
+    }
+
+    private void startTrackingStock(String ticker) {
+        TrackedStock trackedStock = trackedStockRepository.findByTicker(ticker)
+            .orElse(null);
+
+        if (trackedStock == null) {
+            trackedStock = new TrackedStock(ticker);
+            trackedStockRepository.save(trackedStock);
+        } else {
+            trackedStock.incrementHolderCount();
+            trackedStockRepository.save(trackedStock);
+        }
+    }
+
+    private void stopTrackingStock(String ticker) {
+        TrackedStock trackedStock = trackedStockRepository.findByTicker(ticker)
+            .orElse(null);
+
+        if (trackedStock != null) {
+            trackedStock.decrementHolderCount();
+            if (trackedStock.getHolderCount() <= 0) {
+                trackedStockRepository.delete(trackedStock);
+            } else {
+                trackedStockRepository.save(trackedStock);
+            }
+        }
     }
 
     private Transaction recordBuyTransaction(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, String ticker, double shares, double price, Instant timestamp, boolean isInitial) {
