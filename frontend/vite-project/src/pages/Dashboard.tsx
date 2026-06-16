@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useOutletContext } from 'react-router-dom'
 import PortfolioChart from '../components/PortfolioChart'
 import type { PortfolioChartHandle } from '../components/PortfolioChart'
 import JournalPrompt from '../components/JournalPrompt'
@@ -12,6 +13,7 @@ import JournalDetailPanel from '../components/JournalDetailPanel'
 import type { PnLSummary } from '../types/transaction'
 import type { StockMetadata } from '../types/watchlist'
 import type { JournalEntry } from '../types/journal'
+import type { LayoutContext } from '../components/Layout'
 import { journalApi, portfolioApi } from '../services/api'
 
 type StockData = {
@@ -40,6 +42,7 @@ type Holding = {
 }
 
 export default function Dashboard() {
+  const { refreshDemoStatus } = useOutletContext<LayoutContext>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
   const [results, setResults] = useState<Holding[]>([])
@@ -204,12 +207,17 @@ export default function Dashboard() {
       resetManualState()
       await fetchPortfolioInfo()
       await fetchPnLSummary()
+      await refreshDemoStatus()
       setJournalPromptTicker(boughtTicker)
       setJournalPromptTradeType('BUY')
       setShowJournalPrompt(true)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
-      setError(message)
+      if (message.includes('Demo trade limit reached')) {
+        setError('Demo trade limit reached. You can make up to 3 buy/sell actions in demo mode.')
+      } else {
+        setError(message)
+      }
     } finally {
       setLoading(false)
     }
@@ -255,12 +263,17 @@ export default function Dashboard() {
       closeSellModal()
       await fetchPortfolioInfo()
       await fetchPnLSummary()
+      await refreshDemoStatus()
       setJournalPromptTicker(soldTicker)
       setJournalPromptTradeType('SELL')
       setShowJournalPrompt(true)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
-      setError(message)
+      if (message.includes('Demo trade limit reached')) {
+        setError('Demo trade limit reached. You can make up to 3 buy/sell actions in demo mode.')
+      } else {
+        setError(message)
+      }
     } finally {
       setLoading(false)
     }

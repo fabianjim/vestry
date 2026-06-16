@@ -18,6 +18,9 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Column(name = "is_demo", nullable = false)
+    private boolean demo = false;
+
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     @JsonIgnore
     private Portfolio portfolio;
@@ -59,5 +62,13 @@ public class User {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public boolean isDemo() {
+        return demo;
+    }
+
+    public void setDemo(boolean demo) {
+        this.demo = demo;
     }
 }

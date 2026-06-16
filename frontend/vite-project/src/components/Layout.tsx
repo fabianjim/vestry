@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
+import { authApi, demoApi } from '../services/api'
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard' },
@@ -41,9 +42,17 @@ const footerItems = [
   },
 ]
 
+export interface LayoutContext {
+  isDemo: boolean
+  remainingTrades: number
+  refreshDemoStatus: () => Promise<void>
+}
+
 export default function Layout() {
   const [isOpen, setIsOpen] = useState(() => window.innerWidth >= 1280)
   const [userManuallyClosed, setUserManuallyClosed] = useState(false)
+  const [isDemo, setIsDemo] = useState(false)
+  const [remainingTrades, setRemainingTrades] = useState(3)
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -56,6 +65,32 @@ export default function Layout() {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [userManuallyClosed])
+
+  const refreshDemoStatus = useCallback(async () => {
+    if (!isDemo) return
+    try {
+      const data = await demoApi.status() as { remainingTrades: number }
+      setRemainingTrades(data.remainingTrades)
+    } catch (e) {
+      console.error('Failed to fetch demo status:', e)
+    }
+  }, [isDemo])
+
+  useEffect(() => {
+    const loadAuth = async () => {
+      try {
+        const data = await authApi.me() as { isDemo?: boolean }
+        setIsDemo(data.isDemo ?? false)
+      } catch (e) {
+        console.error('Failed to fetch auth state:', e)
+      }
+    }
+    loadAuth()
+  }, [location.pathname])
+
+  useEffect(() => {
+    refreshDemoStatus()
+  }, [refreshDemoStatus])
 
   const handleLogout = async () => {
     try {
@@ -153,8 +188,17 @@ export default function Layout() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto flex flex-col">
+        {isDemo && (
+          <div className={`px-6 py-2 text-sm font-130 ${
+            remainingTrades === 0
+              ? 'bg-error/20 text-error border-b border-error/30'
+              : 'bg-primary/10 text-primary border-b border-primary/20'
+          }`}>
+            Demo Mode — {remainingTrades} of 3 trades remaining. Changes are not saved.
+          </div>
+        )}
         <div className="flex-1">
-          <Outlet />
+          <Outlet context={{ isDemo, remainingTrades, refreshDemoStatus } as LayoutContext} />
         </div>
         <footer className="py-5 px-6 border-t border-border flex flex-col items-center gap-3 text-sm text-muted">
           <p className="font-90 text-secondary">

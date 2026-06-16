@@ -139,6 +139,17 @@ frontend/vite-project/src/
 - **Non-initial transactions**: Regular `BUY`/`SELL` operations via `addHolding()`, `sellHolding()`, etc. (`isInitial=false`)
 - The frontend (`processHourlyData` in `chartData.ts`) filters out `initial=true` transactions so they are **not rendered as buy/sell event pins** on the portfolio performance graph
 
+### Demo Mode
+- A user with `is_demo = true` (set manually in the `users` table) operates entirely from a session-only snapshot after login.
+- On login, `LoginController` snapshots the demo user's real DB portfolio, transactions, journal entries, and watchlist into a `DemoSession` stored in the servlet `HttpSession` under `DEMO_SESSION`.
+- All write endpoints route to `DemoSessionService` instead of the regular services, so buys, sells, journal edits, and watchlist changes exist only in memory for that session.
+- **Trade limit**: Demo users are limited to **3 total buy/sell actions** per session. `DemoTradeLimitExceededException` is mapped to HTTP 403 by `GlobalExceptionHandler`.
+- Price fetches in demo mode use `StockService` (may insert global `Stock` price rows) but **do not modify `TrackedStock.holderCount`** or the scheduler's ticker list.
+- Logout invalidates the session and discards all demo changes; the DB demo user is untouched.
+- Frontend: `Layout.tsx` fetches `/api/auth/me` to detect demo users and displays a top banner with remaining trades via `/api/portfolio/demo-status`. `Dashboard.tsx` consumes the demo context and shows the trade-limit error in buy/sell modals.
+- New backend files: `model/DemoSession.java`, `service/DemoSessionService.java`, `service/DemoSessionResolver.java`, `exception/DemoTradeLimitExceededException.java`.
+- New endpoints: `GET /api/auth/me`, `GET /api/portfolio/demo-status`.
+
 ---
 
 ## Scheduling
@@ -251,9 +262,13 @@ npm run lint
 | `.github/workflows/aws.yml` | CI/CD for backend |
 | `src/main/java/.../exception/UnknownTickerException.java` | Thrown when a ticker symbol does not exist |
 | `src/main/java/.../exception/PriceFetchException.java` | Thrown on transient API fetch failures |
-| `src/main/java/.../controller/GlobalExceptionHandler.java` | Maps custom exceptions to HTTP 404/503 responses |
+| `src/main/java/.../exception/DemoTradeLimitExceededException.java` | Thrown when a demo user exceeds 3 buy/sell actions |
+| `src/main/java/.../controller/GlobalExceptionHandler.java` | Maps custom exceptions to HTTP 404/503/403 responses |
 | `src/main/java/.../dto/PnLSummaryDTO.java` | P/L summary data transfer object |
 | `src/main/java/.../service/PortfolioService.java` | Business logic incl. P/L calculation |
+| `src/main/java/.../service/DemoSessionService.java` | Session-only business logic for demo users |
+| `src/main/java/.../service/DemoSessionResolver.java` | Resolves demo state from the servlet session and current user |
+| `src/main/java/.../model/DemoSession.java` | In-memory session snapshot for demo users |
 | `src/main/java/.../service/EtfMetadataService.java` | ETF metadata loader (ETFs.csv → StockMetadata) |
 | `src/main/java/.../service/NasdaqMetadataService.java` | Stock metadata loader with ETF fallback |
 | `src/main/resources/data/ETFs.csv` | ETF metadata source (~1021 rows) |
@@ -262,6 +277,7 @@ npm run lint
 | `src/main/java/.../api/TiingoClient.java` | Tiingo API client; `INITIAL` stock data uses exact timestamp (not rounded) for graph accuracy |
 | `frontend/.../components/PortfolioChart.tsx` | Exposes `PortfolioChartHandle` with `refresh()` via ref |
 | `frontend/.../components/NextUpdateTimer.tsx` | Dashboard header pill showing countdown to next scheduled price fetch |
+| `frontend/.../components/Layout.tsx` | Sidebar layout; fetches `/api/auth/me` and shows demo mode banner |
 | `frontend/.../hooks/useNextUpdate.ts` | Hook computing next market update; updates every minute synced to wall clock |
 | `frontend/.../components/JournalPanel.tsx` | Exposes `JournalPanelHandle` with `scrollToEntry()` and `refreshEntries()` via ref; supports inline edit and delete with hover actions |
 | `frontend/.../components/HoldingGraph.tsx` | D3 force graph for the Analysis page; tuned for subtle, user-controlled motion with weak attraction/repulsion and alpha-decayed sector grouping |

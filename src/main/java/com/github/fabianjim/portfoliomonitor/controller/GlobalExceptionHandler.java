@@ -1,5 +1,6 @@
 package com.github.fabianjim.portfoliomonitor.controller;
 
+import com.github.fabianjim.portfoliomonitor.exception.DemoTradeLimitExceededException;
 import com.github.fabianjim.portfoliomonitor.exception.PriceFetchException;
 import com.github.fabianjim.portfoliomonitor.exception.UnknownTickerException;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(Map.of("error", e.getMessage()));
+    }
+
+    @ExceptionHandler(DemoTradeLimitExceededException.class)
+    public ResponseEntity<Map<String, String>> handleDemoTradeLimit(DemoTradeLimitExceededException e) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", e.getMessage(), "demoTradeLimitReached", "true"));
     }
 
     @ExceptionHandler(RuntimeException.class)
