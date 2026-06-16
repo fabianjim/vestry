@@ -22,15 +22,16 @@ Core philosophy:
 src/main/java/com/github/fabianjim/portfoliomonitor/
 ├── api/              # External API clients (TiingoClient, MarketDataClient)
 ├── config/           # TestSchedulingConfig (profile-gated scheduling)
-├── controller/       # REST endpoints (Portfolio, Auth, Stock, Watchlist, JournalEntry, Login)
+├── controller/       # REST endpoints (Portfolio, Auth, Stock, Watchlist, JournalEntry, Login, Events)
 │   └── GlobalExceptionHandler.java  # @ControllerAdvice — maps exceptions to HTTP responses
 ├── dto/              # Data transfer objects
+├── event/            # Spring application events + SSE broadcasting for hourly price fetches
 ├── exception/        # Custom exceptions: UnknownTickerException, PriceFetchException
 ├── model/            # JPA entities
 ├── repository/       # Spring Data JPA repositories
 ├── security/         # SecurityConfig (CORS, BCryptPasswordEncoder, session-based auth)
 └── service/          # Business logic (PortfolioService, StockService, TransactionService, etc.)
-    ├── ScheduledStockService.java   # Cron jobs: intraday (10AM-4PM EST) + EOD (4:30PM EST)
+    ├── ScheduledStockService.java   # Cron jobs: intraday (10AM-4PM EST) + EOD (4:30PM EST); publishes fetch-complete events
     ├── NasdaqMetadataService.java   # Loads nasdaq_metadata.csv; falls back to EtfMetadataService
     └── EtfMetadataService.java      # Loads ETFs.csv with Asset→sector, Category→industry, Region→country mapping
 
@@ -71,6 +72,13 @@ frontend/vite-project/src/
 - Holdings table with ticker, shares, current price, day change, market value, last updated
 - Buy and sell stock actions
 - Chart pin layer: journal entries rendered as typed pins directly on the performance chart. Pin color reflects outcome retroactively (green/red based on price movement after entry).
+- **Auto-refresh on hourly fetch**: The dashboard opens an SSE stream to `GET /api/events`. When the backend completes a scheduled hourly price fetch, it broadcasts a `priceFetchCompleted` event; the dashboard then refreshes holdings, P/L summary, and the portfolio chart automatically.
+
+### Server-Sent Events (SSE)
+- `ScheduledStockService` publishes a `PriceFetchCompletedEvent` after each intraday and EOD fetch completes.
+- `PriceFetchEventService` maintains active `SseEmitter` subscriptions and broadcasts `priceFetchCompleted` events to all connected clients.
+- `EventController` exposes the authenticated endpoint `GET /api/events` for the frontend to subscribe.
+- The frontend subscribes with `EventSource('/api/events', { withCredentials: true })` in `Dashboard.tsx` and triggers the same refresh functions used after manual buy/sell flows.
 
 ### Portfolio History Calculation
 - `PortfolioService.getPortfolioHistory()` groups stock data by `hourBucket` and calculates portfolio value at each bucket
@@ -263,6 +271,9 @@ npm run lint
 | `src/main/java/.../exception/UnknownTickerException.java` | Thrown when a ticker symbol does not exist |
 | `src/main/java/.../exception/PriceFetchException.java` | Thrown on transient API fetch failures |
 | `src/main/java/.../exception/DemoTradeLimitExceededException.java` | Thrown when a demo user exceeds 3 buy/sell actions |
+| `src/main/java/.../event/PriceFetchCompletedEvent.java` | Spring application event signaling an hourly price fetch completed |
+| `src/main/java/.../event/PriceFetchEventService.java` | Manages `SseEmitter` subscriptions and broadcasts fetch-completed events |
+| `src/main/java/.../controller/EventController.java` | Authenticated `GET /api/events` SSE endpoint |
 | `src/main/java/.../controller/GlobalExceptionHandler.java` | Maps custom exceptions to HTTP 404/503/403 responses |
 | `src/main/java/.../dto/PnLSummaryDTO.java` | P/L summary data transfer object |
 | `src/main/java/.../service/PortfolioService.java` | Business logic incl. P/L calculation |
@@ -275,7 +286,7 @@ npm run lint
 | `src/main/resources/data/nasdaq_metadata.csv` | Stock metadata source (~6996 rows) |
 | `src/main/java/.../model/Transaction.java` | Transaction entity with `isInitial` flag distinguishing portfolio creation from buys |
 | `src/main/java/.../api/TiingoClient.java` | Tiingo API client; `INITIAL` stock data uses exact timestamp (not rounded) for graph accuracy |
-| `frontend/.../components/PortfolioChart.tsx` | Exposes `PortfolioChartHandle` with `refresh()` via ref |
+| `frontend/.../components/PortfolioChart.tsx` | Exposes `PortfolioChartHandle` with `refresh()` via ref; chart refreshes on SSE `priceFetchCompleted` events |
 | `frontend/.../components/NextUpdateTimer.tsx` | Dashboard header pill showing countdown to next scheduled price fetch |
 | `frontend/.../components/Layout.tsx` | Sidebar layout; fetches `/api/auth/me` and shows demo mode banner |
 | `frontend/.../hooks/useNextUpdate.ts` | Hook computing next market update; updates every minute synced to wall clock |

@@ -356,6 +356,30 @@ export default function Dashboard() {
     }
   }, [])
 
+  // Subscribe to server-sent events for hourly price-fetch completion
+  useEffect(() => {
+    const eventSource = new EventSource('/api/events', { withCredentials: true })
+
+    eventSource.addEventListener('priceFetchCompleted', () => {
+      fetchPortfolioInfo()
+      fetchPnLSummary()
+      portfolioChartRef.current?.refresh()
+    })
+
+    eventSource.addEventListener('error', () => {
+      // The browser will auto-reconnect; if the error is fatal we close after a delay.
+      setTimeout(() => {
+        if (eventSource.readyState === EventSource.CLOSED) {
+          eventSource.close()
+        }
+      }, 5000)
+    })
+
+    return () => {
+      eventSource.close()
+    }
+  }, [])
+
   return (
     <div className="flex min-h-screen gap-6"> {/* if modifying sidebar gap also update Layout.tsx */}
       {/* Main Content */}

@@ -1,9 +1,11 @@
 package com.github.fabianjim.portfoliomonitor.service;
 
+import com.github.fabianjim.portfoliomonitor.event.PriceFetchCompletedEvent;
 import com.github.fabianjim.portfoliomonitor.model.Stock;
 import com.github.fabianjim.portfoliomonitor.model.Stock.StockType;
 import com.github.fabianjim.portfoliomonitor.model.TrackedStock;
 import com.github.fabianjim.portfoliomonitor.repository.TrackedStockRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -22,10 +24,13 @@ public class ScheduledStockService {
 
     private final StockService stockService;
     private final TrackedStockRepository trackedStockRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public ScheduledStockService(StockService stockService, TrackedStockRepository trackedStockRepository) {
+    public ScheduledStockService(StockService stockService, TrackedStockRepository trackedStockRepository,
+                                 ApplicationEventPublisher eventPublisher) {
         this.stockService = stockService;
         this.trackedStockRepository = trackedStockRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -56,6 +61,7 @@ public class ScheduledStockService {
             }
 
             logger.info("Completed intraday fetch for " + tickers.size() + " stocks");
+            eventPublisher.publishEvent(new PriceFetchCompletedEvent(Instant.now(), tickers.size(), false));
 
         } catch (Exception e) {
             logger.severe("Error during scheduled intraday stock fetch: " + e.getMessage());
@@ -90,6 +96,7 @@ public class ScheduledStockService {
             }
 
             logger.info("Completed EOD fetch for " + tickers.size() + " stocks");
+            eventPublisher.publishEvent(new PriceFetchCompletedEvent(Instant.now(), tickers.size(), true));
 
         } catch (Exception e) {
             logger.severe("Error during scheduled EOD stock fetch: " + e.getMessage());
