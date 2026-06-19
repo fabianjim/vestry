@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.fabianjim.portfoliomonitor.model.StockMetadata;
 import com.github.fabianjim.portfoliomonitor.model.User;
 import com.github.fabianjim.portfoliomonitor.model.WatchlistItem;
+import com.github.fabianjim.portfoliomonitor.service.DemoSessionResolver;
+import com.github.fabianjim.portfoliomonitor.service.DemoSessionService;
 import com.github.fabianjim.portfoliomonitor.service.NasdaqMetadataService;
 import com.github.fabianjim.portfoliomonitor.service.UserService;
 import com.github.fabianjim.portfoliomonitor.service.WatchlistService;
@@ -36,6 +38,12 @@ public class WatchlistControllerTest {
 
     @MockitoBean
     private NasdaqMetadataService nasdaqMetadataService;
+
+    @MockitoBean
+    private DemoSessionResolver demoSessionResolver;
+
+    @MockitoBean
+    private DemoSessionService demoSessionService;
 
     @MockitoBean
     private UserService userService;

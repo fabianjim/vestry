@@ -124,6 +124,15 @@ export const authApi = {
 
   logout: () =>
     apiClient('/auth/logout', { method: 'POST' }),
+
+  me: () =>
+    apiClient('/auth/me'),
+}
+
+// Demo API
+export const demoApi = {
+  status: () =>
+    apiClient('/portfolio/demo-status'),
 }
 
 export default apiClient

@@ -1,13 +1,17 @@
 package com.github.fabianjim.portfoliomonitor.controller;
 
 import com.github.fabianjim.portfoliomonitor.dto.StockDataDTO;
+import com.github.fabianjim.portfoliomonitor.model.DemoSession;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;
 import com.github.fabianjim.portfoliomonitor.model.Stock;
 import com.github.fabianjim.portfoliomonitor.model.Stock.StockType;
 import com.github.fabianjim.portfoliomonitor.model.TrackedStock;
 import com.github.fabianjim.portfoliomonitor.repository.TrackedStockRepository;
+import com.github.fabianjim.portfoliomonitor.service.DemoSessionResolver;
+import com.github.fabianjim.portfoliomonitor.service.DemoSessionService;
 import com.github.fabianjim.portfoliomonitor.service.PortfolioService;
 import com.github.fabianjim.portfoliomonitor.service.StockService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -23,17 +27,28 @@ public class StockController {
     private final StockService stockService;
     private final PortfolioService portfolioService;
     private final TrackedStockRepository trackedStockRepository;
+    private final DemoSessionResolver demoSessionResolver;
+    private final DemoSessionService demoSessionService;
 
     public StockController(StockService stockService, PortfolioService portfolioService,
-                          TrackedStockRepository trackedStockRepository) {
+                          TrackedStockRepository trackedStockRepository,
+                          DemoSessionResolver demoSessionResolver,
+                          DemoSessionService demoSessionService) {
         this.stockService = stockService;
         this.portfolioService = portfolioService;
         this.trackedStockRepository = trackedStockRepository;
+        this.demoSessionResolver = demoSessionResolver;
+        this.demoSessionService = demoSessionService;
     }
 
     // initial manual fetch from the frontend before routine fetches
     @GetMapping("/fetch/initial")
-    public List<Stock> fectchInitialStocks() {
+    public List<Stock> fectchInitialStocks(HttpServletRequest request) {
+        if (demoSessionResolver.isDemoUser()) {
+            DemoSession session = demoSessionResolver.resolveSession(request);
+            List<String> tickers = demoSessionService.getTickersFromPortfolio(session);
+            return stockService.updateMultipleStocks(tickers, StockType.INITIAL);
+        }
         Portfolio portfolio = portfolioService.getPortfolio();
         List<String> tickers = portfolioService.getTickersfromPortfolio(portfolio);
         return stockService.updateMultipleStocks(tickers, StockType.INITIAL);

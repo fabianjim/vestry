@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.fabianjim.portfoliomonitor.model.JournalEntry;
 import com.github.fabianjim.portfoliomonitor.model.JournalEntryType;
 import com.github.fabianjim.portfoliomonitor.model.User;
+import com.github.fabianjim.portfoliomonitor.service.DemoSessionResolver;
+import com.github.fabianjim.portfoliomonitor.service.DemoSessionService;
 import com.github.fabianjim.portfoliomonitor.service.JournalEntryService;
 import com.github.fabianjim.portfoliomonitor.service.UserService;
 
@@ -36,6 +38,12 @@ public class JournalEntryControllerTest {
 
     @MockitoBean
     private JournalEntryService journalEntryService;
+
+    @MockitoBean
+    private DemoSessionResolver demoSessionResolver;
+
+    @MockitoBean
+    private DemoSessionService demoSessionService;
 
     @MockitoBean
     private UserService userService;
