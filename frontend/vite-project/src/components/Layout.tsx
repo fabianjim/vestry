@@ -101,7 +101,7 @@ export default function Layout() {
     } catch (error) {
       console.error('Logout error:', error)
     }
-    navigate('/login')
+    navigate('/')
   }
 
   return (

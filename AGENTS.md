@@ -41,12 +41,14 @@ Entry point: PortfolioMonitorApplication.java (has @EnableScheduling)
 ### Frontend (React + Vite)
 ```
 frontend/vite-project/src/
-├── pages/           # Route components: Login.tsx, Dashboard.tsx, Portfolio.tsx, Analysis.tsx
+├── pages/           # Route components: Landing.tsx, Login.tsx, Dashboard.tsx, Portfolio.tsx, Analysis.tsx
 ├── components/      # UI components: PortfolioChart, WatchlistPanel, JournalPanel,
 │                    #   TransactionHistory, HoldingGraph, ChartPinLayer, etc.
+│                    #   Landing components live in components/landing/ (lightweight, static previews)
 ├── services/        # API layer (api.ts) — all backend calls go through here
 ├── types/           # TypeScript interfaces (transaction.ts, watchlist.ts, journal.ts)
-├── utils/           # Helper functions (dateUtils.ts, chartPins.ts)
+├── utils/           # Helper functions (dateUtils.ts, chartPins.ts, redirectAfterLogin.ts)
+├── hooks/           # Shared hooks: useScrollReveal.ts
 └── index.css        # Global styles + custom font declarations
 ```
 
@@ -155,6 +157,7 @@ frontend/vite-project/src/
 - Price fetches in demo mode use `StockService` (may insert global `Stock` price rows) but **do not modify `TrackedStock.holderCount`** or the scheduler's ticker list.
 - Logout invalidates the session and discards all demo changes; the DB demo user is untouched.
 - Frontend: `Layout.tsx` fetches `/api/auth/me` to detect demo users and displays a top banner with remaining trades via `/api/portfolio/demo-status`. `Dashboard.tsx` consumes the demo context and shows the trade-limit error in buy/sell modals.
+- **Landing page demo CTA**: `Landing.tsx` exposes a "Try Demo Now" button in the top nav and final section that calls `authApi.login('demo', 'demo')` and redirects to `/dashboard` (or `/portfolio` if no portfolio exists) via `redirectAfterLogin()`.
 - New backend files: `model/DemoSession.java`, `service/DemoSessionService.java`, `service/DemoSessionResolver.java`, `exception/DemoTradeLimitExceededException.java`.
 - New endpoints: `GET /api/auth/me`, `GET /api/portfolio/demo-status`.
 
@@ -292,8 +295,15 @@ npm run lint
 | `frontend/.../hooks/useNextUpdate.ts` | Hook computing next market update; updates every minute synced to wall clock |
 | `frontend/.../components/JournalPanel.tsx` | Exposes `JournalPanelHandle` with `scrollToEntry()` and `refreshEntries()` via ref; supports inline edit and delete with hover actions |
 | `frontend/.../components/HoldingGraph.tsx` | D3 force graph for the Analysis page; tuned for subtle, user-controlled motion with weak attraction/repulsion and alpha-decayed sector grouping |
-| `frontend/.../utils/dateUtils.ts` | Date helpers incl. `getNextMarketUpdate` and `formatNextUpdate` for the next-update timer |
-| `frontend/.../utils/chartData.ts` | Processes portfolio history + transactions into chart data; filters out `initial` transactions |
+| `frontend/.../pages/Landing.tsx` | Public landing page with use-case flow (Track/Reflect/Analyze/Improve), inline auth modal, and demo CTA |
+| `frontend/.../components/landing/LandingChart.tsx` | Simplified static chart for the Track section |
+| `frontend/.../components/landing/LandingJournalCard.tsx` | Simplified journal entry card for the Reflect section |
+| `frontend/.../components/landing/LandingDetailCard.tsx` | Simplified detail/analysis card for the Analyze section |
+| `frontend/.../components/landing/LandingCTA.tsx` | Final Improve section call-to-action |
+| `frontend/.../components/landing/LandingNav.tsx` | Landing top nav with Sign in button linking to `/login` |
+| `frontend/.../components/landing/LandingCTA.tsx` | Final Improve section call-to-action |
+| `frontend/.../utils/redirectAfterLogin.ts` | Redirects to `/dashboard` or `/portfolio` based on `portfolioApi.portfolioExists()` |
+| `frontend/.../hooks/useScrollReveal.ts` | IntersectionObserver hook for landing section fade/slide transitions |
 
 ---
 
