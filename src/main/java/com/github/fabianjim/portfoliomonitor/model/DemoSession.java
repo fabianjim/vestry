@@ -2,7 +2,9 @@ package com.github.fabianjim.portfoliomonitor.model;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class DemoSession implements Serializable {
 
@@ -14,6 +16,15 @@ public class DemoSession implements Serializable {
     private List<WatchlistItem> watchlistItems = new ArrayList<>();
     private int remainingTrades = 3;
     private int nextId = -1;
+    private Set<String> sessionTrackedTickers = new HashSet<>();
+
+    public Set<String> getSessionTrackedTickers() {
+        return sessionTrackedTickers;
+    }
+
+    public void setSessionTrackedTickers(Set<String> sessionTrackedTickers) {
+        this.sessionTrackedTickers = sessionTrackedTickers;
+    }
 
     public Portfolio getPortfolio() {
         return portfolio;

@@ -71,6 +71,7 @@ public class LoginController {
         if (user.isDemo()) {
             DemoSession demoSession = demoSessionService.createSession(user);
             session.setAttribute(DEMO_SESSION_KEY, demoSession);
+            session.setMaxInactiveInterval(300);
         }
 
         System.out.println("User " + user.getUsername() + " " + user.getId() + " logged in successfully.");

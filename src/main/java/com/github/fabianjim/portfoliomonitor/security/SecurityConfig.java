@@ -1,5 +1,6 @@
 package com.github.fabianjim.portfoliomonitor.security;
 
+import com.github.fabianjim.portfoliomonitor.config.DemoSessionLogoutHandler;
 import java.util.Arrays;
 
 import org.springframework.context.annotation.Bean;
@@ -17,6 +18,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    private final DemoSessionLogoutHandler demoSessionLogoutHandler;
+
+    public SecurityConfig(DemoSessionLogoutHandler demoSessionLogoutHandler) {
+        this.demoSessionLogoutHandler = demoSessionLogoutHandler;
+    }
     
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -56,6 +63,7 @@ public class SecurityConfig {
                 .logoutSuccessUrl("/")
                 .invalidateHttpSession(true)
                 .deleteCookies("JSESSIONID")
+                .addLogoutHandler(demoSessionLogoutHandler)
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)

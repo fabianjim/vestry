@@ -20,20 +20,19 @@ import com.github.fabianjim.portfoliomonitor.repository.StockRepository;
 import com.github.fabianjim.portfoliomonitor.repository.TrackedStockRepository;
 import com.github.fabianjim.portfoliomonitor.repository.TransactionRepository;
 import com.github.fabianjim.portfoliomonitor.repository.WatchlistItemRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 @Service
 public class DemoSessionService {
+
+    private static final Logger logger = LoggerFactory.getLogger(DemoSessionService.class);
 
     private final PortfolioRepository portfolioRepository;
     private final HoldingRepository holdingRepository;
@@ -83,6 +82,11 @@ public class DemoSessionService {
             }
             portfolioCopy.setHoldings(holdingsCopy);
             session.setPortfolio(portfolioCopy);
+
+            for (Holding holding : holdingsCopy) {
+                String ticker = holding.getTicker();
+                startTrackingStockForSession(session, ticker);
+            }
         }
 
         List<Transaction> txCopy = new ArrayList<>();
@@ -162,7 +166,7 @@ public class DemoSessionService {
             for (Holding holding : aggregated) {
                 double price = tickerPrices.get(holding.getTicker());
                 recordBuyTransaction(session, user, holding.getTicker(), holding.getShares(), price, holding.getBuyTimestamp(), true);
-                startTrackingStock(holding.getTicker());
+                startTrackingStockForSession(session, holding.getTicker());
             }
         }
     }
@@ -190,7 +194,7 @@ public class DemoSessionService {
                 newHolding.setBuyTimestamp(timestamp);
             }
             portfolio.getHoldings().add(newHolding);
-            startTrackingStock(ticker);
+            startTrackingStockForSession(session, ticker);
         }
 
         session.setRemainingTrades(session.getRemainingTrades() - 1);
@@ -215,7 +219,7 @@ public class DemoSessionService {
         double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
 
         portfolio.getHoldings().remove(holding);
-        stopTrackingStock(ticker);
+        stopTrackingStockForSession(session, ticker);
         session.setRemainingTrades(session.getRemainingTrades() - 1);
         recordSellTransaction(session, user, ticker, shares, currentPrice, timestamp);
     }
@@ -243,7 +247,7 @@ public class DemoSessionService {
 
         if (sharesToSell == holding.getShares()) {
             portfolio.getHoldings().remove(holding);
-            stopTrackingStock(ticker);
+            stopTrackingStockForSession(session, ticker);
         } else {
             holding.setShares(holding.getShares() - sharesToSell);
         }
@@ -285,20 +289,30 @@ public class DemoSessionService {
         throw new PriceFetchException(ticker, lastError.getMessage(), lastError);
     }
 
-    private void startTrackingStock(String ticker) {
+    public void startTrackingStockForSession(DemoSession session, String ticker) {
+        if (session.getSessionTrackedTickers().contains(ticker)) {
+            return;
+        }
         TrackedStock trackedStock = trackedStockRepository.findByTicker(ticker)
             .orElse(null);
 
         if (trackedStock == null) {
             trackedStock = new TrackedStock(ticker);
             trackedStockRepository.save(trackedStock);
+            logger.info("Demo session created new tracked stock for ticker={}", ticker);
         } else {
             trackedStock.incrementHolderCount();
             trackedStockRepository.save(trackedStock);
+            logger.info("Demo session incremented holder count for ticker={} to {}", ticker, trackedStock.getHolderCount());
         }
+        session.getSessionTrackedTickers().add(ticker);
     }
 
-    private void stopTrackingStock(String ticker) {
+    public void stopTrackingStockForSession(DemoSession session, String ticker) {
+        if (!session.getSessionTrackedTickers().contains(ticker)) {
+            logger.warn("Demo session attempted to stop tracking ticker={} that it was not responsible for", ticker);
+            return;
+        }
         TrackedStock trackedStock = trackedStockRepository.findByTicker(ticker)
             .orElse(null);
 
@@ -306,10 +320,15 @@ public class DemoSessionService {
             trackedStock.decrementHolderCount();
             if (trackedStock.getHolderCount() <= 0) {
                 trackedStockRepository.delete(trackedStock);
+                logger.info("Demo session deleted tracked stock for ticker={}", ticker);
             } else {
                 trackedStockRepository.save(trackedStock);
+                logger.info("Demo session decremented holder count for ticker={} to {}", ticker, trackedStock.getHolderCount());
             }
+        } else {
+            logger.warn("Demo session could not find tracked stock to stop tracking ticker={}", ticker);
         }
+        session.getSessionTrackedTickers().remove(ticker);
     }
 
     private Transaction recordBuyTransaction(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, String ticker, double shares, double price, Instant timestamp, boolean isInitial) {
