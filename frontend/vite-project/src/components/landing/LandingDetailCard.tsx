@@ -6,11 +6,13 @@ interface ChartPoint {
 }
 
 const history: ChartPoint[] = [
-  { time: 'Jun 12', price: 720 },
-  { time: 'Jun 13', price: 735 },
+  { time: 'Jun 15', price: 735 },
   { time: 'Jun 16', price: 731 },
   { time: 'Jun 17', price: 745 },
   { time: 'Jun 18', price: 750 },
+  { time: 'Jun 22', price: 748 },
+  { time: 'Jun 23', price: 768 }
+
 ]
 
 export default function LandingDetailCard() {
@@ -66,12 +68,12 @@ export default function LandingDetailCard() {
               stroke="#10b981"
               strokeWidth={2}
               dot={false}
-              activeDot={{ r: 5 }}
+              activeDot={{ r: 4, strokeWidth: 0 }}
             />
             <ReferenceDot
               x="Jun 18"
               y={750}
-              r={8}
+              r={6}
               fill="#10b981"
               stroke="#fff"
               strokeWidth={2}
@@ -91,7 +93,7 @@ export default function LandingDetailCard() {
         </div>
         <div className="p-3 bg-surface-hover rounded-md border border-border">
           <div className="text-xs text-muted mb-1">Days Since</div>
-          <div className="text-sm font-130 text-foreground">3</div>
+          <div className="text-sm font-130 text-foreground">4</div>
         </div>
         <div className="p-3 bg-surface-hover rounded-md border border-border">
           <div className="text-xs text-muted mb-1">Position</div>

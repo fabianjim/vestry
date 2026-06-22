@@ -84,13 +84,13 @@ function EventOverlay({ onBuyClick }: { onBuyClick?: () => void }) {
               r={isBuy ? 10 : 4}
               fill={event.color}
               stroke="#32393d"
-              strokeWidth={isBuy ? 3 : 2}
+              strokeWidth={2}
               style={{ cursor: isBuy ? 'pointer' : 'default' }}
               onClick={isBuy ? onBuyClick : undefined}
             />
             <foreignObject
-              x={cx - 36}
-              y={isBuy ? cy - 40 : cy + 12}
+              x={isBuy ? cx - 52: cx - 40}
+              y={isBuy ? cy - 48 : cy + 12}
               width="72"
               height="32"
             >
@@ -102,8 +102,8 @@ function EventOverlay({ onBuyClick }: { onBuyClick?: () => void }) {
                   <span className="w-2 h-2 rounded-full bg-gain animate-pulse" />
                   BUY
                 </button>
-              ) : (
-                <div className="inline-flex items-center justify-center gap-1.5 w-full h-full px-2 bg-surface border border-border text-foreground rounded-md text-[10px] font-130 uppercase tracking-wide">
+              ) : ( // sell, insight events
+                <div className="inline-flex items-center justify-center gap-1.5 w-11/12 h-11/12 px-1 bg-surface border border-border text-foreground rounded-md text-[9px] font-130 uppercase tracking-wide">
                   <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: event.color }} />
                   {event.label}
                 </div>
@@ -164,7 +164,7 @@ export default function LandingChart({ onBuyClick }: LandingChartProps) {
               stroke="#10b981"
               strokeWidth={2}
               dot={false}
-              activeDot={{ r: 6, strokeWidth: 0 }}
+              activeDot={{ r: 4, strokeWidth: 0 }}
               isAnimationActive={true}
               animationDuration={1000}
             />

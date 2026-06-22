@@ -121,8 +121,7 @@ export default function Landing() {
             <div className="text-center mb-10">
               <h1 className="text-4xl md:text-5xl font-150 text-foreground mb-4">Track your decisions</h1>
               <p className="text-base md:text-lg text-secondary max-w-xl mx-auto leading-relaxed">
-                Watch your portfolio unfold hour by hour. The big moments — like a
-                buy — stand out so you can revisit them later.
+                Watch your portfolio unfold hour by hour. Record your thoughts and actions on +20,000 stocks/ETFs so you can revisit them later.
               </p>
             </div>
 
