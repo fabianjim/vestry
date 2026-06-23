@@ -12,7 +12,7 @@ type GraphSettings = {
 }
 
 const DEFAULT_SETTINGS: GraphSettings = {
-  groupBySector: false,
+  groupBySector: true,
   displayWatchlist: true,
   displayETFs: true,
 }
