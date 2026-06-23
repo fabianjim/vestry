@@ -150,6 +150,13 @@ body {
   outline-offset: 2px;
 }
 
+/* Remove browser/Recharts focus outline from chart SVG surfaces.
+   Chart components are not interactive controls; real buttons/inputs keep focus-visible ring. */
+.recharts-surface:focus,
+.recharts-surface:focus-visible {
+  outline: none;
+}
+
 /* Selection */
 ::selection {
   background-color: var(--color-primary);
