@@ -238,9 +238,8 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
         }
       })
 
-      return Object.values(dailyData)
+      const sortedDaily = Object.values(dailyData)
         .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-        .slice(-5)
         .map((item) => ({
           timestamp: new Date(item.timestamp).getTime(),
           time: new Date(item.timestamp).toLocaleDateString('en-US', {
@@ -252,6 +251,20 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
           fullTimestamp: item.timestamp,
           isTransaction: false,
         }))
+
+      if (sortedDaily.length === 0) return []
+
+      const windowEndTime = new Date(currentDate).getTime()
+
+      // Find the last data point at or before the current navigation date
+      let endIndex = sortedDaily.findIndex((p) => p.timestamp > windowEndTime)
+      if (endIndex === -1) {
+        endIndex = sortedDaily.length
+      }
+      endIndex = Math.max(0, endIndex - 1)
+
+      const startIndex = Math.max(0, endIndex - 4)
+      return sortedDaily.slice(startIndex, endIndex + 1)
     }
   }, [data, transactions, journalEntries, viewMode, currentDate])
 
@@ -302,6 +315,27 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
       setCurrentDate(newDate)
     }
   }
+
+  // Helpers for daily navigation labels
+  const dailyDateRange = useMemo(() => {
+    if (viewMode !== 'daily' || processedData.length === 0) return null
+    const first = new Date(processedData[0].timestamp)
+    const last = new Date(processedData[processedData.length - 1].timestamp)
+
+    // Find the latest date with data
+    const dailyData: { [key: string]: HistoryData } = {}
+    data.forEach((item) => {
+      const date = new Date(item.timestamp)
+      const dateKey = date.toDateString()
+      if (!dailyData[dateKey] || new Date(item.timestamp) > new Date(dailyData[dateKey].timestamp)) {
+        dailyData[dateKey] = item
+      }
+    })
+    const latestTimestamp = Math.max(...Object.values(dailyData).map((d) => new Date(d.timestamp).getTime()))
+
+    const isLatestWindow = last.getTime() === latestTimestamp
+    return { first, last, isLatestWindow }
+  }, [viewMode, processedData, data])
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -357,7 +391,9 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
       <div className="flex justify-between items-center mb-5">
         <div>
           <button
-            onClick={() => setViewMode('hourly')}
+            onClick={() => {
+              setViewMode('hourly')
+            }}
             className={`px-4 py-2 text-sm border border-border rounded-l-md cursor-pointer transition-colors ${
               viewMode === 'hourly'
                 ? 'bg-primary text-primary-foreground'
@@ -367,7 +403,25 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
             Hourly
           </button>
           <button
-            onClick={() => setViewMode('daily')}
+            onClick={() => {
+              if (data.length > 0) {
+                const dailyData: { [key: string]: HistoryData } = {}
+                data.forEach((item) => {
+                  const date = new Date(item.timestamp)
+                  const dateKey = date.toDateString()
+                  if (!dailyData[dateKey] || new Date(item.timestamp) > new Date(dailyData[dateKey].timestamp)) {
+                    dailyData[dateKey] = item
+                  }
+                })
+                const latest = Object.values(dailyData).sort(
+                  (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+                ).pop()
+                if (latest) {
+                  setCurrentDate(new Date(latest.timestamp))
+                }
+              }
+              setViewMode('daily')
+            }}
             className={`px-4 py-2 text-sm border border-border border-l-0 rounded-r-md cursor-pointer transition-colors ${
               viewMode === 'daily'
                 ? 'bg-primary text-primary-foreground'
@@ -399,6 +453,10 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
                   }
                   return currentDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
                 })()
+              : dailyDateRange
+              ? dailyDateRange.isLatestWindow
+                ? 'Last 5 Days'
+                : `${dailyDateRange.first.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })} - ${dailyDateRange.last.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })}`
               : 'Last 5 Days'}
           </span>
 
