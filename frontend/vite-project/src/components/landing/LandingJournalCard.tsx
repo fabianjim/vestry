@@ -20,10 +20,25 @@ function ClosedEntry({
   )
 }
 
-export default function LandingJournalCard() {
+interface LandingJournalCardProps {
+  onSpxClick?: () => void
+}
+
+export default function LandingJournalCard({ onSpxClick }: LandingJournalCardProps) {
   return (
     <div className="w-full max-w-lg mx-auto rounded-lg border border-border overflow-hidden hover:border-primary/30 transition-colors">
-      <div className="bg-surface-hover p-5">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onSpxClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onSpxClick?.()
+          }
+        }}
+        className="bg-surface p-5 cursor-pointer transition-colors hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-primary"
+      >
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-3">
             <span className="px-2 py-1 text-xs font-130 uppercase bg-gain/10 text-gain rounded">BUY</span>
@@ -38,10 +53,6 @@ export default function LandingJournalCard() {
           Bought SPX near the close. Want to remember why I entered and how the
           thesis plays out over the next few sessions.
         </p>
-
-        <div className="mt-4 pt-4 border-t border-border">
-          <span className="text-xs text-secondary italic">Reflect on your trades</span>
-        </div>
       </div>
       
       <ClosedEntry type="INSIGHT" typeColor="bg-primary/10 text-primary" ticker="NVDA" date="1:45 PM" />

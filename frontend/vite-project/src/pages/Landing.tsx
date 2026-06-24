@@ -121,7 +121,7 @@ export default function Landing() {
             <div className="text-center mb-10">
               <h1 className="text-4xl md:text-5xl font-150 text-foreground mb-4">Track your decisions</h1>
               <p className="text-base md:text-lg text-secondary max-w-xl mx-auto leading-relaxed">
-                Watch your portfolio unfold hour by hour. Record your thoughts and actions on +20,000 stocks/ETFs so you can revisit them later.
+                Watch your portfolio unfold hour by hour. Record your thoughts and actions on 4,000+ stocks and ETFs so you can revisit them later.
               </p>
             </div>
 
@@ -144,7 +144,7 @@ export default function Landing() {
               </p>
             </div>
 
-            <LandingJournalCard />
+            <LandingJournalCard onSpxClick={() => scrollTo('analyze')} />
           </RevealSection>
         </section>
 
@@ -158,12 +158,12 @@ export default function Landing() {
             <div className="text-center mb-10">
               <h2 className="text-3xl md:text-4xl font-150 text-foreground mb-4">Analyze what happened</h2>
               <p className="text-base text-secondary max-w-lg mx-auto leading-relaxed">
-                See the entry against price history. Understand outcomes without
+                See the entry against customizable metrics. <br></br> Understand outcomes without
                 noise.
               </p>
             </div>
 
-            <LandingDetailCard />
+            <LandingDetailCard onChartClick={() => scrollTo('improve')} />
           </RevealSection>
         </section>
 

@@ -15,7 +15,9 @@ const BASE_DATE = new Date(2024, 0, 1)
 
 function parseTime(timeStr: string): number {
   const [time, modifier] = timeStr.split(' ')
-  let [hours, minutes = 0] = time.split(':').map(Number)
+  const parts = time.split(':').map(Number)
+  let hours = parts[0]
+  const minutes = parts[1] ?? 0
   if (modifier === 'PM' && hours !== 12) hours += 12
   if (modifier === 'AM' && hours === 12) hours = 0
   const date = new Date(BASE_DATE)
@@ -97,9 +99,9 @@ function EventOverlay({ onBuyClick }: { onBuyClick?: () => void }) {
               {isBuy ? (
                 <button
                   onClick={onBuyClick}
-                  className="inline-flex items-center justify-center gap-1.5 w-full h-full px-2 bg-gain/10 border border-gain/30 text-gain rounded-md text-xs font-130 uppercase tracking-wide hover:bg-gain/20 transition-colors cursor-pointer"
+                  className="inline-flex items-center justify-center gap-1.5 w-full h-full px-2 bg-gain/10 border border-gain/30 text-gain rounded-md text-xs font-130 uppercase tracking-wide hover:bg-gain/20 transition-colors cursor-pointer animate-pulse"
                 >
-                  <span className="w-2 h-2 rounded-full bg-gain animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-gain" />
                   BUY
                 </button>
               ) : ( // sell, insight events
@@ -118,7 +120,7 @@ function EventOverlay({ onBuyClick }: { onBuyClick?: () => void }) {
 
 export default function LandingChart({ onBuyClick }: LandingChartProps) {
   return (
-    <div className="w-full max-w-3xl mx-auto bg-surface p-6 rounded-lg border border-border">
+    <div className="w-full max-w-3xl mx-auto bg-surface p-6 rounded-lg border border-border hover:border-primary/30 transition-colors">
       <div className="mb-4">
         <span className="text-xs font-130 uppercase text-muted tracking-wide">Portfolio Value</span>
         <div className="text-2xl font-150 text-foreground mt-1">$45,250</div>

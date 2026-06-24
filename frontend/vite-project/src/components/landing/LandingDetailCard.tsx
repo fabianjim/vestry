@@ -5,6 +5,10 @@ interface ChartPoint {
   price: number
 }
 
+interface LandingDetailCardProps {
+  onChartClick?: () => void
+}
+
 const history: ChartPoint[] = [
   { time: 'Jun 15', price: 735 },
   { time: 'Jun 16', price: 731 },
@@ -15,9 +19,20 @@ const history: ChartPoint[] = [
 
 ]
 
-export default function LandingDetailCard() {
+export default function LandingDetailCard({ onChartClick }: LandingDetailCardProps) {
   return (
-    <div className="w-full max-w-2xl mx-auto bg-surface rounded-lg border border-border p-6">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onChartClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onChartClick?.()
+        }
+      }}
+      className="w-full max-w-2xl mx-auto bg-surface rounded-lg border border-border p-6 cursor-pointer transition-colors hover:border-primary/30 focus:outline-none"
+    >
       <div className="flex justify-between items-start mb-5">
         <div>
           <h3 className="text-2xl font-150 m-0 text-foreground">SPX</h3>
