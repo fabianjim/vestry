@@ -11,20 +11,22 @@ import {
 } from 'recharts'
 import type { JournalEntry } from '../types/journal'
 import type { Transaction } from '../types/transaction'
+import type { StockHistoryPoint } from '../types/stock'
 import { stockApi, journalApi, portfolioApi } from '../services/api'
 import { formatDateTime } from '../utils/dateUtils'
+import {
+  getEntryTimingPercent,
+  getExitTimingPercent,
+  getPeakSinceEntry,
+  getDrawdownSinceEntry,
+  getDriftSinceExit,
+  getRealizedPnLForSell,
+} from '../utils/stockStats'
 
 type Props = {
   entry: JournalEntry
   onClose: () => void
   onEntryClick: (entry: JournalEntry) => void
-}
-
-type StockHistoryPoint = {
-  timestamp: string
-  currentPrice: number
-  high: number
-  low: number
 }
 
 type ChartPoint = {
@@ -159,27 +161,6 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
     return { currentPrice, priceDiff, percentDiff, daysSince }
   }, [currentStock, entry])
 
-  const getEntryWeekRange = (entryTimestamp: string) => {
-    const entryDate = new Date(entryTimestamp)
-    const day = entryDate.getDay()
-    const diffToMonday = (day + 6) % 7
-    const weekStart = new Date(entryDate)
-    weekStart.setDate(entryDate.getDate() - diffToMonday)
-    weekStart.setHours(0, 0, 0, 0)
-    const weekEnd = new Date(weekStart)
-    weekEnd.setDate(weekStart.getDate() + 7)
-
-    const weekPoints = history.filter((point) => {
-      const ts = new Date(point.timestamp).getTime()
-      return ts >= weekStart.getTime() && ts < weekEnd.getTime()
-    })
-
-    if (!weekPoints.length) return null
-    const high = Math.max(...weekPoints.map((p) => p.high))
-    const low = Math.min(...weekPoints.map((p) => p.low))
-    return { high, low }
-  }
-
   const buyMetrics = useMemo(() => {
     if (entry.entryType !== 'BUY' || !matchedTransaction || !currentStock) return null
 
@@ -188,29 +169,21 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
     const unrealizedPnL = currentPrice - buyPrice
     const unrealizedPercent = (unrealizedPnL / buyPrice) * 100
 
-    const entryTime = new Date(entry.timestamp).getTime()
-    const postEntryHistory = history.filter(
-      (point) => new Date(point.timestamp).getTime() >= entryTime
-    )
+    const peak = getPeakSinceEntry(buyPrice, entry.timestamp, history)
+    const drawdown = getDrawdownSinceEntry(buyPrice, entry.timestamp, history)
+    const entryTimingPercent = getEntryTimingPercent(buyPrice, entry.timestamp, history)
 
-    const peakPrice = postEntryHistory.length
-      ? Math.max(...postEntryHistory.map((point) => point.high))
-      : currentPrice
-    const troughPrice = postEntryHistory.length
-      ? Math.min(...postEntryHistory.map((point) => point.low))
-      : currentPrice
-
-    const peakDiff = peakPrice - buyPrice
-    const peakPercent = (peakDiff / buyPrice) * 100
-    const drawdown = troughPrice - buyPrice
-    const drawdownPercent = (drawdown / buyPrice) * 100
-
-    const weekRange = getEntryWeekRange(entry.timestamp)
-    const entryTimingPercent = weekRange && weekRange.low > 0
-      ? ((buyPrice - weekRange.low) / weekRange.low) * 100
-      : null
-
-    return { buyPrice, currentPrice, unrealizedPnL, unrealizedPercent, peakDiff, peakPercent, drawdown, drawdownPercent, entryTimingPercent }
+    return {
+      buyPrice,
+      currentPrice,
+      unrealizedPnL,
+      unrealizedPercent,
+      peakDiff: peak?.diff ?? 0,
+      peakPercent: peak?.percent ?? 0,
+      drawdown: drawdown?.diff ?? 0,
+      drawdownPercent: drawdown?.percent ?? 0,
+      entryTimingPercent,
+    }
   }, [entry, matchedTransaction, currentStock, history])
 
   const sellMetrics = useMemo(() => {
@@ -219,27 +192,22 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
     const sellPrice = matchedTransaction.price
     const shares = matchedTransaction.shares
 
-    const tickerBuys = transactions.filter(
-      (tx) => tx.ticker === entry.ticker && tx.type === 'BUY' && !tx.initial
+    const { realizedPnL, realizedPercent } = getRealizedPnLForSell(
+      shares,
+      sellPrice,
+      entry.ticker || '',
+      transactions
     )
-    const totalBuyShares = tickerBuys.reduce((sum, tx) => sum + tx.shares, 0)
-    const totalBuyCost = tickerBuys.reduce((sum, tx) => sum + tx.totalValue, 0)
-    const avgCost = totalBuyShares > 0 ? totalBuyCost / totalBuyShares : 0
 
-    const realizedPnL = shares * (sellPrice - avgCost)
-    const realizedPercent = avgCost > 0 ? ((sellPrice - avgCost) / avgCost) * 100 : 0
+    const exitTimingPercent = getExitTimingPercent(sellPrice, entry.timestamp, history)
 
     let drift = 0
     let driftPercent = 0
     if (currentStock) {
-      drift = currentStock.currentPrice - sellPrice
-      driftPercent = (drift / sellPrice) * 100
+      const driftResult = getDriftSinceExit(sellPrice, currentStock.currentPrice)
+      drift = driftResult.diff
+      driftPercent = driftResult.percent
     }
-
-    const weekRange = getEntryWeekRange(entry.timestamp)
-    const exitTimingPercent = weekRange && weekRange.high > 0
-      ? ((weekRange.high - sellPrice) / weekRange.high) * 100
-      : null
 
     return { sellPrice, realizedPnL, realizedPercent, drift, driftPercent, exitTimingPercent }
   }, [entry, matchedTransaction, transactions, currentStock, history])

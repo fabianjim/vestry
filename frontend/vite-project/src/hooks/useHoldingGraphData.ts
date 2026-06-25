@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { portfolioApi, watchlistApi, stockApi } from '../services/api'
 import type { StockMetadata } from '../types/watchlist'
+import type { StockSnapshot } from '../types/stock'
 import { getNodeColor } from '../constants/colors'
 
 export type GraphNode = {
@@ -45,9 +46,7 @@ type Holding = {
   buyTimestamp?: string
   metadata: StockMetadata | null
   stockData?: {
-    stock?: {
-      currentPrice: number
-    } | null
+    stock?: StockSnapshot | null
   } | null
 }
 
@@ -73,7 +72,7 @@ export function useHoldingGraphData() {
       const holdingsWithData = await Promise.all(
         (holdingsRes || []).map(async (h) => {
           try {
-            const data = (await stockApi.getStockData(h.ticker)) as { stock?: { currentPrice: number } | null }
+            const data = (await stockApi.getStockData(h.ticker)) as { stock?: StockSnapshot | null }
             return { ...h, stockData: data }
           } catch {
             return h
@@ -190,6 +189,11 @@ export function useHoldingGraphData() {
     return { nodes: allNodes, edges: allEdges, sectorData, holdingsValueData, totalValue }
   }, [holdings, watchlist])
 
+  const getStockSnapshot = (ticker: string): StockSnapshot | null => {
+    const holding = holdings.find((h) => h.ticker === ticker)
+    return holding?.stockData?.stock ?? null
+  }
+
   const getMetadata = (ticker: string) => {
     const holding = holdings.find((h) => h.ticker === ticker)
     if (holding?.metadata) return holding.metadata
@@ -202,5 +206,5 @@ export function useHoldingGraphData() {
     return holding?.buyTimestamp ?? null
   }
 
-  return { nodes, edges, sectorData, holdingsValueData, totalValue, error, getMetadata, getTrackingStartDate, refetch: fetchData }
+  return { nodes, edges, sectorData, holdingsValueData, totalValue, error, getMetadata, getTrackingStartDate, getStockSnapshot, refetch: fetchData }
 }

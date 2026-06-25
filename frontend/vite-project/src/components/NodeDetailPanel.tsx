@@ -10,8 +10,10 @@ import {
 } from 'recharts'
 import type { JournalEntry } from '../types/journal'
 import type { StockMetadata } from '../types/watchlist'
+import type { StockHistoryPoint, StockSnapshot } from '../types/stock'
 import { stockApi, journalApi } from '../services/api'
 import { formatDateTime } from '../utils/dateUtils'
+import { getCurrentWeekRange } from '../utils/stockStats'
 import { SECTOR_COLORS } from '../constants/colors'
 
 type NodeDetailPanelProps = {
@@ -20,12 +22,8 @@ type NodeDetailPanelProps = {
   onClose: () => void
   isWatchlist: boolean
   trackingStartDate: string | null
+  snapshot?: StockSnapshot | null
   onEntryClick?: (entry: JournalEntry) => void
-}
-
-type StockHistoryPoint = {
-  timestamp: string
-  currentPrice: number
 }
 
 type ChartPoint = {
@@ -34,9 +32,12 @@ type ChartPoint = {
   fullTimestamp: string
 }
 
-export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist, trackingStartDate, onEntryClick }: NodeDetailPanelProps) {
+type TabMode = 'performance' | 'metadata'
+
+export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist, trackingStartDate, snapshot = null, onEntryClick }: NodeDetailPanelProps) {
   const [history, setHistory] = useState<StockHistoryPoint[]>([])
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
+  const [activeTab, setActiveTab] = useState<TabMode>('performance')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -90,6 +91,33 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
     }))
   }, [history])
 
+  const weekRange = useMemo(() => getCurrentWeekRange(history), [history])
+
+  const rangeMetrics = useMemo(() => {
+    if (!snapshot || !weekRange || weekRange.high <= weekRange.low) return null
+
+    const currentPercent = ((snapshot.currentPrice - weekRange.low) / (weekRange.high - weekRange.low)) * 100
+    const clampedCurrentPercent = Math.max(0, Math.min(100, currentPercent))
+
+    const dayLowPercent = ((snapshot.low - weekRange.low) / (weekRange.high - weekRange.low)) * 100
+    const dayHighPercent = ((snapshot.high - weekRange.low) / (weekRange.high - weekRange.low)) * 100
+
+    return {
+      currentPercent: clampedCurrentPercent,
+      currentPrice: snapshot.currentPrice,
+      day: {
+        low: snapshot.low,
+        high: snapshot.high,
+        left: Math.max(0, Math.min(100, dayLowPercent)),
+        right: Math.max(0, Math.min(100, dayHighPercent)),
+      },
+      week: {
+        low: weekRange.low,
+        high: weekRange.high,
+      },
+    }
+  }, [snapshot, weekRange])
+
   const lineColor = metadata?.sector ? SECTOR_COLORS[metadata.sector] || '#6b7280' : '#6b7280'
 
   const formatCurrency = (value: number) => {
@@ -97,6 +125,226 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
       style: 'currency',
       currency: 'USD',
     }).format(value)
+  }
+
+  const trackingChange = useMemo(() => {
+    if (!history.length || !snapshot) return null
+    const sorted = [...history].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    )
+    const baselinePrice = sorted[0].currentPrice
+    if (baselinePrice <= 0) return null
+    const currentPrice = snapshot.currentPrice
+    const diff = currentPrice - baselinePrice
+    const percent = (diff / baselinePrice) * 100
+    return { diff, percent }
+  }, [history, snapshot])
+
+  const dayChange = useMemo(() => {
+    if (!snapshot) return null
+    const diff = snapshot.currentPrice - snapshot.prevClose
+    const percent = snapshot.prevClose > 0 ? (diff / snapshot.prevClose) * 100 : 0
+    return { diff, percent }
+  }, [snapshot])
+
+  const renderMetadata = () => (
+    <div className="space-y-2">
+      <div className="text-sm text-muted">
+        <span className="font-150">{metadata?.etf ? 'Asset Class' : 'Sector'}:</span>{' '}
+        {metadata?.sector || '-'}
+      </div>
+      <div className="text-sm text-muted">
+        <span className="font-150">{metadata?.etf ? 'Category' : 'Industry'}:</span>{' '}
+        {metadata?.industry || '-'}
+      </div>
+      <div className="text-sm text-muted">
+        <span className="font-150">{metadata?.etf ? 'Region' : 'Country'}:</span>{' '}
+        {metadata?.country || '-'}
+      </div>
+      <div className="text-sm text-muted">
+        <span className="font-150">Market Cap Tier:</span>{' '}
+        {metadata?.marketCapTier
+          ? metadata.marketCapTier.replace('_', ' ').toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())
+          : '-'}
+      </div>
+    </div>
+  )
+
+  const renderPerformance = () => {
+    if (!snapshot) {
+      return <div className="text-muted text-sm">No live price data available.</div>
+    }
+
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-between text-sm">
+          <span className="text-muted">Current Price</span>
+          <span className="text-foreground">{formatCurrency(snapshot.currentPrice)}</span>
+        </div>
+        {dayChange && (
+          <div className="flex justify-between text-sm">
+            <span className="text-muted">Day Change</span>
+            <span className={dayChange.diff >= 0 ? 'text-gain' : 'text-loss'}>
+              {dayChange.diff >= 0 ? '+' : ''}
+              {formatCurrency(dayChange.diff)} ({dayChange.percent >= 0 ? '+' : ''}
+              {dayChange.percent.toFixed(1)}%)
+            </span>
+          </div>
+        )}
+        {trackingChange && (
+          <div className="flex justify-between text-sm">
+            <span className="text-muted">Since Tracking Started</span>
+            <span className={trackingChange.diff >= 0 ? 'text-gain' : 'text-loss'}>
+              {trackingChange.diff >= 0 ? '+' : ''}
+              {formatCurrency(trackingChange.diff)} ({trackingChange.percent >= 0 ? '+' : ''}
+              {trackingChange.percent.toFixed(1)}%)
+            </span>
+          </div>
+        )}
+        <div>
+          <div className="text-center mb-3">
+            <span className="text-sm text-muted">Range</span>
+          </div>
+
+          {rangeMetrics ? (
+            <div>
+              <div className="relative flex justify-center">
+                <div className="flex gap-3 w-full max-w-[85%]">
+                  <div className="flex flex-col w-8 shrink-0">
+                    <div className="h-[0.375rem]" />
+                    <div className="h-1 flex items-center justify-end">
+                      <span className="text-[10px] text-muted text-right leading-none">Day</span>
+                    </div>
+                    <div className="flex-1" />
+                    <div className="h-1 flex items-center justify-end">
+                      <span className="text-[10px] text-muted text-right leading-none">Week</span>
+                    </div>
+                    {/* Week text vertical positioning */}
+                    <div className="h-[2.15rem]" />
+                  </div>
+
+                  <div className="relative flex-1 h-[4.5rem]">
+                    {/* day range line vertical positioning */ }
+                    <div className="absolute top-[0.3125rem] left-0 right-0 h-1">
+                      <div
+                        className="absolute top-0 bottom-0 bg-elevated"
+                        style={{
+                          left: `${rangeMetrics.day.left}%`,
+                          width: `${rangeMetrics.day.right - rangeMetrics.day.left}%`,
+                        }}
+                      />
+                      <div
+                        className="absolute top-1/2 -translate-y-1/2 w-px h-3 bg-muted"
+                        style={{ left: `${rangeMetrics.day.left}%` }}
+                      />
+                      <div
+                        className="absolute top-1/2 -translate-y-1/2 w-px h-3 bg-muted"
+                        style={{ left: `${rangeMetrics.day.right}%` }}
+                      />
+                    </div>
+                    { /* week range line vertical positioning */}
+                    <div className="absolute bottom-[2.25rem] left-0 right-0 h-1">
+                      <div className="absolute inset-0 bg-elevated" />
+                      <div
+                        className="absolute top-1/2 -translate-y-1/2 w-px h-3 bg-muted"
+                        style={{ left: '0%' }}
+                      />
+                      <div
+                        className="absolute top-1/2 -translate-y-1/2 w-px h-3 bg-muted"
+                        style={{ left: '100%' }}
+                      />
+                    </div>
+
+                    <div
+                      className="absolute top-0 w-px bg-primary z-10"
+                      style={{
+                        left: `${rangeMetrics.currentPercent}%`,
+                        height: 'calc(100% - 0.75rem)',
+                        transform: 'translateX(-50%)',
+                      }}
+                      title={`Current: ${formatCurrency(rangeMetrics.currentPrice)}`}
+                    />
+                    { /* day range high/low vertical positioning */}
+                    <div className="absolute top-[.9125rem] left-0 right-0 h-4">
+                      {Math.abs(rangeMetrics.day.left) > 2 && (
+                        <span
+                          className="absolute -translate-x-1/2 text-[9px] text-muted bg-surface px-0.5 z-20"
+                          style={{ left: `${rangeMetrics.day.left}%` }}
+                        >
+                          {formatCurrency(rangeMetrics.day.low)}
+                        </span>
+                      )}
+                      {Math.abs(rangeMetrics.day.right - 100) > 2 && (
+                        <span
+                          className="absolute -translate-x-1/2 text-[9px] text-muted bg-surface px-0.5 z-20"
+                          style={{ left: `${rangeMetrics.day.right}%` }}
+                        >
+                          {formatCurrency(rangeMetrics.day.high)}
+                        </span>
+                      )}
+                    </div>
+                    {/* week range high/low vertical positioning */}
+                    <div className="absolute bottom-[.875rem] left-0 right-0 h-4">
+                      <span
+                        className="absolute -translate-x-1/2 text-[9px] text-muted bg-surface px-0.5 z-20"
+                        style={{ left: '0%' }}
+                      >
+                        {formatCurrency(rangeMetrics.week.low)}
+                      </span>
+                      <span
+                        className="absolute -translate-x-1/2 text-[9px] text-muted bg-surface px-0.5 z-20"
+                        style={{ left: '100%' }}
+                      >
+                        {formatCurrency(rangeMetrics.week.high)}
+                      </span>
+                    </div>
+
+                    {Math.abs(rangeMetrics.currentPercent) > 3 &&
+                      Math.abs(rangeMetrics.currentPercent - 100) > 3 && (
+                        <span
+                          className="absolute bottom-0 -translate-x-1/2 text-xs text-foreground font-90 whitespace-nowrap bg-surface px-0.5 z-30"
+                          style={{ left: `${rangeMetrics.currentPercent}%` }}
+                        >
+                          {formatCurrency(rangeMetrics.currentPrice)}
+                        </span>
+                      )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 max-w-[85%] mx-auto text-xs">
+                <div className="text-center">
+                  <span className="text-muted block">Day's Low</span>
+                  <span className="text-foreground">{formatCurrency(snapshot.low)}</span>
+                </div>
+                <div className="text-center">
+                  <span className="text-muted block">Day's High</span>
+                  <span className="text-foreground">{formatCurrency(snapshot.high)}</span>
+                </div>
+                <div className="text-center">
+                  <span className="text-muted block">Week's Low</span>
+                  <span className="text-foreground">{weekRange ? formatCurrency(weekRange.low) : '-'}</span>
+                </div>
+                <div className="text-center">
+                  <span className="text-muted block">Week's High</span>
+                  <span className="text-foreground">{weekRange ? formatCurrency(weekRange.high) : '-'}</span>
+                </div>
+                <div className="text-center">
+                  <span className="text-muted block">Open</span>
+                  <span className="text-foreground">{formatCurrency(snapshot.open)}</span>
+                </div>
+                <div className="text-center">
+                  <span className="text-muted block">Prev Close</span>
+                  <span className="text-foreground">{formatCurrency(snapshot.prevClose)}</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-muted text-sm">No range data available.</div>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -113,24 +361,41 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
 
       {metadata && (
         <div className="mb-6">
-          <div className="text-sm text-muted mb-1">
-            <span className="font-150">{metadata.etf ? 'Asset Class' : 'Sector'}:</span>{' '}
-            {metadata.sector || '-'}
-          </div>
-          <div className="text-sm text-muted mb-1">
-            <span className="font-150">{metadata.etf ? 'Category' : 'Industry'}:</span>{' '}
-            {metadata.industry || '-'}
-          </div>
-          <div className="text-sm text-muted mb-1">
-            <span className="font-150">{metadata.etf ? 'Region' : 'Country'}:</span>{' '}
-            {metadata.country || '-'}
-          </div>
-          <div className="text-sm text-muted">
-            <span className="font-150">Market Cap Tier:</span>{' '}
-            {metadata.marketCapTier
-              ? metadata.marketCapTier.replace('_', ' ').toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())
-              : '-'}
-          </div>
+          {isWatchlist ? (
+            renderMetadata()
+          ) : (
+            <>
+              <div className="flex justify-center gap-6 mb-5 border-b border-border pb-0">
+                <button
+                  onClick={() => setActiveTab('performance')}
+                  className={`pb-2 text-sm font-130 transition-colors relative ${
+                    activeTab === 'performance'
+                      ? 'text-foreground'
+                      : 'text-muted hover:text-foreground'
+                  }`}
+                >
+                  Performance
+                  {activeTab === 'performance' && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('metadata')}
+                  className={`pb-2 text-sm font-130 transition-colors relative ${
+                    activeTab === 'metadata'
+                      ? 'text-foreground'
+                      : 'text-muted hover:text-foreground'
+                  }`}
+                >
+                  Metadata
+                  {activeTab === 'metadata' && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
+                  )}
+                </button>
+              </div>
+              {activeTab === 'metadata' ? renderMetadata() : renderPerformance()}
+            </>
+          )}
         </div>
       )}
 

@@ -24,7 +24,7 @@ const TOGGLES: { key: keyof GraphSettings; label: string }[] = [
 ]
 
 export default function Analysis() {
-  const { nodes, edges, sectorData, holdingsValueData, error, getMetadata, getTrackingStartDate } =
+  const { nodes, edges, sectorData, holdingsValueData, error, getMetadata, getTrackingStartDate, getStockSnapshot } =
     useHoldingGraphData()
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
 
@@ -49,6 +49,7 @@ export default function Analysis() {
   const selectedNode = selectedTicker ? nodes.find((n) => n.ticker === selectedTicker) : undefined
   const isWatchlist = selectedNode?.type === 'watchlist'
   const trackingStartDate = selectedTicker ? getTrackingStartDate(selectedTicker) : null
+  const selectedSnapshot = selectedTicker ? getStockSnapshot(selectedTicker) : null
 
   return (
     <div className="max-w-6xl mx-auto mt-6 px-3 mb-8">
@@ -110,6 +111,7 @@ export default function Analysis() {
           onClose={() => setSelectedTicker(null)}
           isWatchlist={isWatchlist}
           trackingStartDate={trackingStartDate}
+          snapshot={selectedSnapshot}
         />
       )}
     </div>
