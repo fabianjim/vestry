@@ -24,6 +24,7 @@ type NodeDetailPanelProps = {
   trackingStartDate: string | null
   snapshot?: StockSnapshot | null
   onEntryClick?: (entry: JournalEntry) => void
+  defaultTab?: TabMode
 }
 
 type ChartPoint = {
@@ -34,10 +35,10 @@ type ChartPoint = {
 
 type TabMode = 'performance' | 'metadata'
 
-export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist, trackingStartDate, snapshot = null, onEntryClick }: NodeDetailPanelProps) {
+export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist, trackingStartDate, snapshot = null, onEntryClick, defaultTab = 'performance' }: NodeDetailPanelProps) {
   const [history, setHistory] = useState<StockHistoryPoint[]>([])
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
-  const [activeTab, setActiveTab] = useState<TabMode>('performance')
+  const [activeTab, setActiveTab] = useState<TabMode>(defaultTab)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 

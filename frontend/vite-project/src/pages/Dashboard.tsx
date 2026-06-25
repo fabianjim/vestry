@@ -731,6 +731,7 @@ export default function Dashboard() {
           isWatchlist={false}
           trackingStartDate={selectedHolding.buyTimestamp ?? null}
           snapshot={selectedHolding.stockData?.stock ?? null}
+          defaultTab="performance"
           onEntryClick={(entry) => {
             setSelectedJournalEntry(entry)
             setSelectedTicker(null)

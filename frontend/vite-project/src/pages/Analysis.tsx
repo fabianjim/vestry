@@ -112,6 +112,7 @@ export default function Analysis() {
           isWatchlist={isWatchlist}
           trackingStartDate={trackingStartDate}
           snapshot={selectedSnapshot}
+          defaultTab="metadata"
         />
       )}
     </div>
