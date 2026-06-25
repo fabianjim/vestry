@@ -131,14 +131,12 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
                 return (
                   <div
                     key={holding.ticker}
-                    className="flex justify-between items-center py-1 px-2 text-sm hover:bg-surface-hover rounded transition-colors"
+                    onClick={() => onHoldingClick?.(holding.ticker)}
+                    className="flex justify-between items-center py-1 px-2 text-sm hover:bg-surface-hover rounded transition-colors cursor-pointer"
                   >
-                    <button
-                      onClick={() => onHoldingClick?.(holding.ticker)}
-                      className="font-130 text-foreground hover:text-primary transition-colors cursor-pointer bg-transparent border-0 p-0"
-                    >
+                    <span className="font-130 text-foreground hover:text-primary transition-colors">
                       {holding.ticker}
-                    </button>
+                    </span>
                     <span className="text-muted">{holding.shares}</span>
                   </div>
                 )
@@ -147,15 +145,13 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
               return (
                 <div
                   key={holding.ticker}
-                  className={`p-2 mb-1 rounded text-sm ${isStale ? 'bg-surface-hover' : 'bg-background/50'}`}
+                  onClick={() => onHoldingClick?.(holding.ticker)}
+                  className={`p-2 mb-1 rounded text-sm cursor-pointer hover:bg-surface-hover transition-colors ${isStale ? 'bg-surface-hover' : 'bg-background/50'}`}
                 >
                   <div className="flex justify-between items-center">
-                    <button
-                      onClick={() => onHoldingClick?.(holding.ticker)}
-                      className="font-130 text-foreground hover:text-primary transition-colors cursor-pointer bg-transparent border-0 p-0"
-                    >
+                    <span className="font-130 text-foreground hover:text-primary transition-colors">
                       {holding.ticker}
-                    </button>
+                    </span>
                     <span className="text-muted text-xs">{holding.shares} shares</span>
                   </div>
                   <div className="flex justify-between mt-1 text-xs">

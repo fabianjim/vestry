@@ -194,7 +194,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
         )}
         {trackingChange && (
           <div className="flex justify-between text-sm">
-            <span className="text-muted">Since Tracking Started</span>
+            <span className="text-muted">Since Position Opened</span>
             <span className={trackingChange.diff >= 0 ? 'text-gain' : 'text-loss'}>
               {trackingChange.diff >= 0 ? '+' : ''}
               {formatCurrency(trackingChange.diff)} ({trackingChange.percent >= 0 ? '+' : ''}
