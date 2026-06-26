@@ -12,7 +12,7 @@ import type { JournalEntry } from '../types/journal'
 import type { StockMetadata } from '../types/watchlist'
 import type { StockHistoryPoint, StockSnapshot } from '../types/stock'
 import { stockApi, journalApi } from '../services/api'
-import { formatDateTime } from '../utils/dateUtils'
+import { formatDateTime, roundToMinute } from '../utils/dateUtils'
 import { getCurrentWeekRange } from '../utils/stockStats'
 import { SECTOR_COLORS } from '../constants/colors'
 
@@ -23,6 +23,7 @@ type NodeDetailPanelProps = {
   isWatchlist: boolean
   trackingStartDate: string | null
   snapshot?: StockSnapshot | null
+  lastSuccessfulFetch?: string | null
   onEntryClick?: (entry: JournalEntry) => void
   defaultTab?: TabMode
 }
@@ -35,7 +36,7 @@ type ChartPoint = {
 
 type TabMode = 'performance' | 'metadata'
 
-export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist, trackingStartDate, snapshot = null, onEntryClick, defaultTab = 'performance' }: NodeDetailPanelProps) {
+export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist, trackingStartDate, snapshot = null, lastSuccessfulFetch = null, onEntryClick, defaultTab = 'performance' }: NodeDetailPanelProps) {
   const [history, setHistory] = useState<StockHistoryPoint[]>([])
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
   const [activeTab, setActiveTab] = useState<TabMode>(defaultTab)
@@ -170,6 +171,19 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
       </div>
     </div>
   )
+
+  const lastUpdatedLabel = (() => {
+    if (!lastSuccessfulFetch) return ''
+    const day = new Date(lastSuccessfulFetch).toLocaleDateString('en-US', {
+      weekday: 'short',
+      timeZone: 'America/New_York',
+    })
+    const time = roundToMinute(lastSuccessfulFetch)
+    if (day === 'Sat' || day === 'Sun') {
+      return `Last updated: ${day} ${time}`
+    }
+    return `Last updated: ${time}`
+  })()
 
   const renderPerformance = () => {
     if (!snapshot) {
@@ -444,6 +458,11 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                   />
                 </ComposedChart>
               </ResponsiveContainer>
+            </div>
+          )}
+          {lastUpdatedLabel && (
+            <div className="flex justify-end text-xs text-muted italic mt-2">
+              {lastUpdatedLabel}
             </div>
           )}
         </div>

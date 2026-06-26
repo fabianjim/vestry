@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { roundToMinute } from '../utils/dateUtils'
 import WatchlistPanel from './WatchlistPanel'
+import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from './icons'
 
 // Get the abbreviated day name in EST (e.g., "Mon", "Tue", "Fri", "Sat", "Sun")
 const getEstDayName = (timestamp: string): string => {
@@ -77,13 +78,11 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
           className="p-1.5 rounded-md hover:bg-surface-hover transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
           aria-label={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {isOpen ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            )}
-          </svg>
+          {isOpen ? (
+            <ChevronDoubleRightIcon className="w-4 h-4" />
+          ) : (
+            <ChevronDoubleLeftIcon className="w-4 h-4" />
+          )}
         </button>
       </div>
 

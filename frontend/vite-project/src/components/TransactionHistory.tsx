@@ -4,14 +4,7 @@ import type { Transaction, PnLSummary } from '../types/transaction'
 import { portfolioApi } from '../services/api'
 import { formatDateTime } from '../utils/dateUtils'
 import { exportToCSV } from '../utils/exportUtils'
-
-function FilterIcon({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-    </svg>
-  )
-}
+import { FunnelIcon, ArrowDownTrayIcon } from './icons'
 
 interface DropdownPosition {
   top: number
@@ -263,11 +256,7 @@ export default function TransactionHistory() {
           className="absolute top-2 right-2 z-10 p-1.5 rounded-md bg-surface-hover border border-border text-secondary opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground cursor-pointer"
           aria-label="Export filtered selection to CSV"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
+          <ArrowDownTrayIcon className="w-4 h-4" />
         </button>
         <table className="w-full border-collapse text-sm">
           <thead>
@@ -286,7 +275,7 @@ export default function TransactionHistory() {
                       }`}
                       title="Filter by date"
                     >
-                      <FilterIcon />
+                      <FunnelIcon className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -305,7 +294,7 @@ export default function TransactionHistory() {
                       }`}
                       title="Filter by type"
                     >
-                      <FilterIcon />
+                      <FunnelIcon className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -324,7 +313,7 @@ export default function TransactionHistory() {
                       }`}
                       title="Filter by ticker"
                     >
-                      <FilterIcon />
+                      <FunnelIcon className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
