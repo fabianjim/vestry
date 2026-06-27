@@ -15,6 +15,7 @@ import { stockApi, journalApi } from '../services/api'
 import { formatDateTime, roundToMinute } from '../utils/dateUtils'
 import { getCurrentWeekRange } from '../utils/stockStats'
 import { SECTOR_COLORS } from '../constants/colors'
+import { formatCurrency, formatSignedCurrencyWithPercent } from '../utils/formatUtils'
 
 type NodeDetailPanelProps = {
   ticker: string
@@ -122,13 +123,6 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
 
   const lineColor = metadata?.sector ? SECTOR_COLORS[metadata.sector] || '#6b7280' : '#6b7280'
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(value)
-  }
-
   const trackingChange = useMemo(() => {
     if (!history.length || !snapshot) return null
     const sorted = [...history].sort(
@@ -200,9 +194,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
           <div className="flex justify-between text-sm">
             <span className="text-muted">Day Change</span>
             <span className={dayChange.diff >= 0 ? 'text-gain' : 'text-loss'}>
-              {dayChange.diff >= 0 ? '+' : ''}
-              {formatCurrency(dayChange.diff)} ({dayChange.percent >= 0 ? '+' : ''}
-              {dayChange.percent.toFixed(1)}%)
+              {formatSignedCurrencyWithPercent(dayChange.diff, dayChange.percent)}
             </span>
           </div>
         )}
@@ -210,9 +202,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
           <div className="flex justify-between text-sm">
             <span className="text-muted">Since Position Opened</span>
             <span className={trackingChange.diff >= 0 ? 'text-gain' : 'text-loss'}>
-              {trackingChange.diff >= 0 ? '+' : ''}
-              {formatCurrency(trackingChange.diff)} ({trackingChange.percent >= 0 ? '+' : ''}
-              {trackingChange.percent.toFixed(1)}%)
+              {formatSignedCurrencyWithPercent(trackingChange.diff, trackingChange.percent)}
             </span>
           </div>
         )}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { roundToMinute } from '../utils/dateUtils'
 import WatchlistPanel from './WatchlistPanel'
 import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from './icons'
+import { formatCurrency, formatSignedCurrencyWithPercent } from '../utils/formatUtils'
 
 // Get the abbreviated day name in EST (e.g., "Mon", "Tue", "Fri", "Sat", "Sun")
 const getEstDayName = (timestamp: string): string => {
@@ -154,13 +155,13 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
                     <span className="text-muted text-xs">{holding.shares} shares</span>
                   </div>
                   <div className="flex justify-between mt-1 text-xs">
-                    <span className="text-secondary">${currentPrice.toFixed(2)}</span>
+                    <span className="text-secondary">{formatCurrency(currentPrice)}</span>
                     <span className={dayChange >= 0 ? 'text-gain' : 'text-loss'}>
-                      {dayChange >= 0 ? '+' : ''}{dayChange.toFixed(2)} ({dayChangePercent.toFixed(1)}%)
+                      {formatSignedCurrencyWithPercent(dayChange, dayChangePercent)}
                     </span>
                   </div>
                   <div className="flex justify-between mt-1 text-xs">
-                    <span className="text-muted">${marketValue.toFixed(2)}</span>
+                    <span className="text-muted">{formatCurrency(marketValue)}</span>
                     <span className={`${isStale ? 'text-error' : isEod ? 'text-primary' : 'text-muted'}`}>
                       {(() => {
                         if (isStale) return 'Stale'

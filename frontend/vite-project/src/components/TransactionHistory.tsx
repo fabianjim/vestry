@@ -5,6 +5,7 @@ import { portfolioApi } from '../services/api'
 import { formatDateTime } from '../utils/dateUtils'
 import { exportToCSV } from '../utils/exportUtils'
 import { FunnelIcon, ArrowDownTrayIcon } from './icons'
+import { formatSignedCurrencyWithPercent } from '../utils/formatUtils'
 
 interface DropdownPosition {
   top: number
@@ -237,13 +238,13 @@ export default function TransactionHistory() {
           <div className="p-4 bg-surface rounded-lg border border-border">
             <div className="text-sm text-muted">Total Unrealized P/L</div>
             <div className={`text-2xl font-130 ${pnlSummary.unrealizedPnL >= 0 ? 'text-gain' : 'text-loss'}`}>
-              {pnlSummary.unrealizedPnL >= 0 ? '+' : ''}${pnlSummary.unrealizedPnL.toFixed(2)} ({pnlSummary.unrealizedPnLPercent.toFixed(1)}%)
+              {formatSignedCurrencyWithPercent(pnlSummary.unrealizedPnL, pnlSummary.unrealizedPnLPercent)}
             </div>
           </div>
           <div className="p-4 bg-surface rounded-lg border border-border">
             <div className="text-sm text-muted">Total Realized P/L</div>
             <div className={`text-2xl font-130 ${pnlSummary.realizedPnL >= 0 ? 'text-gain' : 'text-loss'}`}>
-              {pnlSummary.realizedPnL >= 0 ? '+' : ''}${pnlSummary.realizedPnL.toFixed(2)} ({pnlSummary.realizedPnLPercent.toFixed(1)}%)
+              {formatSignedCurrencyWithPercent(pnlSummary.realizedPnL, pnlSummary.realizedPnLPercent)}
             </div>
           </div>
         </div>

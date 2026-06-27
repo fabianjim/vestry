@@ -15,6 +15,7 @@ import type { StockMetadata } from '../types/watchlist'
 import type { JournalEntry } from '../types/journal'
 import type { LayoutContext } from '../components/Layout'
 import { journalApi, portfolioApi } from '../services/api'
+import { formatCurrency, formatSignedCurrencyWithPercent } from '../utils/formatUtils'
 
 type StockData = {
   stock: Stock | null
@@ -394,19 +395,19 @@ export default function Dashboard() {
         <div className="p-4 bg-surface rounded-lg border border-border">
           <div className="text-sm text-muted">Total Portfolio Value</div>
           <div className="text-2xl text-foreground font-130">
-            ${calculatePortfolioValue().toFixed(2)}
+            {formatCurrency(calculatePortfolioValue())}
           </div>
         </div>
         <div className="p-4 bg-surface rounded-lg border border-border">
           <div className="text-sm text-muted">Total Day's Change</div>
           <div className={`text-2xl font-130 ${calculateDayChange() >= 0 ? 'text-gain' : 'text-loss'}`}>
-            {`${calculateDayChange() >= 0 ? '+' : ''}$${calculateDayChange().toFixed(2)} (${calculateDayChangePercent().toFixed(1)}%)`}
+            {formatSignedCurrencyWithPercent(calculateDayChange(), calculateDayChangePercent())}
           </div>
         </div>
         <div className="p-4 bg-surface rounded-lg border border-border">
           <div className="text-sm text-muted">Total P/L</div>
           <div className={`text-2xl font-130 ${(pnlSummary?.totalPnL ?? 0) >= 0 ? 'text-gain' : 'text-loss'}`}>
-            {pnlSummary ? `${pnlSummary.totalPnL >= 0 ? '+' : ''}$${pnlSummary.totalPnL.toFixed(2)} (${pnlSummary.totalPnLPercent.toFixed(1)}%)` : '—'}
+            {pnlSummary ? formatSignedCurrencyWithPercent(pnlSummary.totalPnL, pnlSummary.totalPnLPercent) : '—'}
           </div>
         </div>
       </div>

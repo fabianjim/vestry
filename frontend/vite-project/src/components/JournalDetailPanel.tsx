@@ -22,6 +22,7 @@ import {
   getDriftSinceExit,
   getRealizedPnLForSell,
 } from '../utils/stockStats'
+import { formatSignedCurrencyWithPercent } from '../utils/formatUtils'
 
 type Props = {
   entry: JournalEntry
@@ -378,9 +379,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
             <div className="flex justify-between text-sm">
               <span className="text-muted">Price Change</span>
               <span className={performance.priceDiff >= 0 ? 'text-gain' : 'text-loss'}>
-                {performance.priceDiff >= 0 ? '+' : ''}
-                {formatCurrency(performance.priceDiff)} ({performance.percentDiff >= 0 ? '+' : ''}
-                {performance.percentDiff.toFixed(1)}%)
+                {formatSignedCurrencyWithPercent(performance.priceDiff, performance.percentDiff)}
               </span>
             </div>
             <div className="flex justify-between text-sm">
@@ -394,9 +393,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
               <div className="flex justify-between text-sm">
                 <span className="text-muted">Unrealized P/L</span>
                 <span className={buyMetrics.unrealizedPnL >= 0 ? 'text-gain' : 'text-loss'}>
-                  {buyMetrics.unrealizedPnL >= 0 ? '+' : ''}
-                  {formatCurrency(buyMetrics.unrealizedPnL)} ({buyMetrics.unrealizedPercent >= 0 ? '+' : ''}
-                  {buyMetrics.unrealizedPercent.toFixed(1)}%)
+                  {formatSignedCurrencyWithPercent(buyMetrics.unrealizedPnL, buyMetrics.unrealizedPercent)}
                 </span>
               </div>
               {buyMetrics.entryTimingPercent != null && (
@@ -411,17 +408,13 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
               <div className="flex justify-between text-sm">
                 <span className="text-muted">Peak Since Entry</span>
                 <span className={buyMetrics.peakDiff >= 0 ? 'text-gain' : 'text-loss'}>
-                  {buyMetrics.peakDiff >= 0 ? '+' : ''}
-                  {formatCurrency(buyMetrics.peakDiff)} ({buyMetrics.peakPercent >= 0 ? '+' : ''}
-                  {buyMetrics.peakPercent.toFixed(1)}%)
+                  {formatSignedCurrencyWithPercent(buyMetrics.peakDiff, buyMetrics.peakPercent)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted">Max Drawdown</span>
                 <span className={buyMetrics.drawdown >= 0 ? 'text-gain' : 'text-loss'}>
-                  {buyMetrics.drawdown >= 0 ? '+' : ''}
-                  {formatCurrency(buyMetrics.drawdown)} ({buyMetrics.drawdownPercent >= 0 ? '+' : ''}
-                  {buyMetrics.drawdownPercent.toFixed(1)}%)
+                  {formatSignedCurrencyWithPercent(buyMetrics.drawdown, buyMetrics.drawdownPercent)}
                 </span>
               </div>
             </div>
@@ -432,9 +425,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
               <div className="flex justify-between text-sm">
                 <span className="text-muted">Realized P/L</span>
                 <span className={sellMetrics.realizedPnL >= 0 ? 'text-gain' : 'text-loss'}>
-                  {sellMetrics.realizedPnL >= 0 ? '+' : ''}
-                  {formatCurrency(sellMetrics.realizedPnL)} ({sellMetrics.realizedPercent >= 0 ? '+' : ''}
-                  {sellMetrics.realizedPercent.toFixed(1)}%)
+                  {formatSignedCurrencyWithPercent(sellMetrics.realizedPnL, sellMetrics.realizedPercent)}
                 </span>
               </div>
               {sellMetrics.exitTimingPercent != null && (
@@ -450,9 +441,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
                 <div className="flex justify-between text-sm">
                   <span className="text-muted">Drift Since Exit</span>
                   <span className={sellMetrics.drift >= 0 ? 'text-gain' : 'text-loss'}>
-                    {sellMetrics.drift >= 0 ? '+' : ''}
-                    {formatCurrency(sellMetrics.drift)} ({sellMetrics.driftPercent >= 0 ? '+' : ''}
-                    {sellMetrics.driftPercent.toFixed(1)}%)
+                    {formatSignedCurrencyWithPercent(sellMetrics.drift, sellMetrics.driftPercent)}
                   </span>
                 </div>
               )}
