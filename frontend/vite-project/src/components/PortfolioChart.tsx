@@ -16,6 +16,7 @@ import type { Transaction } from '../types/transaction'
 import type { ChartDataPoint } from '../utils/chartData'
 import * as d3 from 'd3'
 import { processHourlyData } from '../utils/chartData'
+import { CalendarIcon } from './icons'
 
 interface HistoryData {
   timestamp: string
@@ -346,6 +347,31 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
     }).format(value)
   }
 
+  const formatDateInput = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const minHistoryDate = useMemo(() => {
+    if (!data || data.length === 0) return undefined
+    const earliest = Math.min(...data.map((d) => new Date(d.timestamp).getTime()))
+    return new Date(earliest)
+  }, [data])
+
+  const maxSelectableDate = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return today
+  }, [])
+
+  const handleDateSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.value) return
+    const [year, month, day] = e.target.value.split('-').map(Number)
+    setCurrentDate(new Date(year, month - 1, day))
+  }
+
   const canGoForward = useMemo(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -432,42 +458,66 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
           </button>
         </div>
 
-        <div className="flex gap-2 items-center">
-          <button
-            onClick={handlePrevious}
-            aria-label="Previous period"
-            className="px-3 py-2 bg-elevated border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-elevated/75 transition-colors"
-          >
-            ←
-          </button>
+        <div className="flex items-center gap-3">
+          <div className="relative group focus-within:outline-none focus-within:ring-2 focus-within:ring-primary rounded-md">
+            <button
+              type="button"
+              disabled={data.length === 0}
+              aria-hidden="true"
+              tabIndex={-1}
+              className="w-10 h-10 flex items-center justify-center bg-elevated border border-border rounded-md cursor-pointer text-foreground group-hover:bg-elevated/75 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <CalendarIcon className="w-5 h-5" />
+            </button>
+            <input
+              type="date"
+              className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed focus:outline-none"
+              min={minHistoryDate ? formatDateInput(minHistoryDate) : undefined}
+              max={formatDateInput(maxSelectableDate)}
+              value={formatDateInput(currentDate)}
+              onChange={handleDateSelect}
+              aria-label="Select date"
+              disabled={data.length === 0}
+            />
+          </div>
 
-          <span className="text-sm text-muted min-w-[100px] text-center">
-            {viewMode === 'hourly'
-              ? (() => {
-                  const today = new Date()
-                  today.setHours(0, 0, 0, 0)
-                  const selected = new Date(currentDate)
-                  selected.setHours(0, 0, 0, 0)
-                  if (selected.getTime() === today.getTime()) {
-                    return 'Today'
-                  }
-                  return currentDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-                })()
-              : dailyDateRange
-              ? dailyDateRange.isLatestWindow
-                ? 'Last 5 Days'
-                : `${dailyDateRange.first.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })} - ${dailyDateRange.last.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })}`
-              : 'Last 5 Days'}
-          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handlePrevious}
+              aria-label="Previous period"
+              className="w-10 h-10 flex items-center justify-center bg-elevated border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-elevated/75 transition-colors"
+            >
+              ←
+            </button>
 
-          <button
-            onClick={handleNext}
-            disabled={!canGoForward}
-            aria-label="Next period"
-            className="px-3 py-2 bg-elevated border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-elevated/75 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            →
-          </button>
+            <span className="text-sm text-muted min-w-[100px] text-center">
+              {viewMode === 'hourly'
+                ? (() => {
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    const selected = new Date(currentDate)
+                    selected.setHours(0, 0, 0, 0)
+                    if (selected.getTime() === today.getTime()) {
+                      return 'Today'
+                    }
+                    return currentDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                  })()
+                : dailyDateRange
+                ? dailyDateRange.isLatestWindow
+                  ? 'Last 5 Days'
+                  : `${dailyDateRange.first.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })} - ${dailyDateRange.last.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })}`
+                : 'Last 5 Days'}
+            </span>
+
+            <button
+              onClick={handleNext}
+              disabled={!canGoForward}
+              aria-label="Next period"
+              className="w-10 h-10 flex items-center justify-center bg-elevated border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-elevated/75 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              →
+            </button>
+          </div>
         </div>
       </div>
 
