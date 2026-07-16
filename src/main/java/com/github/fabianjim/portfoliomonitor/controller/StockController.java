@@ -15,6 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -80,10 +81,17 @@ public class StockController {
 
     /**
      * Check if the latest stock data is EOD from the most recent trading day.
-     * EOD data is valid through the weekend until the next trading day's intraday fetch.
+     * EOD data is valid:
+     *   - For the current trading day (Mon-Fri)
+     *   - For the previous trading day before the first intraday fetch (10 AM ET)
+     *   - For Friday EOD through the weekend and Monday pre-market
      * EOD data has type=EOD and hourBucket pinned to 4:00 PM of the trading day.
      */
     private boolean isEodData(Stock stock) {
+        return isEodData(stock, ZonedDateTime.now(ZoneId.of("America/New_York")));
+    }
+
+    boolean isEodData(Stock stock, ZonedDateTime estNow) {
         if (stock.getType() != Stock.StockType.EOD) {
             return false;
         }
@@ -91,7 +99,6 @@ public class StockController {
         if (hourBucket == null) {
             return false;
         }
-        ZonedDateTime estNow = ZonedDateTime.now(ZoneId.of("America/New_York"));
         ZonedDateTime estBucket = hourBucket.atZone(ZoneId.of("America/New_York"));
 
         // EOD data is valid if it's from today (Mon-Fri)
@@ -99,8 +106,17 @@ public class StockController {
             return true;
         }
 
+        // Before the first intraday fetch of the day, the previous trading day's EOD
+        // is still the most recent price available (e.g. Wed EOD at 9:44 AM Thu).
+        if (estNow.getHour() < 10) {
+            LocalDate yesterday = estNow.toLocalDate().minusDays(1);
+            if (estBucket.toLocalDate().equals(yesterday)) {
+                return true;
+            }
+        }
+
         // Friday EOD is valid through the weekend and Monday pre-market
-        // (Mon before 10 AM when no intraday data exists yet)
+        // (Monday before 10 AM when no intraday data exists yet)
         if (estBucket.getDayOfWeek().getValue() == 5) { // Friday = 5
             int today = estNow.getDayOfWeek().getValue();
             // Saturday(6), Sunday(7), or Monday(1)

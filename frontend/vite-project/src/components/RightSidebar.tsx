@@ -14,6 +14,16 @@ const getEstDayName = (timestamp: string): string => {
   })
 }
 
+// Check whether the timestamp falls on today's date in EST
+const isTodayInEst = (timestamp: string): boolean => {
+  if (!timestamp) return false
+  const date = new Date(timestamp)
+  const now = new Date()
+  const dateString = (d: Date) =>
+    d.toLocaleDateString('en-US', { timeZone: 'America/New_York' })
+  return dateString(date) === dateString(now)
+}
+
 type StockData = {
   stock: Stock | null
   stale: boolean
@@ -166,9 +176,10 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
                       {(() => {
                         if (isStale) return 'Stale'
                         if (isEod) {
-                          // Check if EOD data is from Friday
-                          const eodDay = getEstDayName(holding.stockData?.stock?.timestamp ?? '')
-                          return eodDay === 'Fri' ? 'Fri EOD' : 'EOD'
+                          const eodTimestamp = holding.stockData?.stock?.timestamp ?? ''
+                          const eodDay = getEstDayName(eodTimestamp)
+                          // Today just shows "EOD"; previous trading days show e.g. "Wed EOD"
+                          return isTodayInEst(eodTimestamp) ? 'EOD' : `${eodDay} EOD`
                         }
                         // Not EOD - show last successful fetch time (when we actually fetched/verified the data)
                         const timestamp = holding.stockData?.lastSuccessfulFetch
