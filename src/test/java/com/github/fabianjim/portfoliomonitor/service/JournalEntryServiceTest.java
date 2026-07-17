@@ -3,8 +3,11 @@ package com.github.fabianjim.portfoliomonitor.service;
 import com.github.fabianjim.portfoliomonitor.model.JournalEntry;
 import com.github.fabianjim.portfoliomonitor.model.JournalEntryType;
 import com.github.fabianjim.portfoliomonitor.model.Stock;
+import com.github.fabianjim.portfoliomonitor.model.Tag;
+import com.github.fabianjim.portfoliomonitor.model.Transaction;
 import com.github.fabianjim.portfoliomonitor.model.User;
 import com.github.fabianjim.portfoliomonitor.repository.JournalEntryRepository;
+import com.github.fabianjim.portfoliomonitor.repository.TransactionRepository;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,8 +22,10 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -34,6 +39,12 @@ public class JournalEntryServiceTest {
 
     @Mock
     private StockService stockService;
+
+    @Mock
+    private TagService tagService;
+
+    @Mock
+    private TransactionRepository transactionRepository;
 
     @Mock
     private SecurityContext securityContext;
@@ -55,6 +66,7 @@ public class JournalEntryServiceTest {
         SecurityContextHolder.setContext(securityContext);
         when(securityContext.getAuthentication()).thenReturn(authentication);
         when(authentication.getPrincipal()).thenReturn(mockUser);
+        lenient().when(tagService.resolveTags(any(User.class), any())).thenReturn(new HashSet<>());
     }
 
     @Test
@@ -128,6 +140,92 @@ public class JournalEntryServiceTest {
         JournalEntry result = journalEntryService.createEntry(entry);
 
         assertEquals(0.0, result.getPriceSnapshot(), 0.01);
+    }
+
+    @Test
+    void createSellEntryWithProfitAddsWinTag() {
+        String ticker = "AAPL";
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> {
+            JournalEntry e = invocation.getArgument(0);
+            e.setId(1);
+            return e;
+        });
+        when(transactionRepository.findByUserIdAndTicker(mockUser.getId(), ticker))
+            .thenReturn(List.of(
+                createTransaction(ticker, 10, 100.0, Transaction.TransactionType.BUY),
+                createTransaction(ticker, 5, 120.0, Transaction.TransactionType.SELL)
+            ));
+
+        JournalEntry entry = new JournalEntry();
+        entry.setEntryType(JournalEntryType.SELL);
+        entry.setBody("Sold AAPL");
+        entry.setTicker(ticker);
+        entry.setPriceSnapshot(120.0);
+
+        journalEntryService.createEntry(entry);
+
+        ArgumentCaptor<List<String>> tagCaptor = ArgumentCaptor.forClass(List.class);
+        verify(tagService).resolveTags(eq(mockUser), tagCaptor.capture());
+        assertTrue(tagCaptor.getValue().contains("win"));
+    }
+
+    @Test
+    void createSellEntryWithLossAddsLossTag() {
+        String ticker = "AAPL";
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> {
+            JournalEntry e = invocation.getArgument(0);
+            e.setId(1);
+            return e;
+        });
+        when(transactionRepository.findByUserIdAndTicker(mockUser.getId(), ticker))
+            .thenReturn(List.of(
+                createTransaction(ticker, 10, 100.0, Transaction.TransactionType.BUY),
+                createTransaction(ticker, 5, 80.0, Transaction.TransactionType.SELL)
+            ));
+
+        JournalEntry entry = new JournalEntry();
+        entry.setEntryType(JournalEntryType.SELL);
+        entry.setBody("Sold AAPL");
+        entry.setTicker(ticker);
+        entry.setPriceSnapshot(80.0);
+
+        journalEntryService.createEntry(entry);
+
+        ArgumentCaptor<List<String>> tagCaptor = ArgumentCaptor.forClass(List.class);
+        verify(tagService).resolveTags(eq(mockUser), tagCaptor.capture());
+        assertTrue(tagCaptor.getValue().contains("loss"));
+    }
+
+    @Test
+    void createSellEntryWithNoTransactionsDoesNotAddAutoTag() {
+        String ticker = "AAPL";
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> {
+            JournalEntry e = invocation.getArgument(0);
+            e.setId(1);
+            return e;
+        });
+        when(transactionRepository.findByUserIdAndTicker(mockUser.getId(), ticker))
+            .thenReturn(List.of());
+
+        JournalEntry entry = new JournalEntry();
+        entry.setEntryType(JournalEntryType.SELL);
+        entry.setBody("Sold AAPL");
+        entry.setTicker(ticker);
+        entry.setPriceSnapshot(120.0);
+
+        journalEntryService.createEntry(entry);
+
+        ArgumentCaptor<List<String>> tagCaptor = ArgumentCaptor.forClass(List.class);
+        verify(tagService).resolveTags(eq(mockUser), tagCaptor.capture());
+        assertFalse(tagCaptor.getValue().contains("win"));
+        assertFalse(tagCaptor.getValue().contains("loss"));
+    }
+
+    private Transaction createTransaction(String ticker, double shares, double price, Transaction.TransactionType type) {
+        Transaction tx = new Transaction(ticker, shares, price, type);
+        tx.setTotalValue(shares * price);
+        tx.setUser(mockUser);
+        return tx;
     }
 
     @Test

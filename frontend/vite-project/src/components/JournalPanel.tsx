@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 're
 import type { JournalEntry, JournalEntryType } from '../types/journal'
 import { journalApi } from '../services/api'
 import { formatDateTime, isTradingHours } from '../utils/dateUtils'
+import { getDisplayBody, parseTagsFromBody } from '../utils/tagUtils'
+import TagInput from './TagInput'
+import TagPills from './TagPills'
 
 export interface JournalPanelHandle {
   scrollToEntry: (id: number) => void
@@ -87,12 +90,15 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
       return
     }
 
+    const { body: finalBody, tags } = parseTagsFromBody(body)
+
     setLoading(true)
     try {
       await journalApi.createEntry({
         entryType,
-        body: body.trim(),
+        body: finalBody,
         ticker: ticker.trim().toUpperCase() || null,
+        tags,
       })
       setBody('')
       setTicker('')
@@ -117,9 +123,11 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
       setEntryError('Please enter a note')
       return
     }
+    const { body: finalBody, tags } = parseTagsFromBody(editBody)
+
     setLoading(true)
     try {
-      await journalApi.updateEntry(entryId, editBody.trim())
+      await journalApi.updateEntry(entryId, { body: finalBody, tags })
       setEditingEntryId(null)
       setEditBody('')
       await fetchEntries()
@@ -204,12 +212,12 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
         />
       </div>
 
-      <textarea
+      <TagInput
         value={body}
-        onChange={(e) => setBody(e.target.value)}
+        onChange={setBody}
         placeholder="Write your thoughts..."
         rows={3}
-        className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-primary mb-3"
+        className="mb-3"
       />
 
       <div className="flex gap-2 mb-4">
@@ -255,12 +263,11 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
               )}
               {editingEntryId === entry.id ? (
                 <div>
-                  <textarea
+                  <TagInput
                     value={editBody}
-                    onChange={(e) => setEditBody(e.target.value)}
+                    onChange={setEditBody}
                     rows={3}
-                    className="w-full px-2 py-1 bg-transparent text-sm text-foreground resize-none border-none outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0"
-                    autoFocus
+                    className="bg-transparent text-sm text-foreground border-none focus:ring-0 resize-none"
                   />
                   <div className="flex gap-2 mt-2">
                     <button
@@ -283,7 +290,8 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
                 </div>
               ) : (
                 <>
-                  <div className="text-sm text-foreground whitespace-pre-wrap">{entry.body}</div>
+                  <div className="text-sm text-foreground whitespace-pre-wrap">{getDisplayBody(entry.body)}</div>
+                  <TagPills tags={entry.tags} />
                   <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {(entry.entryType === 'BUY' || entry.entryType === 'SELL') && isTradingHours(entry.timestamp) && (
                       <button

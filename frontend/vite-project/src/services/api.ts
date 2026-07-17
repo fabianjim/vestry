@@ -81,9 +81,11 @@ export const stockApi = {
   },
 }
 
+import type { CalendarDay, CreateJournalEntryRequest, JournalFilters, UpdateJournalEntryRequest } from '../types/journal'
+
 // Journal API
 export const journalApi = {
-  createEntry: (entry: { entryType: string; body: string; ticker?: string | null; timestamp?: string; priceSnapshot?: number }) =>
+  createEntry: (entry: CreateJournalEntryRequest) =>
     apiClient('/journal', { method: 'POST', body: entry }),
 
   getEntries: () =>
@@ -95,11 +97,49 @@ export const journalApi = {
   getEntriesInRange: (from: string, to: string) =>
     apiClient(`/journal/range?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
 
+  getFilteredEntries: (params: {
+    from?: string
+    to?: string
+    types?: string[]
+    ticker?: string
+    tagIds?: number[]
+    query?: string
+  }) => {
+    const searchParams = new URLSearchParams()
+    if (params.from) searchParams.set('from', params.from)
+    if (params.to) searchParams.set('to', params.to)
+    if (params.ticker) searchParams.set('ticker', params.ticker)
+    if (params.query) searchParams.set('query', params.query)
+    params.types?.forEach((t) => searchParams.append('types', t))
+    params.tagIds?.forEach((id) => searchParams.append('tagIds', id.toString()))
+    const queryString = searchParams.toString()
+    return apiClient(`/journal/filtered${queryString ? '?' + queryString : ''}`)
+  },
+
+  getCalendarEntries: (year: number, month: number, filters?: JournalFilters) => {
+    const params = new URLSearchParams()
+    params.set('year', year.toString())
+    params.set('month', month.toString())
+    if (filters?.from) params.set('from', filters.from)
+    if (filters?.to) params.set('to', filters.to)
+    if (filters?.ticker) params.set('ticker', filters.ticker)
+    if (filters?.query) params.set('query', filters.query)
+    filters?.types?.forEach((t) => params.append('types', t))
+    filters?.tagIds?.forEach((id) => params.append('tagIds', id.toString()))
+    return apiClient(`/journal/calendar?${params.toString()}`) as Promise<CalendarDay[]>
+  },
+
   deleteEntry: (id: number) =>
     apiClient(`/journal/${id}`, { method: 'DELETE' }),
 
-  updateEntry: (id: number, body: string) =>
-    apiClient(`/journal/${id}`, { method: 'PUT', body: { body } }),
+  updateEntry: (id: number, body: UpdateJournalEntryRequest) =>
+    apiClient(`/journal/${id}`, { method: 'PUT', body }),
+
+  getPopularTags: (query: string) =>
+    apiClient(`/journal/tags/popular?query=${encodeURIComponent(query)}`),
+
+  deleteTag: (id: number) =>
+    apiClient(`/journal/tags/${id}`, { method: 'DELETE' }),
 }
 
 // Watchlist API

@@ -44,6 +44,7 @@ describe('evaluateBuyPinOutcome', () => {
     ticker: 'AAPL',
     timestamp,
     priceSnapshot,
+    tags: [],
   })
 
   it('gain when next sell price is higher', () => {
