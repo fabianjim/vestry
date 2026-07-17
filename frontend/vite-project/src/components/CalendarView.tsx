@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { journalApi } from '../services/api'
 import type { CalendarDay, JournalFilters } from '../types/journal'
@@ -17,6 +17,19 @@ export default function CalendarView({ onDayClick, activeDate, filters, classNam
   const [dayCounts, setDayCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
 
+  const countFiltersKey = JSON.stringify([filters?.types, filters?.ticker, filters?.tagIds, filters?.query])
+  const countFilters = useMemo<JournalFilters | undefined>(
+    () =>
+      filters && {
+        types: filters.types,
+        ticker: filters.ticker,
+        tagIds: filters.tagIds,
+        query: filters.query,
+      },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [countFiltersKey]
+  )
+
   useEffect(() => {
     const load = async () => {
       setLoading(true)
@@ -24,7 +37,7 @@ export default function CalendarView({ onDayClick, activeDate, filters, classNam
         const data = (await journalApi.getCalendarEntries(
           currentDate.getFullYear(),
           currentDate.getMonth() + 1,
-          filters
+          countFilters
         )) as CalendarDay[]
         const counts: Record<string, number> = {}
         data.forEach((d) => (counts[d.date] = d.count))
@@ -36,7 +49,7 @@ export default function CalendarView({ onDayClick, activeDate, filters, classNam
       }
     }
     load()
-  }, [currentDate, filters])
+  }, [currentDate, countFilters])
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()

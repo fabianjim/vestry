@@ -242,8 +242,25 @@ export default function JournalPage() {
     <div className="max-w-6xl mx-auto mt-6 px-3 mb-8">
       <h2 className="text-2xl font-150 mb-6">Journal</h2>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <div className="lg:col-span-2 space-y-3">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-y-6 mb-6">
+        <div className="lg:col-span-2 p-4">
+          <JournalFilterBar
+            filters={filters}
+            availableTags={allTags}
+            onChange={updateFilters}
+          />
+        </div>
+
+        <div className="lg:row-span-2 lg:self-start p-4 bg-surface rounded-lg border border-border">
+          <CalendarView
+            onDayClick={handleDayClick}
+            activeDate={activeDate}
+            filters={filters}
+            className="border-0 p-0"
+          />
+        </div>
+
+        <div className="lg:col-span-2 lg:pr-6 space-y-3">
           <div className="flex justify-between items-center">
             <span className="text-sm text-muted">
               {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
@@ -309,7 +326,7 @@ export default function JournalPage() {
               <div
                 key={entry.id}
                 onClick={() => !editingEntryId && setSelectedEntry(entry)}
-                className={`p-4 bg-surface rounded-lg border border-border cursor-pointer hover:bg-surface-hover transition-colors ${getTypeBg(entry.entryType)}`}
+                className={`relative group p-4 bg-surface-hover rounded-lg border border-border cursor-pointer hover:bg-elevated transition-colors ${getTypeBg(entry.entryType)}`}
               >
                 <div className="flex justify-between items-start mb-1">
                   <div className="flex items-center gap-2">
@@ -320,31 +337,7 @@ export default function JournalPage() {
                       <span className="text-xs font-semibold text-foreground">{entry.ticker}</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
-                    {editingEntryId !== entry.id && (
-                      <>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleEditClick(entry)
-                          }}
-                          className="text-xs text-primary hover:text-primary-hover px-2 py-1 rounded hover:bg-primary/10 transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDelete(entry.id)
-                          }}
-                          className="text-xs text-error hover:text-error px-2 py-1 rounded hover:bg-error/10 transition-colors"
-                        >
-                          Delete
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
                 </div>
                 {entry.priceSnapshot != null && (
                   <div className="text-xs text-muted mb-1">
@@ -357,6 +350,7 @@ export default function JournalPage() {
                       value={editBody}
                       onChange={setEditBody}
                       rows={3}
+                      className="bg-transparent text-sm text-foreground border-none focus:ring-0 resize-none"
                     />
                     <div className="flex gap-2 mt-2">
                       <button
@@ -387,27 +381,32 @@ export default function JournalPage() {
                         }
                       }}
                     />
+                    <div className="absolute bottom-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEditClick(entry)
+                        }}
+                        className="px-2.5 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover transition-colors"
+                        title="Edit"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDelete(entry.id)
+                        }}
+                        className="px-2.5 py-1 text-xs text-error hover:text-error bg-surface border border-border rounded hover:bg-error/10 transition-colors"
+                        title="Delete"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
             ))}
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="p-4 bg-surface rounded-lg border border-border space-y-4">
-            <JournalFilterBar
-              filters={filters}
-              availableTags={allTags}
-              onChange={updateFilters}
-            />
-            <div className="border-t border-border" />
-            <CalendarView
-              onDayClick={handleDayClick}
-              activeDate={activeDate}
-              filters={filters}
-              className="border-0 p-0"
-            />
           </div>
         </div>
       </div>
