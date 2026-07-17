@@ -203,14 +203,14 @@ public class DemoSessionServiceTest {
 
         when(stockService.getLatestStockData("AAPL")).thenReturn(Optional.empty());
 
-        JournalEntry created = demoSessionService.createJournalEntry(session, demoUser, entry);
+        JournalEntry created = demoSessionService.createJournalEntry(session, demoUser, entry, List.of());
         assertTrue(created.getId() < 0);
         assertEquals(demoUser, created.getUser());
 
         List<JournalEntry> entries = demoSessionService.getJournalEntries(session);
         assertEquals(1, entries.size());
 
-        JournalEntry updated = demoSessionService.updateJournalEntry(session, created.getId(), "Updated");
+        JournalEntry updated = demoSessionService.updateJournalEntry(session, demoUser, created.getId(), "Updated", List.of());
         assertEquals("Updated", updated.getBody());
 
         demoSessionService.deleteJournalEntry(session, created.getId());

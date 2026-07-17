@@ -107,6 +107,7 @@ describe('processHourlyData', () => {
         ticker: 'AAPL',
         timestamp: '2026-05-21T15:17:00Z', // 11:17 AM local, within 5 min window
         priceSnapshot: 150,
+        tags: [],
       },
       {
         id: 99,
@@ -115,6 +116,7 @@ describe('processHourlyData', () => {
         ticker: 'TSLA',
         timestamp: '2026-05-21T15:15:00Z',
         priceSnapshot: 200,
+        tags: [],
       },
     ]
 

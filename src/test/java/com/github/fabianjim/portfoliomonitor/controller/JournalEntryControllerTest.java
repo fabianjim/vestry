@@ -7,6 +7,7 @@ import com.github.fabianjim.portfoliomonitor.model.User;
 import com.github.fabianjim.portfoliomonitor.service.DemoSessionResolver;
 import com.github.fabianjim.portfoliomonitor.service.DemoSessionService;
 import com.github.fabianjim.portfoliomonitor.service.JournalEntryService;
+import com.github.fabianjim.portfoliomonitor.service.TagService;
 import com.github.fabianjim.portfoliomonitor.service.UserService;
 
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -48,6 +50,9 @@ public class JournalEntryControllerTest {
     @MockitoBean
     private UserService userService;
 
+    @MockitoBean
+    private TagService tagService;
+
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -67,7 +72,7 @@ public class JournalEntryControllerTest {
         entry.setPriceSnapshot(150.0);
         entry.setUser(user);
 
-        when(journalEntryService.createEntry(any(JournalEntry.class))).thenReturn(entry);
+        when(journalEntryService.createEntry(any(JournalEntry.class), any())).thenReturn(entry);
 
         mockMvc.perform(post("/api/journal")
                 .with(csrf())
@@ -135,7 +140,7 @@ public class JournalEntryControllerTest {
         entry.setTimestamp(Instant.now());
         entry.setUser(user);
 
-        when(journalEntryService.updateEntry(1, "Updated insight")).thenReturn(entry);
+        when(journalEntryService.updateEntry(eq(1), eq("Updated insight"), any())).thenReturn(entry);
 
         JournalEntry updateRequest = new JournalEntry();
         updateRequest.setBody("Updated insight");

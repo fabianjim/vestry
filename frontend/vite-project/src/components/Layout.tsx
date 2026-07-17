@@ -6,6 +6,7 @@ import {
   ChartPieIcon,
   DocumentCurrencyDollarIcon,
   QuestionMarkCircleIcon,
+  BookOpenIcon,
   LogoutIcon,
   GithubIcon,
   ExclamationCircleIcon,
@@ -18,6 +19,7 @@ const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: HomeIcon },
   { path: '/analysis', label: 'Holding Analysis', icon: ChartPieIcon },
   { path: '/transactions', label: 'Transactions', icon: DocumentCurrencyDollarIcon },
+  { path: '/journal', label: 'Journal', icon: BookOpenIcon },
   { path: '/vestry-info', label: 'Vestry Info', icon: QuestionMarkCircleIcon },
 ]
 

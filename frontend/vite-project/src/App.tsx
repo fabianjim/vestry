@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import Analysis from './pages/Analysis'
 import Transactions from './pages/Transactions'
 import VestryInfo from './pages/VestryInfo'
+import Journal from './pages/Journal'
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/analysis" element={<Analysis />} />
+            <Route path="/journal" element={<Journal />} />
             <Route path="/vestry-info" element={<VestryInfo />} />
           </Route>
         </Routes>

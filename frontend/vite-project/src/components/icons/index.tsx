@@ -75,6 +75,22 @@ export function ChevronDoubleRightIcon({ className = 'w-5 h-5' }: IconProps) {
   )
 }
 
+export function ChevronLeftIcon({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+    </svg>
+  )
+}
+
+export function ChevronRightIcon({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+    </svg>
+  )
+}
+
 export function Bars3Icon({ className = 'w-5 h-5' }: IconProps) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}>
@@ -119,6 +135,14 @@ export function CalendarIcon({ className = 'w-5 h-5' }: IconProps) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+    </svg>
+  )
+}
+
+export function BookOpenIcon({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A9.902 9.902 0 016 18.75c1.052 0 2.062-.18 3-.512v-14.25c.938.332 1.948.512 3 .512s2.062-.18 3-.512V18.75c.938.332 1.948.512 3 .512.96 0 1.888-.156 2.75-.47V4.262c-.938.332-1.948.512-3 .512-2.186 0-4.236-.584-6-1.608z" />
     </svg>
   )
 }

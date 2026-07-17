@@ -8,6 +8,7 @@ import com.github.fabianjim.portfoliomonitor.exception.UnknownTickerException;
 import com.github.fabianjim.portfoliomonitor.model.DemoSession;
 import com.github.fabianjim.portfoliomonitor.model.Holding;
 import com.github.fabianjim.portfoliomonitor.model.JournalEntry;
+import com.github.fabianjim.portfoliomonitor.model.JournalEntryType;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;
 import com.github.fabianjim.portfoliomonitor.model.Stock;
 import com.github.fabianjim.portfoliomonitor.model.Transaction;
@@ -25,9 +26,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+import com.github.fabianjim.portfoliomonitor.dto.CalendarDayDTO;
+import com.github.fabianjim.portfoliomonitor.model.Tag;
 
 @Service
 public class DemoSessionService {
@@ -110,6 +118,18 @@ public class DemoSessionService {
             copy.setTimestamp(entry.getTimestamp());
             copy.setPriceSnapshot(entry.getPriceSnapshot());
             copy.setUser(user);
+
+            Set<Tag> tagCopies = new HashSet<>();
+            for (Tag tag : entry.getTags()) {
+                Tag tagCopy = new Tag();
+                tagCopy.setId(session.nextId());
+                tagCopy.setName(tag.getName());
+                tagCopy.setColor(tag.getColor());
+                tagCopy.setUser(user);
+                tagCopies.add(tagCopy);
+            }
+            copy.setTags(tagCopies);
+
             journalCopy.add(copy);
         }
         session.setJournalEntries(journalCopy);
@@ -517,7 +537,7 @@ public class DemoSessionService {
             .toList();
     }
 
-    public JournalEntry createJournalEntry(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, JournalEntry entry) {
+    public JournalEntry createJournalEntry(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, JournalEntry entry, List<String> tagNames) {
         entry.setUser(user);
         entry.setId(session.nextId());
         if (entry.getTimestamp() == null) {
@@ -532,6 +552,17 @@ public class DemoSessionService {
                 entry.setPriceSnapshot(null);
             }
         }
+
+        List<String> combinedTags = new ArrayList<>();
+        if (tagNames != null) {
+            combinedTags.addAll(tagNames);
+        }
+        String autoTag = computeAutoTagForSellEntry(session, entry);
+        if (autoTag != null && !combinedTags.contains(autoTag)) {
+            combinedTags.add(autoTag);
+        }
+
+        entry.setTags(resolveDemoTags(session, user, combinedTags));
         session.getJournalEntries().add(entry);
         return entry;
     }
@@ -554,6 +585,45 @@ public class DemoSessionService {
             .toList();
     }
 
+    public List<JournalEntry> getFilteredJournalEntries(DemoSession session, Instant from, Instant to, List<String> types, String ticker, List<Integer> tagIds, String query) {
+        return getJournalEntries(session).stream()
+            .filter(e -> from == null || !e.getTimestamp().isBefore(from))
+            .filter(e -> to == null || !e.getTimestamp().isAfter(to))
+            .filter(e -> types == null || types.isEmpty() || types.contains(e.getEntryType().name()))
+            .filter(e -> ticker == null || ticker.isBlank() || (e.getTicker() != null && e.getTicker().equalsIgnoreCase(ticker)))
+            .filter(e -> tagIds == null || tagIds.isEmpty() || e.getTags().stream().anyMatch(t -> tagIds.contains(t.getId())))
+            .filter(e -> query == null || query.isBlank() || e.getBody().toLowerCase().contains(query.toLowerCase()))
+            .collect(Collectors.toList());
+    }
+
+    public List<CalendarDayDTO> getJournalCalendarEntries(DemoSession session, int year, int month, Instant from, Instant to, List<String> types, String ticker, List<Integer> tagIds, String query) {
+        YearMonth yearMonth = YearMonth.of(year, month);
+        Instant start = yearMonth.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+        Instant end = yearMonth.atEndOfMonth().atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant();
+        List<JournalEntry> entries = getJournalEntriesInRange(session, start, end);
+
+        Map<LocalDate, Integer> counts = new HashMap<>();
+        for (JournalEntry entry : entries) {
+            if (from != null && entry.getTimestamp().isBefore(from)) continue;
+            if (to != null && entry.getTimestamp().isAfter(to)) continue;
+            if (types != null && !types.isEmpty() && !types.contains(entry.getEntryType().name())) continue;
+            if (ticker != null && !ticker.isBlank() && (entry.getTicker() == null || !entry.getTicker().equalsIgnoreCase(ticker))) continue;
+            if (tagIds != null && !tagIds.isEmpty() && entry.getTags().stream().noneMatch(t -> tagIds.contains(t.getId()))) continue;
+            if (query != null && !query.isBlank() && !entry.getBody().toLowerCase().contains(query.toLowerCase())) continue;
+
+            LocalDate date = entry.getTimestamp().atZone(ZoneId.systemDefault()).toLocalDate();
+            counts.merge(date, 1, Integer::sum);
+        }
+
+        return counts.entrySet().stream()
+            .map(e -> new CalendarDayDTO(e.getKey().toString(), e.getValue()))
+            .collect(Collectors.toList());
+    }
+
+    public List<CalendarDayDTO> getJournalCalendarEntries(DemoSession session, int year, int month) {
+        return getJournalCalendarEntries(session, year, month, null, null, null, null, null, null);
+    }
+
     public void deleteJournalEntry(DemoSession session, int id) {
         boolean removed = session.getJournalEntries().removeIf(e -> e.getId() == id);
         if (!removed) {
@@ -561,7 +631,7 @@ public class DemoSessionService {
         }
     }
 
-    public JournalEntry updateJournalEntry(DemoSession session, int id, String body) {
+    public JournalEntry updateJournalEntry(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, int id, String body, List<String> tagNames) {
         Optional<JournalEntry> entryOpt = session.getJournalEntries().stream()
             .filter(e -> e.getId() == id)
             .findFirst();
@@ -570,7 +640,97 @@ public class DemoSessionService {
         }
         JournalEntry entry = entryOpt.get();
         entry.setBody(body);
+        entry.setTags(resolveDemoTags(session, user, tagNames));
         return entry;
+    }
+
+    private Set<Tag> resolveDemoTags(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, List<String> tagNames) {
+        Set<Tag> tags = new HashSet<>();
+        if (tagNames == null) {
+            return tags;
+        }
+
+        for (String name : tagNames) {
+            String normalized = name.trim().replaceAll("^#+", "").toLowerCase();
+            if (normalized.isEmpty()) {
+                continue;
+            }
+
+            Optional<Tag> existing = session.getJournalEntries().stream()
+                .flatMap(e -> e.getTags().stream())
+                .filter(t -> t.getName().equals(normalized))
+                .findFirst();
+
+            if (existing.isPresent()) {
+                tags.add(existing.get());
+            } else {
+                Tag tag = new Tag();
+                tag.setId(session.nextId());
+                tag.setName(normalized);
+                tag.setColor(assignDemoTagColor(session));
+                tag.setUser(user);
+                tags.add(tag);
+            }
+        }
+        return tags;
+    }
+
+    private String assignDemoTagColor(DemoSession session) {
+        String[] colors = {"#5e9ed6", "#10b981", "#ef4444", "#d6965e", "#8b5cf6", "#f59e0b", "#ec4899", "#6366f1"};
+        int count = 0;
+        for (JournalEntry entry : session.getJournalEntries()) {
+            count += entry.getTags().size();
+        }
+        return colors[count % colors.length];
+    }
+
+    private String computeAutoTagForSellEntry(DemoSession session, JournalEntry entry) {
+        if (entry.getEntryType() != JournalEntryType.SELL || entry.getTicker() == null || entry.getTicker().isBlank()) {
+            return null;
+        }
+        Double realizedPnl = computeRealizedPnlForTicker(session, entry.getTicker());
+        if (realizedPnl == null) {
+            return null;
+        }
+        if (realizedPnl > 0) {
+            return "win";
+        }
+        if (realizedPnl < 0) {
+            return "loss";
+        }
+        return null;
+    }
+
+    private Double computeRealizedPnlForTicker(DemoSession session, String ticker) {
+        List<Transaction> transactions = session.getTransactions();
+        if (transactions == null || transactions.isEmpty()) {
+            return null;
+        }
+
+        double buyShares = 0;
+        double buyCost = 0;
+        double sellShares = 0;
+        double sellProceeds = 0;
+
+        for (Transaction tx : transactions) {
+            if (!ticker.equalsIgnoreCase(tx.getTicker())) {
+                continue;
+            }
+            if (tx.getType() == Transaction.TransactionType.BUY) {
+                buyShares += tx.getShares();
+                buyCost += tx.getTotalValue();
+            } else if (tx.getType() == Transaction.TransactionType.SELL) {
+                sellShares += tx.getShares();
+                sellProceeds += tx.getTotalValue();
+            }
+        }
+
+        if (buyShares == 0) {
+            return null;
+        }
+
+        double avgCost = buyCost / buyShares;
+        return sellProceeds - (avgCost * sellShares);
     }
 
     public WatchlistItem addToWatchlist(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, String ticker) {

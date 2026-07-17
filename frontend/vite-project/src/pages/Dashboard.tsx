@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { Link, useOutletContext } from 'react-router-dom'
 import PortfolioChart from '../components/PortfolioChart'
 import type { PortfolioChartHandle } from '../components/PortfolioChart'
 import JournalPrompt from '../components/JournalPrompt'
@@ -429,7 +429,12 @@ export default function Dashboard() {
       {/* Holdings Table */}
       {/* Journal Section */}
       <div className="mb-8">
-        <h3 className="text-xl font-150 mt-4 mb-4">Journal</h3>
+        <div className="flex items-center justify-between mt-4 mb-4">
+          <h3 className="text-xl font-150 m-0">Journal</h3>
+          <Link to="/journal" className="text-sm italic text-secondary hover:text-foreground transition-colors">
+            Expand
+          </Link>
+        </div>
         <JournalPanel
           ref={journalPanelRef}
           activeJournalId={activeJournalId}
