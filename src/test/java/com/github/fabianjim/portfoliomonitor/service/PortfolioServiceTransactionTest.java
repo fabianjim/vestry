@@ -3,6 +3,7 @@ package com.github.fabianjim.portfoliomonitor.service;
 import com.github.fabianjim.portfoliomonitor.exception.PriceFetchException;
 import com.github.fabianjim.portfoliomonitor.exception.UnknownTickerException;
 import com.github.fabianjim.portfoliomonitor.model.Holding;
+import com.github.fabianjim.portfoliomonitor.model.JournalEntry;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;
 import com.github.fabianjim.portfoliomonitor.model.Stock;
 import com.github.fabianjim.portfoliomonitor.model.Transaction;
@@ -54,6 +55,9 @@ public class PortfolioServiceTransactionTest {
 
     @Mock
     private TransactionService transactionService;
+
+    @Mock
+    private JournalEntryService journalEntryService;
 
     @Mock
     private SecurityContext securityContext;
@@ -141,10 +145,62 @@ public class PortfolioServiceTransactionTest {
             .thenReturn(createTransaction(ticker, sharesToSell, currentPrice, TransactionType.SELL));
    
         portfolioService.sellHolding(ticker, sharesToSell);
-    
+
         verify(stockService).updateStockData(ticker, Stock.StockType.INITIAL);
         verify(transactionService).recordSellTransaction(ticker, sharesToSell, currentPrice, null);
         assertEquals(sharesOwned - sharesToSell, holding.getShares());
+    }
+
+    @Test
+    void sellHoldingCreatesAutoJournalEntryBeforeRecordingTransaction() {
+        String ticker = "MSFT";
+        double sharesOwned = 10.0;
+        double sharesToSell = 3.0;
+        double currentPrice = 250.0;
+
+        Holding holding = new Holding(ticker, sharesOwned);
+        mockPortfolio.getHoldings().add(holding);
+
+        JournalEntry autoEntry = new JournalEntry();
+        autoEntry.setId(42);
+
+        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
+        when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
+            .thenReturn(createStock(ticker, currentPrice));
+        when(journalEntryService.createAutoSellEntry(eq(mockUser), eq(ticker), eq(sharesToSell), eq(currentPrice), isNull()))
+            .thenReturn(autoEntry);
+
+        JournalEntry result = portfolioService.sellHolding(ticker, sharesToSell);
+
+        assertSame(autoEntry, result);
+        var inOrder = org.mockito.Mockito.inOrder(journalEntryService, transactionService);
+        inOrder.verify(journalEntryService).createAutoSellEntry(mockUser, ticker, sharesToSell, currentPrice, null);
+        inOrder.verify(transactionService).recordSellTransaction(ticker, sharesToSell, currentPrice, null);
+    }
+
+    @Test
+    void removeHoldingCreatesAutoJournalEntry() {
+        String ticker = "GOOGL";
+        double shares = 5.0;
+        double currentPrice = 200.0;
+
+        Holding holding = new Holding(ticker, shares);
+        mockPortfolio.getHoldings().add(holding);
+
+        JournalEntry autoEntry = new JournalEntry();
+        autoEntry.setId(43);
+
+        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
+            .thenReturn(createStock(ticker, currentPrice));
+        when(journalEntryService.createAutoSellEntry(eq(mockUser), eq(ticker), eq(shares), eq(currentPrice), isNull()))
+            .thenReturn(autoEntry);
+
+        JournalEntry result = portfolioService.removeHolding(ticker);
+
+        assertSame(autoEntry, result);
+        verify(journalEntryService).createAutoSellEntry(mockUser, ticker, shares, currentPrice, null);
     }
 
     private Stock createStock(String ticker, double price) {

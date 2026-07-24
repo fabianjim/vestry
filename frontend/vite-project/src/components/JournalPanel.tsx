@@ -215,7 +215,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
       <TagInput
         value={body}
         onChange={setBody}
-        placeholder="Write your thoughts..."
+        placeholder="Write your thoughts... Use #tag to add tags"
         rows={3}
         className="mb-3"
       />

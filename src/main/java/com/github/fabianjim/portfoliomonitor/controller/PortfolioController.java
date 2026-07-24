@@ -4,6 +4,7 @@ import com.github.fabianjim.portfoliomonitor.dto.PnLSummaryDTO;
 import com.github.fabianjim.portfoliomonitor.dto.PortfolioHistoryDTO;
 import com.github.fabianjim.portfoliomonitor.model.DemoSession;
 import com.github.fabianjim.portfoliomonitor.model.Holding;
+import com.github.fabianjim.portfoliomonitor.model.JournalEntry;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;
 import com.github.fabianjim.portfoliomonitor.model.Transaction;
 import com.github.fabianjim.portfoliomonitor.model.User;
@@ -101,7 +102,7 @@ public class PortfolioController {
     }
 
     @PostMapping("/holdings/remove")
-    public void removeHolding(@RequestBody Map<String, Object> request, HttpServletRequest httpRequest) {
+    public JournalEntry removeHolding(@RequestBody Map<String, Object> request, HttpServletRequest httpRequest) {
         String ticker = (String) request.get("ticker");
         Double price = request.containsKey("price") ? ((Number) request.get("price")).doubleValue() : null;
         Instant timestamp = request.containsKey("timestamp") ? Instant.parse((String) request.get("timestamp")) : null;
@@ -109,9 +110,9 @@ public class PortfolioController {
         if (demoSessionResolver.isDemoUser()) {
             DemoSession session = demoSessionResolver.resolveSession(httpRequest);
             User user = demoSessionResolver.getCurrentUser();
-            demoSessionService.removeHolding(session, user, ticker, price, timestamp);
+            return demoSessionService.removeHolding(session, user, ticker, price, timestamp);
         } else {
-            portfolioService.removeHolding(ticker, price, timestamp);
+            return portfolioService.removeHolding(ticker, price, timestamp);
         }
     }
 
@@ -149,7 +150,7 @@ public class PortfolioController {
     }
 
     @PostMapping("/holdings/sell")
-    public void sellHolding(@RequestBody Map<String, Object> request, HttpServletRequest httpRequest) {
+    public JournalEntry sellHolding(@RequestBody Map<String, Object> request, HttpServletRequest httpRequest) {
         String ticker = (String) request.get("ticker");
         double shares = ((Number) request.get("shares")).doubleValue();
         Double price = request.containsKey("price") ? ((Number) request.get("price")).doubleValue() : null;
@@ -158,9 +159,9 @@ public class PortfolioController {
         if (demoSessionResolver.isDemoUser()) {
             DemoSession session = demoSessionResolver.resolveSession(httpRequest);
             User user = demoSessionResolver.getCurrentUser();
-            demoSessionService.sellHolding(session, user, ticker, shares, price, timestamp);
+            return demoSessionService.sellHolding(session, user, ticker, shares, price, timestamp);
         } else {
-            portfolioService.sellHolding(ticker, shares, price, timestamp);
+            return portfolioService.sellHolding(ticker, shares, price, timestamp);
         }
     }
 

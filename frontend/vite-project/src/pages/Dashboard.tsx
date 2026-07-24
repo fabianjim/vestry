@@ -57,6 +57,7 @@ export default function Dashboard() {
   const [showJournalPrompt, setShowJournalPrompt] = useState(false)
   const [journalPromptTicker, setJournalPromptTicker] = useState('')
   const [journalPromptTradeType, setJournalPromptTradeType] = useState<'BUY' | 'SELL'>('BUY')
+  const [journalPromptEntryId, setJournalPromptEntryId] = useState<number | null>(null)
   const hasFetched = useRef(false)
   const portfolioChartRef = useRef<PortfolioChartHandle>(null)
   const journalPanelRef = useRef<JournalPanelHandle>(null)
@@ -209,6 +210,7 @@ export default function Dashboard() {
       await fetchPortfolioInfo()
       await fetchPnLSummary()
       await refreshDemoStatus()
+      setJournalPromptEntryId(null)
       setJournalPromptTicker(boughtTicker)
       setJournalPromptTradeType('BUY')
       setShowJournalPrompt(true)
@@ -251,12 +253,12 @@ export default function Dashboard() {
 
     setLoading(true)
     try {
-      await portfolioApi.sellHolding(
+      const sellEntry = (await portfolioApi.sellHolding(
         sellTicker,
         Number(sellShares),
         manualValidation.price > 0 ? manualValidation.price : undefined,
         manualValidation.isoTime || undefined
-      )
+      )) as JournalEntry | null
 
       const soldTicker = sellTicker
       setManualTradeTime(manualValidation.isoTime || null)
@@ -265,6 +267,7 @@ export default function Dashboard() {
       await fetchPortfolioInfo()
       await fetchPnLSummary()
       await refreshDemoStatus()
+      setJournalPromptEntryId(sellEntry?.id ?? null)
       setJournalPromptTicker(soldTicker)
       setJournalPromptTradeType('SELL')
       setShowJournalPrompt(true)
@@ -283,6 +286,7 @@ export default function Dashboard() {
   const submitJournalPrompt = async (body: string) => {
     if (!body) {
       setShowJournalPrompt(false)
+      setJournalPromptEntryId(null)
       setManualTradeTime(null)
       setManualTradePrice(null)
       portfolioChartRef.current?.refresh()
@@ -290,18 +294,23 @@ export default function Dashboard() {
       return
     }
     try {
-      await journalApi.createEntry({
-        entryType: journalPromptTradeType,
-        body,
-        ticker: journalPromptTicker,
-        timestamp: manualTradeTime || undefined,
-        priceSnapshot: manualTradePrice || undefined,
-      })
+      if (journalPromptEntryId != null) {
+        await journalApi.updateEntry(journalPromptEntryId, { body })
+      } else {
+        await journalApi.createEntry({
+          entryType: journalPromptTradeType,
+          body,
+          ticker: journalPromptTicker,
+          timestamp: manualTradeTime || undefined,
+          priceSnapshot: manualTradePrice || undefined,
+        })
+      }
     } catch (e) {
       console.error('Failed to save journal entry:', e)
     } finally {
       setShowJournalPrompt(false)
       setJournalPromptTicker('')
+      setJournalPromptEntryId(null)
       setManualTradeTime(null)
       setManualTradePrice(null)
       portfolioChartRef.current?.refresh()
@@ -707,6 +716,7 @@ export default function Dashboard() {
         isOpen={showJournalPrompt}
         onClose={() => {
           setShowJournalPrompt(false)
+          setJournalPromptEntryId(null)
           portfolioChartRef.current?.refresh()
           journalPanelRef.current?.refreshEntries()
         }}
