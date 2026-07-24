@@ -23,7 +23,6 @@ export default function TagInput({
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 })
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const popupRef = useRef<HTMLDivElement | null>(null)
   const debounceRef = useRef<number | null>(null)
 
   const fetchSuggestions = useCallback((query: string) => {
@@ -34,7 +33,8 @@ export default function TagInput({
         setSuggestions(data || [])
         setSelectedIndex(0)
         setShowSuggestions(true)
-      } catch {
+      } catch (e) {
+        console.error('Failed to fetch tag suggestions:', e)
         setSuggestions([])
         setShowSuggestions(false)
       }
@@ -43,18 +43,21 @@ export default function TagInput({
 
   const getCursorCoordinates = (textarea: HTMLTextAreaElement, position: number) => {
     const style = window.getComputedStyle(textarea)
+    const textareaRect = textarea.getBoundingClientRect()
     const div = document.createElement('div')
 
     const stylesToCopy = [
-      'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing',
-      'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-      'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
-      'boxSizing', 'whiteSpace', 'wordWrap', 'overflow',
+      'font-family', 'font-size', 'font-weight', 'line-height', 'letter-spacing',
+      'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+      'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
+      'box-sizing', 'white-space', 'word-wrap', 'overflow',
     ]
     stylesToCopy.forEach((prop) => div.style.setProperty(prop, style.getPropertyValue(prop)))
 
     div.style.position = 'absolute'
     div.style.visibility = 'hidden'
+    div.style.top = `${textareaRect.top + window.scrollY}px`
+    div.style.left = `${textareaRect.left + window.scrollX}px`
     div.style.width = textarea.clientWidth + 'px'
     div.style.height = 'auto'
     div.style.whiteSpace = 'pre-wrap'
@@ -71,11 +74,10 @@ export default function TagInput({
 
     document.body.appendChild(div)
     const markerRect = marker.getBoundingClientRect()
-    const textareaRect = textarea.getBoundingClientRect()
     document.body.removeChild(div)
 
     return {
-      top: markerRect.top - textareaRect.top + textarea.scrollTop,
+      top: markerRect.top - textareaRect.top - textarea.scrollTop,
       left: markerRect.left - textareaRect.left,
     }
   }
@@ -153,13 +155,6 @@ export default function TagInput({
     }
   }, [])
 
-  useEffect(() => {
-    if (popupRef.current && showSuggestions) {
-      const height = popupRef.current.offsetHeight
-      setPopupPosition((prev) => ({ ...prev, top: prev.top - height - 8 }))
-    }
-  }, [showSuggestions, suggestions.length])
-
   return (
     <div className="relative">
       <textarea
@@ -175,9 +170,12 @@ export default function TagInput({
       />
       {showSuggestions && suggestions.length > 0 && (
         <div
-          ref={popupRef}
           className="absolute z-50 bg-surface border border-border rounded-md shadow-lg py-1 min-w-32"
-          style={{ top: popupPosition.top, left: popupPosition.left }}
+          style={{
+            top: popupPosition.top,
+            left: popupPosition.left,
+            transform: 'translateY(calc(-100% - 8px))',
+          }}
         >
           {suggestions.map((suggestion, index) => (
             <button
