@@ -35,12 +35,14 @@ public class JournalEntryService {
     private final StockService stockService;
     private final TagService tagService;
     private final TransactionRepository transactionRepository;
+    private final RealizedPnlCalculator realizedPnlCalculator;
 
-    public JournalEntryService(JournalEntryRepository journalEntryRepository, StockService stockService, TagService tagService, TransactionRepository transactionRepository) {
+    public JournalEntryService(JournalEntryRepository journalEntryRepository, StockService stockService, TagService tagService, TransactionRepository transactionRepository, RealizedPnlCalculator realizedPnlCalculator) {
         this.journalEntryRepository = journalEntryRepository;
         this.stockService = stockService;
         this.tagService = tagService;
         this.transactionRepository = transactionRepository;
+        this.realizedPnlCalculator = realizedPnlCalculator;
     }
 
     private User getCurrentUser() {
@@ -90,6 +92,22 @@ public class JournalEntryService {
 
     public JournalEntry createEntry(JournalEntry entry) {
         return createEntry(entry, List.of());
+    }
+
+    public JournalEntry createAutoSellEntry(User user, String ticker, double shares, double price, Instant timestamp) {
+        JournalEntry entry = new JournalEntry();
+        entry.setEntryType(JournalEntryType.SELL);
+        entry.setBody("Sold " + shares + " " + ticker);
+        entry.setTicker(ticker);
+        entry.setTimestamp(timestamp != null ? timestamp : Instant.now());
+        entry.setPriceSnapshot(price);
+        entry.setUser(user);
+
+        List<Transaction> transactions = transactionRepository.findByUserIdAndTicker(user.getId(), ticker);
+        Double realizedPnl = realizedPnlCalculator.computeRealizedPnl(transactions, ticker, entry.getTimestamp(), shares, price);
+        String resultTag = realizedPnlCalculator.resultTagFor(realizedPnl);
+        entry.setTags(tagService.resolveTags(user, resultTag != null ? List.of(resultTag) : List.of()));
+        return journalEntryRepository.save(entry);
     }
 
     public List<JournalEntry> getEntriesForUser() {
@@ -162,7 +180,15 @@ public class JournalEntryService {
             throw new RuntimeException("Journal entry not found");
         }
         entry.setBody(body);
-        entry.setTags(tagService.resolveTags(getCurrentUser(), tagNames));
+        List<String> combinedTags = new ArrayList<>();
+        if (tagNames != null) {
+            combinedTags.addAll(tagNames);
+        }
+        String autoTag = computeAutoTagForSellEntry(entry.getUser(), entry);
+        if (autoTag != null && !combinedTags.contains(autoTag)) {
+            combinedTags.add(autoTag);
+        }
+        entry.setTags(tagService.resolveTags(getCurrentUser(), combinedTags));
         return journalEntryRepository.save(entry);
     }
 
@@ -174,45 +200,11 @@ public class JournalEntryService {
         if (entry.getEntryType() != JournalEntryType.SELL || entry.getTicker() == null || entry.getTicker().isBlank()) {
             return null;
         }
-        Double realizedPnl = computeRealizedPnlForTicker(user, entry.getTicker());
-        if (realizedPnl == null) {
+        if (entry.getPriceSnapshot() == null) {
             return null;
         }
-        if (realizedPnl > 0) {
-            return "win";
-        }
-        if (realizedPnl < 0) {
-            return "loss";
-        }
-        return null;
-    }
-
-    private Double computeRealizedPnlForTicker(User user, String ticker) {
-        List<Transaction> transactions = transactionRepository.findByUserIdAndTicker(user.getId(), ticker);
-        if (transactions.isEmpty()) {
-            return null;
-        }
-
-        double buyShares = 0;
-        double buyCost = 0;
-        double sellShares = 0;
-        double sellProceeds = 0;
-
-        for (Transaction tx : transactions) {
-            if (tx.getType() == Transaction.TransactionType.BUY) {
-                buyShares += tx.getShares();
-                buyCost += tx.getTotalValue();
-            } else if (tx.getType() == Transaction.TransactionType.SELL) {
-                sellShares += tx.getShares();
-                sellProceeds += tx.getTotalValue();
-            }
-        }
-
-        if (buyShares == 0) {
-            return null;
-        }
-
-        double avgCost = buyCost / buyShares;
-        return sellProceeds - (avgCost * sellShares);
+        List<Transaction> transactions = transactionRepository.findByUserIdAndTicker(user.getId(), entry.getTicker());
+        Double realizedPnl = realizedPnlCalculator.computeRealizedPnl(transactions, entry.getTicker(), entry.getTimestamp(), 1, entry.getPriceSnapshot());
+        return realizedPnlCalculator.resultTagFor(realizedPnl);
     }
 }

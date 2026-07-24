@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -19,6 +20,11 @@ public class TagService {
     private static final String[] TAG_COLORS = {
         "#5e9ed6", "#10b981", "#ef4444", "#d6965e", "#8b5cf6", "#f59e0b", "#ec4899", "#6366f1"
     };
+
+    private static final Map<String, String> RESULT_TAG_COLORS = Map.of(
+        "win", "#10b981",
+        "loss", "#ef4444"
+    );
 
     private final TagRepository tagRepository;
 
@@ -49,7 +55,7 @@ public class TagService {
             } else {
                 Tag tag = new Tag();
                 tag.setName(normalized);
-                tag.setColor(assignColor(user));
+                tag.setColor(RESULT_TAG_COLORS.getOrDefault(normalized, assignColor(user)));
                 tag.setUser(user);
                 tags.add(tagRepository.save(tag));
             }

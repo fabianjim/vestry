@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
@@ -55,6 +56,8 @@ public class DemoSessionServiceTest {
     private StockService stockService;
     @Mock
     private TrackedStockRepository trackedStockRepository;
+    @Spy
+    private RealizedPnlCalculator realizedPnlCalculator = new RealizedPnlCalculator();
     @InjectMocks
     private DemoSessionService demoSessionService;
 
@@ -164,6 +167,136 @@ public class DemoSessionServiceTest {
         assertEquals(Transaction.TransactionType.SELL, session.getTransactions().get(0).getType());
         assertFalse(session.getSessionTrackedTickers().contains("NVDA"));
         verify(trackedStockRepository).delete(tracked);
+    }
+
+    @Test
+    void sellHoldingCreatesTaggedSessionJournalEntry() {
+        DemoSession session = new DemoSession();
+        Portfolio portfolio = new Portfolio();
+        portfolio.setId(session.nextId());
+        portfolio.setUser(demoUser);
+        Holding holding = new Holding("NVDA", 10);
+        holding.setId(session.nextId());
+        portfolio.setHoldings(new ArrayList<>(List.of(holding)));
+        session.setPortfolio(portfolio);
+
+        Transaction buy = new Transaction("NVDA", 10, 100.0, Transaction.TransactionType.BUY, true);
+        buy.setId(session.nextId());
+        buy.setTimestamp(Instant.now().minusSeconds(3600));
+        buy.setTotalValue(1000.0);
+        buy.setUser(demoUser);
+        session.getTransactions().add(buy);
+
+        Stock stock = new Stock("NVDA", Instant.now(), 150.0, 145.0, 140.0, 155.0, 144.0, Stock.StockType.INITIAL, Instant.now());
+        TrackedStock tracked = new TrackedStock("NVDA");
+        tracked.setHolderCount(1);
+        session.getSessionTrackedTickers().add("NVDA");
+        when(stockService.updateStockData("NVDA", Stock.StockType.INITIAL)).thenReturn(stock);
+        when(trackedStockRepository.findByTicker("NVDA")).thenReturn(Optional.of(tracked));
+
+        JournalEntry sellEntry = demoSessionService.sellHolding(session, demoUser, "NVDA", 10, null, null);
+
+        assertNotNull(sellEntry);
+        assertTrue(sellEntry.getId() < 0);
+        assertEquals(JournalEntryType.SELL, sellEntry.getEntryType());
+        assertEquals(1, sellEntry.getTags().size());
+        assertEquals("win", sellEntry.getTags().iterator().next().getName());
+        assertEquals("#10b981", sellEntry.getTags().iterator().next().getColor());
+        assertTrue(session.getJournalEntries().contains(sellEntry));
+        verify(journalEntryRepository, never()).save(any(JournalEntry.class));
+    }
+
+    @Test
+    void sellHoldingLossCreatesLossTag() {
+        DemoSession session = new DemoSession();
+        Portfolio portfolio = new Portfolio();
+        portfolio.setId(session.nextId());
+        portfolio.setUser(demoUser);
+        Holding holding = new Holding("NVDA", 10);
+        holding.setId(session.nextId());
+        portfolio.setHoldings(new ArrayList<>(List.of(holding)));
+        session.setPortfolio(portfolio);
+
+        Transaction buy = new Transaction("NVDA", 10, 200.0, Transaction.TransactionType.BUY, true);
+        buy.setId(session.nextId());
+        buy.setTimestamp(Instant.now().minusSeconds(3600));
+        buy.setTotalValue(2000.0);
+        buy.setUser(demoUser);
+        session.getTransactions().add(buy);
+
+        Stock stock = new Stock("NVDA", Instant.now(), 150.0, 145.0, 140.0, 155.0, 144.0, Stock.StockType.INITIAL, Instant.now());
+        when(stockService.updateStockData("NVDA", Stock.StockType.INITIAL)).thenReturn(stock);
+
+        JournalEntry sellEntry = demoSessionService.sellHolding(session, demoUser, "NVDA", 5, null, null);
+
+        assertEquals(1, sellEntry.getTags().size());
+        assertEquals("loss", sellEntry.getTags().iterator().next().getName());
+        assertEquals("#ef4444", sellEntry.getTags().iterator().next().getColor());
+    }
+
+    @Test
+    void createSessionDeduplicatesTagsByNameAcrossEntries() {
+        com.github.fabianjim.portfoliomonitor.model.Tag shared = new com.github.fabianjim.portfoliomonitor.model.Tag();
+        shared.setId(50);
+        shared.setName("win");
+        shared.setColor("#10b981");
+        shared.setUser(demoUser);
+
+        JournalEntry first = new JournalEntry();
+        first.setId(1);
+        first.setEntryType(JournalEntryType.SELL);
+        first.setBody("First");
+        first.setTimestamp(Instant.now());
+        first.setTags(new java.util.HashSet<>(List.of(shared)));
+
+        JournalEntry second = new JournalEntry();
+        second.setId(2);
+        second.setEntryType(JournalEntryType.SELL);
+        second.setBody("Second");
+        second.setTimestamp(Instant.now());
+        second.setTags(new java.util.HashSet<>(List.of(shared)));
+
+        when(portfolioRepository.findByUserId(demoUser.getId())).thenReturn(Optional.empty());
+        when(transactionRepository.findByUserIdOrderByTimestampDesc(demoUser.getId())).thenReturn(List.of());
+        when(journalEntryRepository.findByUserIdOrderByTimestampDesc(demoUser.getId())).thenReturn(List.of(first, second));
+        when(watchlistItemRepository.findByUserId(demoUser.getId())).thenReturn(List.of());
+
+        DemoSession session = demoSessionService.createSession(demoUser);
+
+        com.github.fabianjim.portfoliomonitor.model.Tag firstTag = session.getJournalEntries().get(0).getTags().iterator().next();
+        com.github.fabianjim.portfoliomonitor.model.Tag secondTag = session.getJournalEntries().get(1).getTags().iterator().next();
+        assertSame(firstTag, secondTag);
+
+        List<com.github.fabianjim.portfoliomonitor.model.Tag> popular = demoSessionService.getPopularTags(session, "", 10);
+        assertEquals(1, popular.size());
+        assertEquals("win", popular.get(0).getName());
+        assertEquals(firstTag.getId(), popular.get(0).getId());
+    }
+
+    @Test
+    void updateJournalEntryPreservesAutoResultTag() {
+        DemoSession session = new DemoSession();
+
+        Transaction buy = new Transaction("AAPL", 10, 100.0, Transaction.TransactionType.BUY, true);
+        buy.setId(session.nextId());
+        buy.setTimestamp(Instant.now().minusSeconds(3600));
+        buy.setTotalValue(1000.0);
+        buy.setUser(demoUser);
+        session.getTransactions().add(buy);
+
+        JournalEntry entry = new JournalEntry();
+        entry.setEntryType(JournalEntryType.SELL);
+        entry.setBody("Sold AAPL");
+        entry.setTicker("AAPL");
+        entry.setPriceSnapshot(120.0);
+
+        JournalEntry created = demoSessionService.createJournalEntry(session, demoUser, entry, List.of());
+        assertEquals("win", created.getTags().iterator().next().getName());
+
+        JournalEntry updated = demoSessionService.updateJournalEntry(session, demoUser, created.getId(), "New note", List.of());
+        assertEquals("New note", updated.getBody());
+        assertEquals(1, updated.getTags().size());
+        assertEquals("win", updated.getTags().iterator().next().getName());
     }
 
     @Test

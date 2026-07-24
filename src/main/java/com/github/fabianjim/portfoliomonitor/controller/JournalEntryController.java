@@ -117,12 +117,19 @@ public class JournalEntryController {
             @RequestParam(required = false, defaultValue = "") String query,
             @RequestParam(required = false, defaultValue = "3") int limit,
             HttpServletRequest request) {
+        if (demoSessionResolver.isDemoUser()) {
+            return demoSessionService.getPopularTags(demoSessionResolver.resolveSession(request), query, limit);
+        }
         User user = demoSessionResolver.getCurrentUser();
         return tagService.findPopularTags(user, query, limit);
     }
 
     @DeleteMapping("/tags/{id}")
     public void deleteTag(@PathVariable int id, HttpServletRequest request) {
+        if (demoSessionResolver.isDemoUser()) {
+            demoSessionService.deleteTag(demoSessionResolver.resolveSession(request), id);
+            return;
+        }
         User user = demoSessionResolver.getCurrentUser();
         tagService.deleteTag(user.getId(), id);
     }

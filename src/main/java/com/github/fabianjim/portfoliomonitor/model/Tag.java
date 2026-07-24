@@ -7,7 +7,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "tags")
+@Table(name = "tags", uniqueConstraints = @UniqueConstraint(name = "tags_user_id_name_key", columnNames = {"user_id", "name"}))
 public class Tag {
 
     @Id

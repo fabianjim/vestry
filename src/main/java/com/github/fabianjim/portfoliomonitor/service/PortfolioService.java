@@ -5,6 +5,7 @@ import com.github.fabianjim.portfoliomonitor.dto.PortfolioHistoryDTO;
 import com.github.fabianjim.portfoliomonitor.exception.PriceFetchException;
 import com.github.fabianjim.portfoliomonitor.exception.UnknownTickerException;
 import com.github.fabianjim.portfoliomonitor.model.Holding;
+import com.github.fabianjim.portfoliomonitor.model.JournalEntry;
 import com.github.fabianjim.portfoliomonitor.model.Portfolio;
 import com.github.fabianjim.portfoliomonitor.model.Stock;
 import com.github.fabianjim.portfoliomonitor.model.TrackedStock;
@@ -39,19 +40,22 @@ public class PortfolioService {
     private final TrackedStockRepository trackedStockRepository;
     private final StockRepository stockRepository;
     private final TransactionService transactionService;
+    private final JournalEntryService journalEntryService;
 
     public PortfolioService(PortfolioRepository portfolioRepository,
                           StockService stockService,
                           UserRepository userRepository,
                           TrackedStockRepository trackedStockRepository,
                           StockRepository stockRepository,
-                          TransactionService transactionService) {
+                          TransactionService transactionService,
+                          JournalEntryService journalEntryService) {
         this.portfolioRepository = portfolioRepository;
         this.stockService = stockService;
         this.userRepository = userRepository;
         this.trackedStockRepository = trackedStockRepository;
         this.stockRepository = stockRepository;
         this.transactionService = transactionService;
+        this.journalEntryService = journalEntryService;
     }
 
     private Integer getCurrentUserId() {
@@ -61,6 +65,14 @@ public class PortfolioService {
         }
         User user = (User) auth.getPrincipal();
         return user.getId();
+    }
+
+    private User getCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            throw new RuntimeException("No authenticated user found");
+        }
+        return (User) auth.getPrincipal();
     }
 
     public void createPortfolio(Portfolio portfolio) {
@@ -210,11 +222,11 @@ public class PortfolioService {
         transactionService.recordBuyTransaction(ticker, shares, currentPrice, timestamp);
     }
 
-    public void removeHolding(String ticker) {
-        removeHolding(ticker, null, null);
+    public JournalEntry removeHolding(String ticker) {
+        return removeHolding(ticker, null, null);
     }
 
-    public void removeHolding(String ticker, Double price, Instant timestamp) {
+    public JournalEntry removeHolding(String ticker, Double price, Instant timestamp) {
         Portfolio portfolio = getPortfolio();
         if (portfolio == null) {
             throw new RuntimeException("No portfolio found for current user");
@@ -225,12 +237,17 @@ public class PortfolioService {
             .findFirst()
             .orElse(null);
         if (holding == null) {
-            return;
+            return null;
         }
         double shares = holding.getShares();
-        
+
         // Fetch and validate price BEFORE modifying portfolio (unless manually provided)
         double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
+
+        // Create the auto sell journal entry before recording the transaction
+        // so realized PnL reflects the cost basis prior to this sale
+        JournalEntry sellEntry = journalEntryService.createAutoSellEntry(getCurrentUser(), ticker, shares, currentPrice, timestamp);
+
         portfolio.getHoldings().remove(holding);
         portfolioRepository.save(portfolio);
 
@@ -239,14 +256,15 @@ public class PortfolioService {
 
         // Record sell transaction with validated price
         transactionService.recordSellTransaction(ticker, shares, currentPrice, timestamp);
+        return sellEntry;
     }
 
     // Sell a portion of a holding (partial sell).
-    public void sellHolding(String ticker, double sharesToSell) {
-        sellHolding(ticker, sharesToSell, null, null);
+    public JournalEntry sellHolding(String ticker, double sharesToSell) {
+        return sellHolding(ticker, sharesToSell, null, null);
     }
 
-    public void sellHolding(String ticker, double sharesToSell, Double price, Instant timestamp) {
+    public JournalEntry sellHolding(String ticker, double sharesToSell, Double price, Instant timestamp) {
         Portfolio portfolio = getPortfolio();
         if (portfolio == null) {
             throw new RuntimeException("No portfolio found for current user");
@@ -264,6 +282,10 @@ public class PortfolioService {
         // Fetch and validate price BEFORE modifying portfolio (unless manually provided)
         double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
 
+        // Create the auto sell journal entry before recording the transaction
+        // so realized PnL reflects the cost basis prior to this sale
+        JournalEntry sellEntry = journalEntryService.createAutoSellEntry(getCurrentUser(), ticker, sharesToSell, currentPrice, timestamp);
+
         // Record sell transaction with validated price
         transactionService.recordSellTransaction(ticker, sharesToSell, currentPrice, timestamp);
 
@@ -277,6 +299,7 @@ public class PortfolioService {
             holding.setShares(holding.getShares() - sharesToSell);
         }
         portfolioRepository.save(portfolio);
+        return sellEntry;
     }
 
     public List<String> getTickersfromPortfolio(Portfolio portfolio) {

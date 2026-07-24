@@ -56,6 +56,9 @@ public class PortfolioServiceHistoryTest {
     private TransactionService transactionService;
 
     @Mock
+    private JournalEntryService journalEntryService;
+
+    @Mock
     private SecurityContext securityContext;
 
     @Mock

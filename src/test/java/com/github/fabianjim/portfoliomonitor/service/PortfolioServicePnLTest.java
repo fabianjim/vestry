@@ -51,6 +51,9 @@ public class PortfolioServicePnLTest {
     private TransactionService transactionService;
 
     @Mock
+    private JournalEntryService journalEntryService;
+
+    @Mock
     private SecurityContext securityContext;
 
     @Mock

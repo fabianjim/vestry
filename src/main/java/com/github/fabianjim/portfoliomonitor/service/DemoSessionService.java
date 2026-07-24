@@ -50,6 +50,7 @@ public class DemoSessionService {
     private final StockRepository stockRepository;
     private final StockService stockService;
     private final TrackedStockRepository trackedStockRepository;
+    private final RealizedPnlCalculator realizedPnlCalculator;
 
     public DemoSessionService(PortfolioRepository portfolioRepository,
                               HoldingRepository holdingRepository,
@@ -58,7 +59,8 @@ public class DemoSessionService {
                               WatchlistItemRepository watchlistItemRepository,
                               StockRepository stockRepository,
                               StockService stockService,
-                              TrackedStockRepository trackedStockRepository) {
+                              TrackedStockRepository trackedStockRepository,
+                              RealizedPnlCalculator realizedPnlCalculator) {
         this.portfolioRepository = portfolioRepository;
         this.holdingRepository = holdingRepository;
         this.transactionRepository = transactionRepository;
@@ -67,6 +69,7 @@ public class DemoSessionService {
         this.stockRepository = stockRepository;
         this.stockService = stockService;
         this.trackedStockRepository = trackedStockRepository;
+        this.realizedPnlCalculator = realizedPnlCalculator;
     }
 
     public DemoSession createSession(com.github.fabianjim.portfoliomonitor.model.User user) {
@@ -109,6 +112,7 @@ public class DemoSessionService {
         session.setTransactions(txCopy);
 
         List<JournalEntry> journalCopy = new ArrayList<>();
+        Map<String, Tag> sessionTagsByName = new HashMap<>();
         for (JournalEntry entry : journalEntryRepository.findByUserIdOrderByTimestampDesc(user.getId())) {
             JournalEntry copy = new JournalEntry();
             copy.setId(session.nextId());
@@ -121,11 +125,14 @@ public class DemoSessionService {
 
             Set<Tag> tagCopies = new HashSet<>();
             for (Tag tag : entry.getTags()) {
-                Tag tagCopy = new Tag();
-                tagCopy.setId(session.nextId());
-                tagCopy.setName(tag.getName());
-                tagCopy.setColor(tag.getColor());
-                tagCopy.setUser(user);
+                Tag tagCopy = sessionTagsByName.computeIfAbsent(tag.getName(), name -> {
+                    Tag t = new Tag();
+                    t.setId(session.nextId());
+                    t.setName(tag.getName());
+                    t.setColor(tag.getColor());
+                    t.setUser(user);
+                    return t;
+                });
                 tagCopies.add(tagCopy);
             }
             copy.setTags(tagCopies);
@@ -221,7 +228,7 @@ public class DemoSessionService {
         recordBuyTransaction(session, user, ticker, shares, currentPrice, timestamp, false);
     }
 
-    public void removeHolding(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, String ticker, Double price, Instant timestamp) {
+    public JournalEntry removeHolding(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, String ticker, Double price, Instant timestamp) {
         assertTradeRemaining(session);
         Portfolio portfolio = session.getPortfolio();
         if (portfolio == null) {
@@ -233,18 +240,23 @@ public class DemoSessionService {
             .findFirst()
             .orElse(null);
         if (holding == null) {
-            return;
+            return null;
         }
         double shares = holding.getShares();
         double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
+
+        // Create the auto sell journal entry before recording the transaction
+        // so realized PnL reflects the cost basis prior to this sale
+        JournalEntry sellEntry = createAutoSellEntry(session, user, ticker, shares, currentPrice, timestamp);
 
         portfolio.getHoldings().remove(holding);
         stopTrackingStockForSession(session, ticker);
         session.setRemainingTrades(session.getRemainingTrades() - 1);
         recordSellTransaction(session, user, ticker, shares, currentPrice, timestamp);
+        return sellEntry;
     }
 
-    public void sellHolding(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, String ticker, double sharesToSell, Double price, Instant timestamp) {
+    public JournalEntry sellHolding(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, String ticker, double sharesToSell, Double price, Instant timestamp) {
         assertTradeRemaining(session);
         Portfolio portfolio = session.getPortfolio();
         if (portfolio == null) {
@@ -262,6 +274,10 @@ public class DemoSessionService {
 
         double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
 
+        // Create the auto sell journal entry before recording the transaction
+        // so realized PnL reflects the cost basis prior to this sale
+        JournalEntry sellEntry = createAutoSellEntry(session, user, ticker, sharesToSell, currentPrice, timestamp);
+
         session.setRemainingTrades(session.getRemainingTrades() - 1);
         recordSellTransaction(session, user, ticker, sharesToSell, currentPrice, timestamp);
 
@@ -271,6 +287,20 @@ public class DemoSessionService {
         } else {
             holding.setShares(holding.getShares() - sharesToSell);
         }
+        return sellEntry;
+    }
+
+    private JournalEntry createAutoSellEntry(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, String ticker, double shares, double price, Instant timestamp) {
+        JournalEntry entry = new JournalEntry();
+        entry.setEntryType(JournalEntryType.SELL);
+        entry.setBody("Sold " + shares + " " + ticker);
+        entry.setTicker(ticker);
+        entry.setTimestamp(timestamp != null ? timestamp : Instant.now());
+        entry.setPriceSnapshot(price);
+
+        Double realizedPnl = realizedPnlCalculator.computeRealizedPnl(session.getTransactions(), ticker, entry.getTimestamp(), shares, price);
+        String resultTag = realizedPnlCalculator.resultTagFor(realizedPnl);
+        return createJournalEntry(session, user, entry, resultTag != null ? List.of(resultTag) : List.of());
     }
 
     private void assertTradeRemaining(DemoSession session) {
@@ -640,7 +670,15 @@ public class DemoSessionService {
         }
         JournalEntry entry = entryOpt.get();
         entry.setBody(body);
-        entry.setTags(resolveDemoTags(session, user, tagNames));
+        List<String> combinedTags = new ArrayList<>();
+        if (tagNames != null) {
+            combinedTags.addAll(tagNames);
+        }
+        String autoTag = computeAutoTagForSellEntry(session, entry);
+        if (autoTag != null && !combinedTags.contains(autoTag)) {
+            combinedTags.add(autoTag);
+        }
+        entry.setTags(resolveDemoTags(session, user, combinedTags));
         return entry;
     }
 
@@ -667,7 +705,7 @@ public class DemoSessionService {
                 Tag tag = new Tag();
                 tag.setId(session.nextId());
                 tag.setName(normalized);
-                tag.setColor(assignDemoTagColor(session));
+                tag.setColor(assignDemoTagColor(session, normalized));
                 tag.setUser(user);
                 tags.add(tag);
             }
@@ -676,6 +714,16 @@ public class DemoSessionService {
     }
 
     private String assignDemoTagColor(DemoSession session) {
+        return assignDemoTagColor(session, null);
+    }
+
+    private String assignDemoTagColor(DemoSession session, String tagName) {
+        if ("win".equals(tagName)) {
+            return "#10b981";
+        }
+        if ("loss".equals(tagName)) {
+            return "#ef4444";
+        }
         String[] colors = {"#5e9ed6", "#10b981", "#ef4444", "#d6965e", "#8b5cf6", "#f59e0b", "#ec4899", "#6366f1"};
         int count = 0;
         for (JournalEntry entry : session.getJournalEntries()) {
@@ -688,49 +736,35 @@ public class DemoSessionService {
         if (entry.getEntryType() != JournalEntryType.SELL || entry.getTicker() == null || entry.getTicker().isBlank()) {
             return null;
         }
-        Double realizedPnl = computeRealizedPnlForTicker(session, entry.getTicker());
-        if (realizedPnl == null) {
+        if (entry.getPriceSnapshot() == null) {
             return null;
         }
-        if (realizedPnl > 0) {
-            return "win";
-        }
-        if (realizedPnl < 0) {
-            return "loss";
-        }
-        return null;
+        Double realizedPnl = realizedPnlCalculator.computeRealizedPnl(session.getTransactions(), entry.getTicker(), entry.getTimestamp(), 1, entry.getPriceSnapshot());
+        return realizedPnlCalculator.resultTagFor(realizedPnl);
     }
 
-    private Double computeRealizedPnlForTicker(DemoSession session, String ticker) {
-        List<Transaction> transactions = session.getTransactions();
-        if (transactions == null || transactions.isEmpty()) {
-            return null;
-        }
-
-        double buyShares = 0;
-        double buyCost = 0;
-        double sellShares = 0;
-        double sellProceeds = 0;
-
-        for (Transaction tx : transactions) {
-            if (!ticker.equalsIgnoreCase(tx.getTicker())) {
-                continue;
-            }
-            if (tx.getType() == Transaction.TransactionType.BUY) {
-                buyShares += tx.getShares();
-                buyCost += tx.getTotalValue();
-            } else if (tx.getType() == Transaction.TransactionType.SELL) {
-                sellShares += tx.getShares();
-                sellProceeds += tx.getTotalValue();
+    public List<Tag> getPopularTags(DemoSession session, String prefix, int limit) {
+        String query = prefix == null ? "" : prefix.toLowerCase();
+        Map<String, Tag> tagsByName = new LinkedHashMap<>();
+        Map<String, Integer> counts = new HashMap<>();
+        for (JournalEntry entry : session.getJournalEntries()) {
+            for (Tag tag : entry.getTags()) {
+                tagsByName.putIfAbsent(tag.getName(), tag);
+                counts.merge(tag.getName(), 1, Integer::sum);
             }
         }
+        return tagsByName.values().stream()
+            .filter(t -> t.getName().startsWith(query))
+            .sorted(Comparator.<Tag>comparingInt(t -> counts.getOrDefault(t.getName(), 0)).reversed()
+                .thenComparing(Tag::getName))
+            .limit(limit)
+            .collect(Collectors.toList());
+    }
 
-        if (buyShares == 0) {
-            return null;
+    public void deleteTag(DemoSession session, int tagId) {
+        for (JournalEntry entry : session.getJournalEntries()) {
+            entry.getTags().removeIf(t -> t.getId() == tagId);
         }
-
-        double avgCost = buyCost / buyShares;
-        return sellProceeds - (avgCost * sellShares);
     }
 
     public WatchlistItem addToWatchlist(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, String ticker) {
