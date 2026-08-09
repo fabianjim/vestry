@@ -140,8 +140,7 @@ export default function Landing() {
             <div className="text-center mb-10">
               <h2 className="text-3xl md:text-4xl font-150 text-foreground mb-4">Reflect on every trade</h2>
               <p className="text-base text-secondary max-w-lg mx-auto leading-relaxed">
-                Attach context to each move. A short note today becomes a valuable
-                signal tomorrow.
+                Recall the context and emotions behind your trades days or months in the future.
               </p>
             </div>
 
@@ -159,7 +158,7 @@ export default function Landing() {
             <div className="text-center mb-10">
               <h2 className="text-3xl md:text-4xl font-150 text-foreground mb-4">Analyze what happened</h2>
               <p className="text-base text-secondary max-w-lg mx-auto leading-relaxed">
-                See the entry against customizable metrics. <br></br> Understand outcomes without
+                See the entry against customizable metrics. <br></br> Understand trends and outcomes without
                 noise.
               </p>
             </div>

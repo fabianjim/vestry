@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 function ClosedEntry({
   type,
   typeColor,
@@ -25,24 +27,31 @@ interface LandingJournalCardProps {
 }
 
 export default function LandingJournalCard({ onSpxClick }: LandingJournalCardProps) {
+  const [clicked, setClicked] = useState(false)
+
+  const handleClick = () => {
+    setClicked(true)
+    onSpxClick?.()
+  }
+
   return (
     <div className="w-full max-w-lg mx-auto rounded-lg border border-border overflow-hidden hover:border-primary/30 transition-colors">
       <div
         role="button"
         tabIndex={0}
-        onClick={onSpxClick}
+        onClick={handleClick}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            onSpxClick?.()
+            handleClick()
           }
         }}
-        className="bg-surface p-5 cursor-pointer transition-colors hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-primary"
+        className={`bg-surface p-5 cursor-pointer transition-colors hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-primary${clicked ? '' : ' animate-bg-pulse'}`}
       >
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-3">
             <span className="px-2 py-1 text-xs font-130 uppercase bg-gain/10 text-gain rounded">BUY</span>
-            <span className="text-sm font-150 text-foreground">SPX</span>
+            <span className="text-sm font-150 text-foreground">SPY</span>
           </div>
           <span className="text-xs text-muted">Jun 18 3:50PM</span>
         </div>
@@ -50,8 +59,7 @@ export default function LandingJournalCard({ onSpxClick }: LandingJournalCardPro
         <div className="text-xs text-muted mb-3">Snapshot: $750.00</div>
 
         <p className="text-sm text-foreground leading-relaxed">
-          Bought SPX near the close. Want to remember why I entered and how the
-          thesis plays out over the next few sessions.
+          Bought near close as markets begin to rebound after yesterdays debut from new Fed chair
         </p>
       </div>
       
