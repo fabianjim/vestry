@@ -5,7 +5,6 @@ import {
   HomeIcon,
   ChartPieIcon,
   DocumentCurrencyDollarIcon,
-  QuestionMarkCircleIcon,
   BookOpenIcon,
   LogoutIcon,
   GithubIcon,
@@ -20,7 +19,6 @@ const navItems = [
   { path: '/analysis', label: 'Holding Analysis', icon: ChartPieIcon },
   { path: '/transactions', label: 'Transactions', icon: DocumentCurrencyDollarIcon },
   { path: '/journal', label: 'Journal', icon: BookOpenIcon },
-  { path: '/vestry-info', label: 'Vestry Info', icon: QuestionMarkCircleIcon },
 ]
 
 const footerItems = [
@@ -188,7 +186,7 @@ export default function Layout() {
         </div>
         <footer className="py-5 px-6 border-t border-border flex flex-col items-center gap-3 text-sm text-muted">
           <p className="font-90 text-secondary">
-            Contributions are welcomed and encouraged.
+            Contributions are welcomed and encouraged. For informational purposes only, not financial advice.
           </p>
           <div className="flex items-center gap-6">
             {footerItems.map((item) => {

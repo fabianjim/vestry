@@ -7,7 +7,6 @@ import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import Analysis from './pages/Analysis'
 import Transactions from './pages/Transactions'
-import VestryInfo from './pages/VestryInfo'
 import Journal from './pages/Journal'
 
 export default function App() {
@@ -23,7 +22,6 @@ export default function App() {
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/analysis" element={<Analysis />} />
             <Route path="/journal" element={<Journal />} />
-            <Route path="/vestry-info" element={<VestryInfo />} />
           </Route>
         </Routes>
       </div>
