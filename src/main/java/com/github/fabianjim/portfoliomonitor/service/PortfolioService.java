@@ -109,10 +109,12 @@ public class PortfolioService {
 
             portfolioRepository.save(portfolio);
 
-            // Record buy transactions with validated prices (mark as initial portfolio creation)
+            // Record buy transactions and initial journal entries with validated prices
+            Instant creationTime = Instant.now();
             for (Holding holding : portfolio.getHoldings()) {
                 double price = tickerPrices.get(holding.getTicker());
-                transactionService.recordBuyTransaction(holding.getTicker(), holding.getShares(), price, null, true);
+                transactionService.recordBuyTransaction(holding.getTicker(), holding.getShares(), price, creationTime);
+                journalEntryService.createInitialEntry(user, holding.getTicker(), price, creationTime);
             }
         }
     }

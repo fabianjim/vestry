@@ -123,7 +123,71 @@ describe('processHourlyData', () => {
     const result = processHourlyData(history, transactions, journalEntries, currentDate)
 
     const txPoint = result.find((p) => p.isTransaction)
-    expect(txPoint?.journalEntryId).toBe(42) // Should match the AAPL entry within 5 min
+    expect(txPoint?.journalEntryIds).toEqual([42]) // Should match the AAPL entry within 5 min
+  })
+
+  it('collapses same-type trades within two minutes into one dot', () => {
+    const history = [makeHistory(11, 0, 10000)]
+
+    // Initial-portfolio-creation scenario: several buys in the same minute
+    const transactions: Transaction[] = [
+      { id: 1, ticker: 'AAPL', type: 'BUY', shares: 10, price: 150, totalValue: 1500, timestamp: '2026-05-21T15:15:10Z' },
+      { id: 2, ticker: 'GOOGL', type: 'BUY', shares: 5, price: 200, totalValue: 1000, timestamp: '2026-05-21T15:15:40Z' },
+      { id: 3, ticker: 'MSFT', type: 'BUY', shares: 2, price: 250, totalValue: 500, timestamp: '2026-05-21T15:16:30Z' },
+    ]
+
+    const journalEntries: JournalEntry[] = [
+      { id: 1, entryType: 'BUY', body: 'Initial portfolio creation', ticker: 'AAPL', timestamp: '2026-05-21T15:15:10Z', priceSnapshot: 150, tags: [] },
+      { id: 2, entryType: 'BUY', body: 'Initial portfolio creation', ticker: 'GOOGL', timestamp: '2026-05-21T15:15:40Z', priceSnapshot: 200, tags: [] },
+      { id: 3, entryType: 'BUY', body: 'Initial portfolio creation', ticker: 'MSFT', timestamp: '2026-05-21T15:16:30Z', priceSnapshot: 250, tags: [] },
+    ]
+
+    const result = processHourlyData(history, transactions, journalEntries, currentDate)
+
+    // 1 hourly point + 1 grouped dot
+    expect(result).toHaveLength(2)
+
+    const dot = result[1]
+    expect(dot.isTransaction).toBe(true)
+    expect(dot.transactionType).toBe('BUY')
+    expect(dot.transactionCount).toBe(3)
+    // Dot sits at the last trade's time with the combined value applied once
+    expect(dot.timestamp).toBe(new Date('2026-05-21T15:16:30Z').getTime())
+    expect(dot.value).toBe(13000) // 10000 + 1500 + 1000 + 500
+    expect(dot.journalEntryIds).toEqual([1, 2, 3])
+  })
+
+  it('keeps same-type trades more than two minutes apart as separate dots', () => {
+    const history = [makeHistory(11, 0, 10000)]
+
+    const transactions: Transaction[] = [
+      makeTx(11, 15, 'BUY', 500),
+      makeTx(11, 18, 'BUY', 300), // 3 minutes later -> separate dot
+    ]
+
+    const result = processHourlyData(history, transactions, [], currentDate)
+
+    expect(result.filter((p) => p.isTransaction)).toHaveLength(2)
+    expect(result[1].value).toBe(10500)
+    expect(result[2].value).toBe(10800)
+  })
+
+  it('does not collapse buys and sells occurring in the same minute', () => {
+    const history = [makeHistory(11, 0, 10000)]
+
+    const transactions: Transaction[] = [
+      makeTx(11, 15, 'BUY', 1000),
+      makeTx(11, 15, 'SELL', 400),
+    ]
+
+    const result = processHourlyData(history, transactions, [], currentDate)
+
+    const txPoints = result.filter((p) => p.isTransaction)
+    expect(txPoints).toHaveLength(2)
+    expect(txPoints[0].transactionType).toBe('BUY')
+    expect(txPoints[0].value).toBe(11000)
+    expect(txPoints[1].transactionType).toBe('SELL')
+    expect(txPoints[1].value).toBe(10600)
   })
 
   it('ignores transactions outside trading hours', () => {

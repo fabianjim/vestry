@@ -81,7 +81,7 @@ public class DemoSessionServiceTest {
         holding.setBuyTimestamp(Instant.now());
         portfolio.setHoldings(new ArrayList<>(List.of(holding)));
 
-        Transaction tx = new Transaction("AAPL", 10, 150.0, Transaction.TransactionType.BUY, true);
+        Transaction tx = new Transaction("AAPL", 10, 150.0, Transaction.TransactionType.BUY);
         tx.setId(200);
 
         JournalEntry entry = new JournalEntry();
@@ -180,7 +180,7 @@ public class DemoSessionServiceTest {
         portfolio.setHoldings(new ArrayList<>(List.of(holding)));
         session.setPortfolio(portfolio);
 
-        Transaction buy = new Transaction("NVDA", 10, 100.0, Transaction.TransactionType.BUY, true);
+        Transaction buy = new Transaction("NVDA", 10, 100.0, Transaction.TransactionType.BUY);
         buy.setId(session.nextId());
         buy.setTimestamp(Instant.now().minusSeconds(3600));
         buy.setTotalValue(1000.0);
@@ -217,7 +217,7 @@ public class DemoSessionServiceTest {
         portfolio.setHoldings(new ArrayList<>(List.of(holding)));
         session.setPortfolio(portfolio);
 
-        Transaction buy = new Transaction("NVDA", 10, 200.0, Transaction.TransactionType.BUY, true);
+        Transaction buy = new Transaction("NVDA", 10, 200.0, Transaction.TransactionType.BUY);
         buy.setId(session.nextId());
         buy.setTimestamp(Instant.now().minusSeconds(3600));
         buy.setTotalValue(2000.0);
@@ -277,7 +277,7 @@ public class DemoSessionServiceTest {
     void updateJournalEntryPreservesAutoResultTag() {
         DemoSession session = new DemoSession();
 
-        Transaction buy = new Transaction("AAPL", 10, 100.0, Transaction.TransactionType.BUY, true);
+        Transaction buy = new Transaction("AAPL", 10, 100.0, Transaction.TransactionType.BUY);
         buy.setId(session.nextId());
         buy.setTimestamp(Instant.now().minusSeconds(3600));
         buy.setTotalValue(1000.0);
@@ -373,7 +373,7 @@ public class DemoSessionServiceTest {
         DemoSession session = new DemoSession();
         session.setTransactions(new ArrayList<>());
 
-        Transaction buy = new Transaction("AAPL", 10, 100.0, Transaction.TransactionType.BUY, false);
+        Transaction buy = new Transaction("AAPL", 10, 100.0, Transaction.TransactionType.BUY);
         buy.setId(session.nextId());
         buy.setUser(demoUser);
         buy.setTotalValue(1000.0);

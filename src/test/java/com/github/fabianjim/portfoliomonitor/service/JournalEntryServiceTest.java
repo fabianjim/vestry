@@ -233,6 +233,27 @@ public class JournalEntryServiceTest {
     }
 
     @Test
+    void createInitialEntryPersistsBuyEntryWithoutTags() {
+        String ticker = "AAPL";
+        double price = 150.0;
+        Instant timestamp = Instant.now();
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        JournalEntry result = journalEntryService.createInitialEntry(mockUser, ticker, price, timestamp);
+
+        assertEquals(JournalEntryType.BUY, result.getEntryType());
+        assertEquals("Initial portfolio creation", result.getBody());
+        assertEquals(ticker, result.getTicker());
+        assertEquals(timestamp, result.getTimestamp());
+        assertEquals(price, result.getPriceSnapshot(), 0.001);
+        assertEquals(mockUser, result.getUser());
+        assertTrue(result.getTags().isEmpty());
+
+        verify(tagService, never()).resolveTags(any(User.class), any());
+        verify(journalEntryRepository).save(any(JournalEntry.class));
+    }
+
+    @Test
     void createAutoSellEntryAddsWinTagAndPersists() {
         String ticker = "AAPL";
         when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> {

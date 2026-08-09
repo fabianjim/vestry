@@ -30,7 +30,7 @@ export interface PortfolioChartHandle {
 }
 
 interface Props {
-  onPinClick?: (entry: JournalEntry) => void
+  onPinClick?: (entries: JournalEntry[]) => void
 }
 
 // Extract cubic bezier segments from a d3 monotone path.
@@ -79,7 +79,7 @@ function TransactionOverlay({
 }: {
   data: ChartDataPoint[]
   lineColor: string
-  onPinClick?: (entry: JournalEntry) => void
+  onPinClick?: (entries: JournalEntry[]) => void
   journalEntries: JournalEntry[]
 }) {
   const xAxis = useXAxis(0)
@@ -105,6 +105,8 @@ function TransactionOverlay({
         const cx = xAxis.scale(point.timestamp)
         const cy = yAxis.scale(point.value)
         const circleColor = point.transactionType === 'BUY' ? '#10b981' : '#ef4444'
+        const hasEntries = (point.journalEntryIds?.length ?? 0) > 0
+        const tradeCount = point.transactionCount ?? 1
 
         return (
           // Buy/Sell event dashed line and hollow circle
@@ -133,19 +135,34 @@ function TransactionOverlay({
               fill="none"
               stroke={circleColor}
               strokeWidth={2}
-              style={{ cursor: point.journalEntryId ? 'pointer' : 'default' }}
+              style={{ cursor: hasEntries ? 'pointer' : 'default' }}
             />
+            {/* count badge for grouped trades */}
+            {tradeCount > 1 && (
+              <text
+                x={cx}
+                y={cy - 10}
+                textAnchor="middle"
+                fill={circleColor}
+                fontSize={10}
+                style={{ pointerEvents: 'none' }}
+              >
+                {tradeCount}
+              </text>
+            )}
             {/* clickable area for the hollow circle */}
             <circle
               cx={cx}
               cy={cy}
               r={5}
               fill="transparent"
-              style={{ cursor: point.journalEntryId ? 'pointer' : 'default' }}
+              style={{ cursor: hasEntries ? 'pointer' : 'default' }}
               onClick={() => {
-                if (point.journalEntryId && onPinClick) {
-                  const entry = journalEntries.find((e) => e.id === point.journalEntryId)
-                  if (entry) onPinClick(entry)
+                if (hasEntries && onPinClick) {
+                  const entries = (point.journalEntryIds ?? [])
+                    .map((id) => journalEntries.find((e) => e.id === id))
+                    .filter((e): e is JournalEntry => e != null)
+                  if (entries.length > 0) onPinClick(entries)
                 }
               }}
             />

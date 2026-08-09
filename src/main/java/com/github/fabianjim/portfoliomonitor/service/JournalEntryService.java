@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.github.fabianjim.portfoliomonitor.dto.CalendarDayDTO;
@@ -92,6 +93,18 @@ public class JournalEntryService {
 
     public JournalEntry createEntry(JournalEntry entry) {
         return createEntry(entry, List.of());
+    }
+
+    public JournalEntry createInitialEntry(User user, String ticker, double price, Instant timestamp) {
+        JournalEntry entry = new JournalEntry();
+        entry.setEntryType(JournalEntryType.BUY);
+        entry.setBody("Initial portfolio creation");
+        entry.setTicker(ticker);
+        entry.setTimestamp(timestamp != null ? timestamp : Instant.now());
+        entry.setPriceSnapshot(price);
+        entry.setUser(user);
+        entry.setTags(Set.of());
+        return journalEntryRepository.save(entry);
     }
 
     public JournalEntry createAutoSellEntry(User user, String ticker, double shares, double price, Instant timestamp) {

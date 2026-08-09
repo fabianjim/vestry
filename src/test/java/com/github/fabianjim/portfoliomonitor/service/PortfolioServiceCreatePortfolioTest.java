@@ -22,6 +22,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -100,30 +101,30 @@ public class PortfolioServiceCreatePortfolioTest {
         when(stockService.updateStockData(ticker1, Stock.StockType.INITIAL)).thenReturn(stock1);
         when(stockService.updateStockData(ticker2, Stock.StockType.INITIAL)).thenReturn(stock2);
         
-        // Mock transaction recording (portfolio creation uses 5-arg with isInitial=true)
-        when(transactionService.recordBuyTransaction(eq(ticker1), eq(shares1), eq(price1), isNull(), eq(true)))
+        // Mock transaction recording (portfolio creation passes a shared creation timestamp)
+        when(transactionService.recordBuyTransaction(eq(ticker1), eq(shares1), eq(price1), any(Instant.class)))
             .thenReturn(createTransaction(ticker1, shares1, price1));
-        when(transactionService.recordBuyTransaction(eq(ticker2), eq(shares2), eq(price2), isNull(), eq(true)))
+        when(transactionService.recordBuyTransaction(eq(ticker2), eq(shares2), eq(price2), any(Instant.class)))
             .thenReturn(createTransaction(ticker2, shares2, price2));
 
-        
+
         portfolioService.createPortfolio(portfolio);
 
-        verify(transactionService).recordBuyTransaction(ticker1, shares1, price1, null, true);
-        verify(transactionService).recordBuyTransaction(ticker2, shares2, price2, null, true);
-        
+        verify(transactionService).recordBuyTransaction(eq(ticker1), eq(shares1), eq(price1), any(Instant.class));
+        verify(transactionService).recordBuyTransaction(eq(ticker2), eq(shares2), eq(price2), any(Instant.class));
+
         // Verify the transactions were recorded with correct values
         ArgumentCaptor<String> tickerCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Double> sharesCaptor = ArgumentCaptor.forClass(Double.class);
         ArgumentCaptor<Double> priceCaptor = ArgumentCaptor.forClass(Double.class);
-        ArgumentCaptor<Boolean> initialCaptor = ArgumentCaptor.forClass(Boolean.class);
+        ArgumentCaptor<Instant> timestampCaptor = ArgumentCaptor.forClass(Instant.class);
 
-        verify(transactionService, times(2)).recordBuyTransaction(tickerCaptor.capture(), sharesCaptor.capture(), priceCaptor.capture(), isNull(), initialCaptor.capture());
+        verify(transactionService, times(2)).recordBuyTransaction(tickerCaptor.capture(), sharesCaptor.capture(), priceCaptor.capture(), timestampCaptor.capture());
 
         List<String> capturedTickers = tickerCaptor.getAllValues();
         List<Double> capturedShares = sharesCaptor.getAllValues();
         List<Double> capturedPrices = priceCaptor.getAllValues();
-        List<Boolean> capturedInitial = initialCaptor.getAllValues();
+        List<Instant> capturedTimestamps = timestampCaptor.getAllValues();
 
         assertTrue(capturedTickers.contains(ticker1));
         assertTrue(capturedTickers.contains(ticker2));
@@ -131,7 +132,24 @@ public class PortfolioServiceCreatePortfolioTest {
         assertTrue(capturedPrices.contains(price2));
         assertTrue(capturedShares.contains(shares1));
         assertTrue(capturedShares.contains(shares2));
-        assertTrue(capturedInitial.stream().allMatch(Boolean::booleanValue), "All portfolio creation transactions should be marked as initial");
+        assertEquals(1, capturedTimestamps.stream().distinct().count(), "All portfolio creation transactions should share the same timestamp");
+
+        // Verify one initial journal entry was created per holding
+        ArgumentCaptor<String> entryTickerCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Double> entryPriceCaptor = ArgumentCaptor.forClass(Double.class);
+        ArgumentCaptor<Instant> entryTimestampCaptor = ArgumentCaptor.forClass(Instant.class);
+
+        verify(journalEntryService, times(2)).createInitialEntry(eq(mockUser), entryTickerCaptor.capture(), entryPriceCaptor.capture(), entryTimestampCaptor.capture());
+
+        List<String> entryTickers = entryTickerCaptor.getAllValues();
+        List<Double> entryPrices = entryPriceCaptor.getAllValues();
+        List<Instant> entryTimestamps = entryTimestampCaptor.getAllValues();
+
+        assertTrue(entryTickers.contains(ticker1));
+        assertTrue(entryTickers.contains(ticker2));
+        assertTrue(entryPrices.contains(price1));
+        assertTrue(entryPrices.contains(price2));
+        assertEquals(capturedTimestamps, entryTimestamps, "Initial journal entries should share the transactions' creation timestamp");
     }
 
     @Test

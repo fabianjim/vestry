@@ -102,7 +102,7 @@ public class DemoSessionService {
 
         List<Transaction> txCopy = new ArrayList<>();
         for (Transaction tx : transactionRepository.findByUserIdOrderByTimestampDesc(user.getId())) {
-            Transaction copy = new Transaction(tx.getTicker(), tx.getShares(), tx.getPrice(), tx.getType(), tx.isInitial());
+            Transaction copy = new Transaction(tx.getTicker(), tx.getShares(), tx.getPrice(), tx.getType());
             copy.setId(session.nextId());
             copy.setTimestamp(tx.getTimestamp());
             copy.setTotalValue(tx.getTotalValue());
@@ -190,9 +190,11 @@ public class DemoSessionService {
             newPortfolio.setHoldings(aggregated);
             session.setPortfolio(newPortfolio);
 
+            Instant creationTime = Instant.now();
             for (Holding holding : aggregated) {
                 double price = tickerPrices.get(holding.getTicker());
-                recordBuyTransaction(session, user, holding.getTicker(), holding.getShares(), price, holding.getBuyTimestamp(), true);
+                recordBuyTransaction(session, user, holding.getTicker(), holding.getShares(), price, creationTime);
+                createInitialEntry(session, user, holding.getTicker(), price, creationTime);
                 startTrackingStockForSession(session, holding.getTicker());
             }
         }
@@ -225,7 +227,7 @@ public class DemoSessionService {
         }
 
         session.setRemainingTrades(session.getRemainingTrades() - 1);
-        recordBuyTransaction(session, user, ticker, shares, currentPrice, timestamp, false);
+        recordBuyTransaction(session, user, ticker, shares, currentPrice, timestamp);
     }
 
     public JournalEntry removeHolding(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, String ticker, Double price, Instant timestamp) {
@@ -288,6 +290,16 @@ public class DemoSessionService {
             holding.setShares(holding.getShares() - sharesToSell);
         }
         return sellEntry;
+    }
+
+    private JournalEntry createInitialEntry(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, String ticker, double price, Instant timestamp) {
+        JournalEntry entry = new JournalEntry();
+        entry.setEntryType(JournalEntryType.BUY);
+        entry.setBody("Initial portfolio creation");
+        entry.setTicker(ticker);
+        entry.setTimestamp(timestamp != null ? timestamp : Instant.now());
+        entry.setPriceSnapshot(price);
+        return createJournalEntry(session, user, entry, List.of());
     }
 
     private JournalEntry createAutoSellEntry(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, String ticker, double shares, double price, Instant timestamp) {
@@ -381,8 +393,8 @@ public class DemoSessionService {
         session.getSessionTrackedTickers().remove(ticker);
     }
 
-    private Transaction recordBuyTransaction(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, String ticker, double shares, double price, Instant timestamp, boolean isInitial) {
-        Transaction transaction = new Transaction(ticker, shares, price, Transaction.TransactionType.BUY, isInitial);
+    private Transaction recordBuyTransaction(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, String ticker, double shares, double price, Instant timestamp) {
+        Transaction transaction = new Transaction(ticker, shares, price, Transaction.TransactionType.BUY);
         if (timestamp != null) {
             transaction.setTimestamp(timestamp);
         }
@@ -394,7 +406,7 @@ public class DemoSessionService {
     }
 
     private Transaction recordSellTransaction(DemoSession session, com.github.fabianjim.portfoliomonitor.model.User user, String ticker, double shares, double price, Instant timestamp) {
-        Transaction transaction = new Transaction(ticker, shares, price, Transaction.TransactionType.SELL, false);
+        Transaction transaction = new Transaction(ticker, shares, price, Transaction.TransactionType.SELL);
         if (timestamp != null) {
             transaction.setTimestamp(timestamp);
         }

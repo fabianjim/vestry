@@ -61,7 +61,7 @@ export default function Dashboard() {
   const hasFetched = useRef(false)
   const portfolioChartRef = useRef<PortfolioChartHandle>(null)
   const journalPanelRef = useRef<JournalPanelHandle>(null)
-  const [activeJournalId, setActiveJournalId] = useState<number | null>(null)
+  const [activeJournalIds, setActiveJournalIds] = useState<number[] | null>(null)
   const [pnlSummary, setPnlSummary] = useState<PnLSummary | null>(null)
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
   const [selectedJournalEntry, setSelectedJournalEntry] = useState<JournalEntry | null>(null)
@@ -428,9 +428,9 @@ export default function Dashboard() {
         <h3 className="text-xl font-150 mb-4">Portfolio Performance</h3>
         <PortfolioChart
           ref={portfolioChartRef}
-          onPinClick={(entry) => {
-            setActiveJournalId(entry.id)
-            journalPanelRef.current?.scrollToEntry(entry.id)
+          onPinClick={(entries) => {
+            setActiveJournalIds(entries.map((e) => e.id))
+            journalPanelRef.current?.scrollToEntry(entries[0].id)
           }}
         />
       </div>
@@ -446,8 +446,8 @@ export default function Dashboard() {
         </div>
         <JournalPanel
           ref={journalPanelRef}
-          activeJournalId={activeJournalId}
-          onClearActive={() => setActiveJournalId(null)}
+          activeJournalIds={activeJournalIds}
+          onClearActive={() => setActiveJournalIds(null)}
           onEntryClick={(entry) => {
             setSelectedJournalEntry(entry)
             setSelectedTicker(null)

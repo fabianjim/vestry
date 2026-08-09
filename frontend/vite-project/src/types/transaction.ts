@@ -6,7 +6,6 @@ export type Transaction = {
   totalValue: number
   type: 'BUY' | 'SELL'
   timestamp: string
-  initial?: boolean
 }
 
 export type PnLSummary = {

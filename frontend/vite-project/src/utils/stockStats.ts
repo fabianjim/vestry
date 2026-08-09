@@ -118,10 +118,10 @@ export function getRealizedPnLForSell(
   sellShares: number,
   sellPrice: number,
   ticker: string,
-  transactions: { ticker: string; type: 'BUY' | 'SELL'; shares: number; totalValue: number; initial?: boolean }[]
+  transactions: { ticker: string; type: 'BUY' | 'SELL'; shares: number; totalValue: number }[]
 ): { realizedPnL: number; realizedPercent: number; avgCost: number } {
   const tickerBuys = transactions.filter(
-    (tx) => tx.ticker === ticker && tx.type === 'BUY' && !tx.initial
+    (tx) => tx.ticker === ticker && tx.type === 'BUY'
   )
   const totalBuyShares = tickerBuys.reduce((sum, tx) => sum + tx.shares, 0)
   const totalBuyCost = tickerBuys.reduce((sum, tx) => sum + tx.totalValue, 0)

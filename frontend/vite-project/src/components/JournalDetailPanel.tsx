@@ -73,7 +73,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
         setTransactions(txData || [])
 
         const firstTrackingDate = txData
-          ?.filter((tx) => tx.ticker === entry.ticker && !tx.initial)
+          ?.filter((tx) => tx.ticker === entry.ticker)
           .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())[0]
           ?.timestamp || undefined
 
@@ -107,7 +107,6 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
     return transactions.find(
       (tx) =>
         tx.ticker === entry.ticker &&
-        !tx.initial &&
         Math.abs(new Date(tx.timestamp).getTime() - entryTime) <= 5 * 60 * 1000
     )
   }, [entry, transactions])

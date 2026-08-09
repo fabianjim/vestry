@@ -32,9 +32,6 @@ public class Transaction {
     @Column(nullable = false)
     private Instant timestamp;
 
-    @Column(nullable = false)
-    private boolean isInitial = false;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @JsonIgnore
@@ -54,17 +51,6 @@ public class Transaction {
         this.totalValue = shares * price;
         this.type = type;
         this.timestamp = Instant.now();
-        this.isInitial = false;
-    }
-
-    public Transaction(String ticker, double shares, double price, TransactionType type, boolean isInitial) {
-        this.ticker = ticker;
-        this.shares = shares;
-        this.price = price;
-        this.totalValue = shares * price;
-        this.type = type;
-        this.timestamp = Instant.now();
-        this.isInitial = isInitial;
     }
 
     @PrePersist
@@ -136,13 +122,5 @@ public class Transaction {
 
     public void setUser(User user) {
         this.user = user;
-    }
-
-    public boolean isInitial() {
-        return isInitial;
-    }
-
-    public void setInitial(boolean initial) {
-        isInitial = initial;
     }
 }

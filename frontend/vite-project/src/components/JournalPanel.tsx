@@ -12,14 +12,14 @@ export interface JournalPanelHandle {
 }
 
 interface JournalPanelProps {
-  activeJournalId?: number | null
+  activeJournalIds?: number[] | null
   onClearActive?: () => void
   onEntryClick?: (entry: JournalEntry) => void
   onViewOnChart?: (entry: JournalEntry) => void
 }
 
 const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function JournalPanel(
-  { activeJournalId, onClearActive, onEntryClick, onViewOnChart },
+  { activeJournalIds, onClearActive, onEntryClick, onViewOnChart },
   ref
 ) {
   const [entries, setEntries] = useState<JournalEntry[]>([])
@@ -49,12 +49,15 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
   }))
 
   useEffect(() => {
-    if (activeJournalId == null) return
+    if (activeJournalIds == null || activeJournalIds.length === 0) return
     let listener: ((e: MouseEvent) => void) | null = null
     const timeout = setTimeout(() => {
       listener = (e: MouseEvent) => {
-        const activeEl = entryRefs.current.get(activeJournalId)
-        if (activeEl && !activeEl.contains(e.target as Node)) {
+        const clickedActive = activeJournalIds.some((id) => {
+          const activeEl = entryRefs.current.get(id)
+          return activeEl && activeEl.contains(e.target as Node)
+        })
+        if (!clickedActive) {
           onClearActive?.()
         }
       }
@@ -64,7 +67,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
       clearTimeout(timeout)
       if (listener) document.removeEventListener('click', listener)
     }
-  }, [activeJournalId, onClearActive])
+  }, [activeJournalIds, onClearActive])
 
   const fetchEntries = async () => {
     setLoading(true)
@@ -243,7 +246,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
                 if (el) entryRefs.current.set(entry.id, el)
               }}
               onClick={() => onEntryClick?.(entry)}
-              className={`relative group p-3 bg-surface-hover rounded-md border border-border cursor-pointer hover:bg-elevated transition-colors ${getTypeBg(entry.entryType)} ${activeJournalId === entry.id ? 'outline-2 outline-primary outline-offset-2' : ''}`}
+              className={`relative group p-3 bg-surface-hover rounded-md border border-border cursor-pointer hover:bg-elevated transition-colors ${getTypeBg(entry.entryType)} ${activeJournalIds?.includes(entry.id) ? 'outline-2 outline-primary outline-offset-2' : ''}`}
             >
               <div className="flex justify-between items-start mb-1">
                 <div className="flex items-center gap-2">

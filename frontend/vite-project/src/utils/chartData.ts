@@ -14,7 +14,33 @@ export interface ChartDataPoint {
   fullTimestamp: string
   isTransaction?: boolean
   transactionType?: 'BUY' | 'SELL'
-  journalEntryId?: number
+  transactionCount?: number
+  journalEntryIds?: number[]
+}
+
+const GROUP_WINDOW_MS = 2 * 60 * 1000
+
+// Group transactions so same-type trades within two minutes of each other
+// collapse into a single chart event (chained: each trade is within the
+// window of the previous trade in its group).
+function groupTransactions(transactions: Transaction[]): Transaction[][] {
+  const groups: Transaction[][] = []
+  for (const tx of transactions) {
+    const txTime = new Date(tx.timestamp).getTime()
+    const lastGroup = groups[groups.length - 1]
+    const lastTx = lastGroup?.[lastGroup.length - 1]
+    if (
+      lastGroup &&
+      lastTx &&
+      lastTx.type === tx.type &&
+      txTime - new Date(lastTx.timestamp).getTime() <= GROUP_WINDOW_MS
+    ) {
+      lastGroup.push(tx)
+    } else {
+      groups.push([tx])
+    }
+  }
+  return groups
 }
 
 export function processHourlyData(
@@ -41,59 +67,68 @@ export function processHourlyData(
     }))
 
   // Filter transactions to current day AND trading hours (10am-4pm)
-  // Exclude initial portfolio creation transactions — they are not graph events
   const dayTransactions = transactions
     .filter((tx) => {
-      if (tx.initial) return false
       return isSameMarketDay(tx.timestamp, currentDate) && isTradingHours(tx.timestamp)
     })
     .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
-  // Insert synthetic transaction points
+  // Insert synthetic transaction points (one per group)
   const merged: ChartDataPoint[] = [...dayHistory]
 
-  for (const tx of dayTransactions) {
-    const txTime = new Date(tx.timestamp).getTime()
+  for (const group of groupTransactions(dayTransactions)) {
+    const groupStart = new Date(group[0].timestamp).getTime()
+    const lastTx = group[group.length - 1]
+    const txTime = new Date(lastTx.timestamp).getTime()
+    const txType = lastTx.type as 'BUY' | 'SELL'
 
     // Find closest previous point (hourly OR already-inserted transaction)
     const prevPoint = merged
-      .filter((p) => p.timestamp <= txTime)
+      .filter((p) => p.timestamp <= groupStart)
       .sort((a, b) => b.timestamp - a.timestamp)[0]
 
     if (!prevPoint) continue
 
-    const syntheticValue =
-      tx.type === 'BUY'
-        ? prevPoint.value + tx.totalValue
-        : prevPoint.value - tx.totalValue
+    const netValue = group.reduce(
+      (sum, tx) => sum + (tx.type === 'BUY' ? tx.totalValue : -tx.totalValue),
+      0
+    )
+    const syntheticValue = prevPoint.value + netValue
 
-    // Match to journal entry
-    const txType = tx.type as 'BUY' | 'SELL'
-    const matchedEntry = journalEntries
-      .filter(
-        (e) =>
-          e.entryType === txType &&
-          e.ticker === tx.ticker &&
-          Math.abs(new Date(e.timestamp).getTime() - txTime) <= 5 * 60 * 1000
-      )
-      .sort(
-        (a, b) =>
-          Math.abs(new Date(a.timestamp).getTime() - txTime) -
-          Math.abs(new Date(b.timestamp).getTime() - txTime)
-      )[0]
+    // Match every trade in the group to its journal entry
+    const journalEntryIds: number[] = []
+    for (const tx of group) {
+      const txMillis = new Date(tx.timestamp).getTime()
+      const matchedEntry = journalEntries
+        .filter(
+          (e) =>
+            e.entryType === tx.type &&
+            e.ticker === tx.ticker &&
+            Math.abs(new Date(e.timestamp).getTime() - txMillis) <= 5 * 60 * 1000
+        )
+        .sort(
+          (a, b) =>
+            Math.abs(new Date(a.timestamp).getTime() - txMillis) -
+            Math.abs(new Date(b.timestamp).getTime() - txMillis)
+        )[0]
+      if (matchedEntry && !journalEntryIds.includes(matchedEntry.id)) {
+        journalEntryIds.push(matchedEntry.id)
+      }
+    }
 
     merged.push({
       timestamp: txTime,
-      time: new Date(tx.timestamp).toLocaleTimeString('en-US', {
+      time: new Date(lastTx.timestamp).toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,
       }),
       value: syntheticValue,
-      fullTimestamp: tx.timestamp,
+      fullTimestamp: lastTx.timestamp,
       isTransaction: true,
       transactionType: txType,
-      journalEntryId: matchedEntry?.id,
+      transactionCount: group.length,
+      journalEntryIds,
     })
   }
 
