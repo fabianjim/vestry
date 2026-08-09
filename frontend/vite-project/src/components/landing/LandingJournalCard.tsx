@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 function ClosedEntry({
   type,
   typeColor,
@@ -25,19 +27,26 @@ interface LandingJournalCardProps {
 }
 
 export default function LandingJournalCard({ onSpxClick }: LandingJournalCardProps) {
+  const [clicked, setClicked] = useState(false)
+
+  const handleClick = () => {
+    setClicked(true)
+    onSpxClick?.()
+  }
+
   return (
     <div className="w-full max-w-lg mx-auto rounded-lg border border-border overflow-hidden hover:border-primary/30 transition-colors">
       <div
         role="button"
         tabIndex={0}
-        onClick={onSpxClick}
+        onClick={handleClick}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            onSpxClick?.()
+            handleClick()
           }
         }}
-        className="bg-surface p-5 cursor-pointer transition-colors hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-primary"
+        className={`bg-surface p-5 cursor-pointer transition-colors hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-primary${clicked ? '' : ' animate-bg-pulse'}`}
       >
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-3">

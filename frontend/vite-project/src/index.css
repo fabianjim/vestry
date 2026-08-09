@@ -44,6 +44,18 @@ html {
   --font-weight-90: 90;
   --font-weight-130: 130;
   --font-weight-150: 150;
+
+  /* Animations — background-only pulse for landing page clickables */
+  --animate-bg-pulse: bg-pulse 3s ease-in-out infinite;
+
+  @keyframes bg-pulse {
+    0%, 100% {
+      background-color: var(--color-surface);
+    }
+    50% {
+      background-color: color-mix(in srgb, var(--color-surface) 90%, var(--color-primary));
+    }
+  }
 }
 
 @font-face {

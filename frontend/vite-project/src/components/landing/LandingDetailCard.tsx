@@ -20,18 +20,23 @@ const history: ChartPoint[] = [
 ]
 
 export default function LandingDetailCard({ onChartClick }: LandingDetailCardProps) {
+
+  const handleClick = () => {
+    onChartClick?.()
+  }
+
   return (
     <div
       role="button"
       tabIndex={0}
-      onClick={onChartClick}
+      onClick={handleClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
-          onChartClick?.()
+          handleClick()
         }
       }}
-      className="w-full max-w-2xl mx-auto bg-surface rounded-lg border border-border p-6 cursor-pointer transition-colors hover:border-primary/30 focus:outline-none"
+      className={`w-full max-w-2xl mx-auto bg-surface rounded-lg border border-border p-6 cursor-pointer transition-colors hover:border-primary/30 focus:outline-none`}
     >
       <div className="flex justify-between items-start mb-5">
         <div>

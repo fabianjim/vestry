@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Customized } from 'recharts'
 import { useXAxis, useYAxis } from 'recharts/es6/hooks'
 
@@ -65,7 +66,7 @@ const events = [
   { time: parseTime('3:50 PM'), value: 45250, type: 'BUY', color: BUY_COLOR, label: 'BUY' },
 ]
 
-function EventOverlay({ onBuyClick }: { onBuyClick?: () => void }) {
+function EventOverlay({ onBuyClick, buyClicked }: { onBuyClick?: () => void; buyClicked?: boolean }) {
   const xAxis = useXAxis(0)
   const yAxis = useYAxis(0)
 
@@ -87,6 +88,7 @@ function EventOverlay({ onBuyClick }: { onBuyClick?: () => void }) {
               fill={event.color}
               stroke="#32393d"
               strokeWidth={2}
+              className={isBuy && !buyClicked ? 'animate-pulse' : undefined}
               style={{ cursor: isBuy ? 'pointer' : 'default' }}
               onClick={isBuy ? onBuyClick : undefined}
             />
@@ -99,7 +101,7 @@ function EventOverlay({ onBuyClick }: { onBuyClick?: () => void }) {
               {isBuy ? (
                 <button
                   onClick={onBuyClick}
-                  className="inline-flex items-center justify-center gap-1.5 w-full h-full px-2 bg-gain/10 border border-gain/30 text-gain rounded-md text-xs font-130 uppercase tracking-wide hover:bg-gain/20 transition-colors cursor-pointer animate-pulse"
+                  className={`inline-flex items-center justify-center gap-1.5 w-full h-full px-2 bg-gain/10 border border-gain/30 text-gain rounded-md text-xs font-130 uppercase tracking-wide hover:bg-gain/20 transition-colors cursor-pointer${buyClicked ? '' : ' animate-pulse'}`}
                 >
                   <span className="w-2 h-2 rounded-full bg-gain" />
                   BUY
@@ -119,6 +121,13 @@ function EventOverlay({ onBuyClick }: { onBuyClick?: () => void }) {
 }
 
 export default function LandingChart({ onBuyClick }: LandingChartProps) {
+  const [buyClicked, setBuyClicked] = useState(false)
+
+  const handleBuyClick = () => {
+    setBuyClicked(true)
+    onBuyClick?.()
+  }
+
   return (
     <div className="w-full max-w-3xl mx-auto bg-surface p-6 rounded-lg border border-border hover:border-primary/30 transition-colors">
       <div className="mb-4">
@@ -170,7 +179,7 @@ export default function LandingChart({ onBuyClick }: LandingChartProps) {
               isAnimationActive={true}
               animationDuration={1000}
             />
-            <Customized component={() => <EventOverlay onBuyClick={onBuyClick} />} />
+            <Customized component={() => <EventOverlay onBuyClick={handleBuyClick} buyClicked={buyClicked} />} />
           </LineChart>
         </ResponsiveContainer>
       </div>
