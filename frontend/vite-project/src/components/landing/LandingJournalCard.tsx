@@ -51,7 +51,7 @@ export default function LandingJournalCard({ onSpxClick }: LandingJournalCardPro
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-3">
             <span className="px-2 py-1 text-xs font-130 uppercase bg-gain/10 text-gain rounded">BUY</span>
-            <span className="text-sm font-150 text-foreground">SPX</span>
+            <span className="text-sm font-150 text-foreground">SPY</span>
           </div>
           <span className="text-xs text-muted">Jun 18 3:50PM</span>
         </div>
@@ -59,8 +59,7 @@ export default function LandingJournalCard({ onSpxClick }: LandingJournalCardPro
         <div className="text-xs text-muted mb-3">Snapshot: $750.00</div>
 
         <p className="text-sm text-foreground leading-relaxed">
-          Bought SPX near the close. Want to remember why I entered and how the
-          thesis plays out over the next few sessions.
+          Bought near close as markets begin to rebound after yesterdays debut from new Fed chair
         </p>
       </div>
       
