@@ -101,7 +101,7 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
       <div className={`border-b border-border ${isOpen ? 'p-4' : 'p-2'}`}>
         <div className={`flex gap-2 ${!isOpen ? 'flex-col' : ''}`}>
           <button
-            onClick={onBuyClick}
+            onClick={() => onBuyClick()}
             disabled={loading}
             className="flex-1 px-3 py-2 bg-gain text-white rounded-md hover:bg-gain/80 transition-colors disabled:opacity-50 text-sm"
           >
