@@ -138,6 +138,14 @@ export default function Dashboard() {
     }
   }
 
+  const openBuyModal = (ticker?: string) => {
+    setNewTicker(ticker ?? '')
+    setNewShares('')
+    setError('')
+    resetManualState()
+    setShowAddModal(true)
+  }
+
   // Validate manual trade inputs. Returns { valid: false, error: string } or { valid: true, isoTime: string, price: number }
   const validateManualInputs = (): { valid: false; error: string } | { valid: true; isoTime: string; price: number } => {
     if (!manualExpanded) {
@@ -730,7 +738,7 @@ export default function Dashboard() {
       <RightSidebar
         holdings={results}
         loading={loading}
-        onBuyClick={() => setShowAddModal(true)}
+        onBuyClick={openBuyModal}
         onSellClick={() => setShowSellModal(true)}
         onHoldingClick={(ticker) => {
           setSelectedTicker(ticker)

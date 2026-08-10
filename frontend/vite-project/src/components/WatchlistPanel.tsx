@@ -5,9 +5,10 @@ import { watchlistApi } from '../services/api'
 interface WatchlistPanelProps {
   isOpen?: boolean
   onCountChange?: (count: number) => void
+  onBuyClick?: (ticker: string) => void
 }
 
-export default function WatchlistPanel({ isOpen = true, onCountChange }: WatchlistPanelProps) {
+export default function WatchlistPanel({ isOpen = true, onCountChange, onBuyClick }: WatchlistPanelProps) {
   const [items, setItems] = useState<WatchlistItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -116,7 +117,7 @@ export default function WatchlistPanel({ isOpen = true, onCountChange }: Watchli
             return (
               <div
                 key={item.id}
-                className="p-3 bg-surface-hover rounded-lg border border-border flex justify-between items-start"
+                className="group p-3 bg-surface-hover rounded-lg border border-border flex justify-between items-start"
               >
                 <div>
                   <div className="text-base font-130 text-foreground">{item.ticker}</div>
@@ -142,13 +143,22 @@ export default function WatchlistPanel({ isOpen = true, onCountChange }: Watchli
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={() => handleRemove(item.ticker)}
-                  disabled={loading}
-                  className="px-2.5 py-1 bg-error text-white text-xs rounded hover:bg-error/80 transition-colors disabled:opacity-50"
-                >
-                  Remove
-                </button>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => onBuyClick?.(item.ticker)}
+                    disabled={loading}
+                    className="px-2.5 py-1 bg-gain text-white text-xs rounded hover:bg-gain/80 transition-colors disabled:opacity-50"
+                  >
+                    Buy
+                  </button>
+                  <button
+                    onClick={() => handleRemove(item.ticker)}
+                    disabled={loading}
+                    className="px-2.5 py-1 bg-error text-white text-xs rounded hover:bg-error/80 transition-colors disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
             )
           })}

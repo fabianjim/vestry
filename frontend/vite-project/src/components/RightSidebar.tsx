@@ -51,7 +51,7 @@ type Holding = {
 interface RightSidebarProps {
   holdings: Holding[]
   loading: boolean
-  onBuyClick: () => void
+  onBuyClick: (ticker?: string) => void
   onSellClick: () => void
   onHoldingClick?: (ticker: string) => void
 }
@@ -209,7 +209,7 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
           <span className={`text-muted font-130 ${isOpen ? 'text-sm' : 'text-xs'}`}>{watchlistCount}</span>
         </div>
         <div className={isOpen ? 'p-4' : ''}>
-          <WatchlistPanel isOpen={isOpen} onCountChange={setWatchlistCount} />
+          <WatchlistPanel isOpen={isOpen} onCountChange={setWatchlistCount} onBuyClick={onBuyClick} />
         </div>
       </div>
     </aside>
