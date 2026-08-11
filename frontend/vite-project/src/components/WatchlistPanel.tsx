@@ -117,33 +117,11 @@ export default function WatchlistPanel({ isOpen = true, onCountChange, onBuyClic
             return (
               <div
                 key={item.id}
-                className="group p-3 bg-surface-hover rounded-lg border border-border flex justify-between items-start"
+                className="group p-3 bg-surface-hover rounded-lg border border-border"
               >
-                <div>
+                <div className="grid grid-cols-[1fr_auto] gap-x-2">
                   <div className="text-base font-130 text-foreground">{item.ticker}</div>
-                  {item.metadata ? (
-                    <div className="mt-1 text-xs text-secondary space-y-0.5">
-                      <div>
-                        <span className="font-semibold">{item.metadata.etf ? 'Asset Class' : 'Sector'}:</span>{' '}
-                        {item.metadata.sector || '-'}
-                      </div>
-                      <div>
-                        <span className="font-semibold">{item.metadata.etf ? 'Category' : 'Industry'}:</span>{' '}
-                        {item.metadata.industry || '-'}
-                      </div>
-                      <div>
-                        <span className="font-semibold">{item.metadata.etf ? 'Region' : 'Country'}:</span>{' '}
-                        {item.metadata.country || '-'}
-                      </div>
-                      <div><span className="font-semibold">Cap:</span> {getTierLabel(item.metadata.marketCapTier)}</div>
-                    </div>
-                  ) : (
-                    <div className="mt-1 text-xs text-muted italic">
-                      Metadata not available
-                    </div>
-                  )}
-                </div>
-                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex gap-2 justify-self-end self-start opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => onBuyClick?.(item.ticker)}
                     disabled={loading}
@@ -159,6 +137,29 @@ export default function WatchlistPanel({ isOpen = true, onCountChange, onBuyClic
                     Remove
                   </button>
                 </div>
+                  {item.metadata ? (
+                    <div className="col-span-2 mt-1 text-xs text-secondary space-y-1">
+                      <div>
+                        <span className="font-semibold">{item.metadata.etf ? 'Asset Class' : 'Sector'}:</span>{' '}
+                        {item.metadata.sector || '-'}
+                      </div>
+                      <div>
+                        <span className="font-semibold">{item.metadata.etf ? 'Category' : 'Industry'}:</span>{' '}
+                        {item.metadata.industry || '-'}
+                      </div>
+                      <div>
+                        <span className="font-semibold">{item.metadata.etf ? 'Region' : 'Country'}:</span>{' '}
+                        {item.metadata.country || '-'}
+                      </div>
+                      <div><span className="font-semibold">Cap:</span> {getTierLabel(item.metadata.marketCapTier)}</div>
+                    </div>
+                  ) : (
+                    <div className="col-span-2 mt-1 text-xs text-muted italic">
+                      Metadata not available
+                    </div>
+                  )}
+                </div>
+                
               </div>
             )
           })}
