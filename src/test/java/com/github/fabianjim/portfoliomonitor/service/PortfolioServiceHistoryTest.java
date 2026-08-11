@@ -501,6 +501,59 @@ public class PortfolioServiceHistoryTest {
         assertEquals(expectedValue, result.get(0).getPortfolioValue(), 0.01);
     }
 
+    // regression test: fully selling a holding must not wipe history before the sell
+    @Test
+    void getPortfolioHistoryAfterFullSell() {
+        Instant tenAm = Instant.parse("2025-01-15T15:00:00Z");  // 10:00 AM EST
+        Instant elevenAm = Instant.parse("2025-01-15T16:00:00Z"); // 11:00 AM EST
+        Instant noon = Instant.parse("2025-01-15T17:00:00Z");     // 12:00 PM EST
+
+        // GRAB was fully sold at 11am, only AAPL remains in holdings
+        Holding aaplHolding = new Holding("AAPL", 10.0);
+        aaplHolding.setBuyTimestamp(tenAm.minus(1, ChronoUnit.DAYS));
+        mockPortfolio.getHoldings().add(aaplHolding);
+
+        List<Stock> aaplHistory = List.of(
+            createStock("AAPL", tenAm, 150.0),
+            createStock("AAPL", elevenAm, 155.0),
+            createStock("AAPL", noon, 160.0)
+        );
+
+        // GRAB price rows still exist in the DB even though the holding is gone
+        List<Stock> grabHistory = List.of(
+            createStock("GRAB", tenAm, 20.0),
+            createStock("GRAB", elevenAm, 21.0)
+        );
+
+        List<Transaction> transactions = List.of(
+            createTransaction("AAPL", 10.0, 150.0, TransactionType.BUY, tenAm.minus(1, ChronoUnit.DAYS)),
+            createTransaction("GRAB", 5.0, 20.0, TransactionType.BUY, tenAm.minus(1, ChronoUnit.DAYS)),
+            createTransaction("GRAB", 5.0, 21.0, TransactionType.SELL, elevenAm)
+        );
+
+        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(stockRepository.findByTickerOrderByTimestampDesc("AAPL")).thenReturn(aaplHistory);
+        when(stockRepository.findByTickerOrderByTimestampDesc("GRAB")).thenReturn(grabHistory);
+        when(transactionService.getTransactionHistory()).thenReturn(transactions);
+
+        List<PortfolioHistoryDTO> result = portfolioService.getPortfolioHistory();
+
+        // 10am bucket (pre-sell) must include GRAB's value; 11am and noon are AAPL only
+        assertEquals(3, result.size());
+
+        // 10am: AAPL + GRAB = (150 * 10) + (20 * 5) = 1600
+        assertEquals(1600.0, result.get(0).getPortfolioValue(), 0.01);
+        assertEquals(tenAm, result.get(0).getTimestamp());
+
+        // 11am: AAPL only = 155 * 10 = 1550
+        assertEquals(1550.0, result.get(1).getPortfolioValue(), 0.01);
+        assertEquals(elevenAm, result.get(1).getTimestamp());
+
+        // noon: AAPL only = 160 * 10 = 1600
+        assertEquals(1600.0, result.get(2).getPortfolioValue(), 0.01);
+        assertEquals(noon, result.get(2).getTimestamp());
+    }
+
     private Stock createStock(String ticker, Instant timestamp, double price) {
         Stock stock = new Stock();
         stock.setTicker(ticker);

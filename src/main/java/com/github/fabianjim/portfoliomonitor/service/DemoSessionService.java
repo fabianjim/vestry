@@ -495,8 +495,21 @@ public class DemoSessionService {
 
         Map<Instant, Map<String, Stock>> dataByHourBucket = new HashMap<>();
 
+        Map<String, Instant> referenceTimeByTicker = new HashMap<>();
         for (Holding holding : holdings) {
-            List<Stock> stockHistory = stockRepository.findByTickerOrderByTimestampDesc(holding.getTicker());
+            referenceTimeByTicker.put(holding.getTicker(), holding.getBuyTimestamp());
+        }
+        for (Map.Entry<String, List<Transaction>> tickerTxs : transactionsByTicker.entrySet()) {
+            referenceTimeByTicker.computeIfAbsent(tickerTxs.getKey(), k -> tickerTxs.getValue().stream()
+                .map(Transaction::getTimestamp)
+                .min(Comparator.naturalOrder())
+                .orElse(Instant.now()));
+        }
+
+        for (Map.Entry<String, Instant> tickerEntry : referenceTimeByTicker.entrySet()) {
+            String ticker = tickerEntry.getKey();
+            Instant referenceTime = tickerEntry.getValue();
+            List<Stock> stockHistory = stockRepository.findByTickerOrderByTimestampDesc(ticker);
             for (Stock stock : stockHistory) {
                 if (stock.getType() == Stock.StockType.EOD) {
                     continue;
@@ -508,7 +521,7 @@ public class DemoSessionService {
                 }
 
                 if (stock.getType() == Stock.StockType.INITIAL ||
-                    !effectiveBucket.isBefore(holding.getBuyTimestamp())) {
+                    !effectiveBucket.isBefore(referenceTime)) {
                     dataByHourBucket
                         .computeIfAbsent(effectiveBucket, k -> new HashMap<>())
                         .put(stock.getTicker(), stock);

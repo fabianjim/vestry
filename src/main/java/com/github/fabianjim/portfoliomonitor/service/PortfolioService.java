@@ -428,9 +428,25 @@ public class PortfolioService {
         // Map to store all stock data grouped by hour bucket
         Map<Instant, Map<String, Stock>> dataByHourBucket = new HashMap<>();
 
-        // Fetch historical data for each holding
+        // Reference timestamp per ticker: the holding's buy timestamp when still held,
+        // otherwise the earliest ledger transaction (for fully sold tickers)
+        Map<String, Instant> referenceTimeByTicker = new HashMap<>();
         for (Holding holding : holdings) {
-            List<Stock> stockHistory = stockRepository.findByTickerOrderByTimestampDesc(holding.getTicker());
+            referenceTimeByTicker.put(holding.getTicker(), holding.getBuyTimestamp());
+        }
+        for (Map.Entry<String, List<Transaction>> tickerTxs : transactionsByTicker.entrySet()) {
+            referenceTimeByTicker.computeIfAbsent(tickerTxs.getKey(), k -> tickerTxs.getValue().stream()
+                .map(Transaction::getTimestamp)
+                .min(Comparator.naturalOrder())
+                .orElse(Instant.now()));
+        }
+
+        // Fetch historical data for each ticker in current holdings or the transaction ledger,
+        // so buckets before a full sell still have prices for the sold ticker
+        for (Map.Entry<String, Instant> tickerEntry : referenceTimeByTicker.entrySet()) {
+            String ticker = tickerEntry.getKey();
+            Instant referenceTime = tickerEntry.getValue();
+            List<Stock> stockHistory = stockRepository.findByTickerOrderByTimestampDesc(ticker);
 
             for (Stock stock : stockHistory) {
                 // Only include INTRADAY and INITIAL data, exclude EOD
@@ -448,7 +464,7 @@ public class PortfolioService {
                 // INITIAL data always included (it's the creation/buy price point)
                 // INTRADAY data only from first buy time onward
                 if (stock.getType() == Stock.StockType.INITIAL ||
-                    !effectiveBucket.isBefore(holding.getBuyTimestamp())) {
+                    !effectiveBucket.isBefore(referenceTime)) {
                     dataByHourBucket
                         .computeIfAbsent(effectiveBucket, k -> new HashMap<>())
                         .put(stock.getTicker(), stock);
