@@ -1,0 +1,15 @@
+package me.vestry;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
+
+@SpringBootApplication
+@EnableScheduling
+public class VestryApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(VestryApplication.class, args);
+    }
+
+}

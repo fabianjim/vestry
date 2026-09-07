@@ -5,11 +5,14 @@ An investment portfolio journaling app that helps users reflect on trading decis
 
 ## Project Structure
 
-Vestry is split into a Spring Boot backend and a React + Vite frontend.
+Vestry is organized as a product monorepo: deployable web applications live in
+`apps/`, while independently deployed backend services live in `services/`.
 
 ### Backend
 
-`vestry/src/`
+`services/api/src/`
+
+The API uses the `me.vestry` Java package namespace.
 
 - `api/` — External API client for market data
 - `config/` — Profile-gated scheduling configuration
@@ -22,14 +25,14 @@ Vestry is split into a Spring Boot backend and a React + Vite frontend.
 - `security/` — Session-based authentication and CORS
 - `service/` — Business logic, scheduled price fetching, metadata loaders, session handling
 
-`vestry/src/main/resources/`
+`services/api/src/main/resources/`
 
 - `data/nasdaq_metadata.csv` — Stock metadata source
 - `data/ETFs.csv` — ETF metadata source
 
 ### Frontend
 
-`frontend/vite-project/src/`
+`apps/web/src/`
 
 - `pages/` — Route-level views
 - `components/` — Reusable UI components and landing sections
@@ -45,6 +48,9 @@ Vestry is split into a Spring Boot backend and a React + Vite frontend.
 - **Database**: PostgreSQL (dev/prod), H2 (tests)
 - **Market Data**: Tiingo API
 - **CI/CD**: GitHub Actions for AWS Elastic Beanstalk backend deployment; Vercel frontend deploys automatically
+
+The Vercel project's Root Directory must be set to `apps/web`. The Elastic
+Beanstalk application and environment retain their existing AWS resource names.
 
 ## Build
 
@@ -63,6 +69,7 @@ Vestry is split into a Spring Boot backend and a React + Vite frontend.
 ### Backend
 
 ```bash
+cd services/api
 ./mvnw spring-boot:run   # Run with the dev profile
 ./mvnw clean package -DskipTests   # Build the deploy JAR
 ```
@@ -70,7 +77,7 @@ Vestry is split into a Spring Boot backend and a React + Vite frontend.
 ### Frontend
 
 ```bash
-cd frontend/vite-project
+cd apps/web
 npm install
 npm run dev      # Dev server on http://localhost:5173
 npm run build    # Type-check and build
@@ -80,8 +87,8 @@ npm run lint     # Run ESLint
 ### Full Stack Local
 
 1. Start PostgreSQL locally.
-2. Run `./mvnw spring-boot:run` from the project root.
-3. In another terminal, run `npm run dev` from `frontend/vite-project`.
+2. Run `./mvnw spring-boot:run` from `services/api`.
+3. In another terminal, run `npm run dev` from `apps/web`.
 4. The Vite dev server proxies `/api` requests to `http://localhost:8080`.
 
 ## Contributing

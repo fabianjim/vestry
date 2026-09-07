@@ -1,0 +1,535 @@
+package me.vestry.service;
+
+import me.vestry.dto.PnLSummaryDTO;
+import me.vestry.dto.PortfolioHistoryDTO;
+import me.vestry.exception.PriceFetchException;
+import me.vestry.exception.UnknownTickerException;
+import me.vestry.model.Holding;
+import me.vestry.model.JournalEntry;
+import me.vestry.model.Portfolio;
+import me.vestry.model.Stock;
+import me.vestry.model.TrackedStock;
+import me.vestry.model.Transaction;
+import me.vestry.model.User;
+import me.vestry.repository.PortfolioRepository;
+import me.vestry.repository.StockRepository;
+import me.vestry.repository.TrackedStockRepository;
+import me.vestry.repository.UserRepository;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+@Service
+@Transactional
+public class PortfolioService {
+
+    private final PortfolioRepository portfolioRepository;
+    private final StockService stockService;
+    private final UserRepository userRepository;
+    private final TrackedStockRepository trackedStockRepository;
+    private final StockRepository stockRepository;
+    private final TransactionService transactionService;
+    private final JournalEntryService journalEntryService;
+
+    public PortfolioService(PortfolioRepository portfolioRepository,
+                          StockService stockService,
+                          UserRepository userRepository,
+                          TrackedStockRepository trackedStockRepository,
+                          StockRepository stockRepository,
+                          TransactionService transactionService,
+                          JournalEntryService journalEntryService) {
+        this.portfolioRepository = portfolioRepository;
+        this.stockService = stockService;
+        this.userRepository = userRepository;
+        this.trackedStockRepository = trackedStockRepository;
+        this.stockRepository = stockRepository;
+        this.transactionService = transactionService;
+        this.journalEntryService = journalEntryService;
+    }
+
+    private Integer getCurrentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            throw new RuntimeException("No authenticated user found");
+        }
+        User user = (User) auth.getPrincipal();
+        return user.getId();
+    }
+
+    private User getCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            throw new RuntimeException("No authenticated user found");
+        }
+        return (User) auth.getPrincipal();
+    }
+
+    public void createPortfolio(Portfolio portfolio) {
+        Integer userId = getCurrentUserId();
+
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+        portfolio.setUser(user);
+
+        if (portfolio != null && portfolio.getHoldings() != null) {
+            // Aggregate any duplicate tickers in initial holdings
+            List<Holding> aggregatedHoldings = new ArrayList<>();
+            Map<String, Holding> holdingsByTicker = new HashMap<>();
+            for (Holding holding : portfolio.getHoldings()) {
+                Holding existing = holdingsByTicker.get(holding.getTicker());
+                if (existing != null) {
+                    existing.setShares(existing.getShares() + holding.getShares());
+                } else {
+                    Holding newHolding = new Holding(holding.getTicker(), holding.getShares());
+                    holdingsByTicker.put(holding.getTicker(), newHolding);
+                    aggregatedHoldings.add(newHolding);
+                }
+            }
+            portfolio.setHoldings(aggregatedHoldings);
+
+            // Validate all tickers by fetching prices before saving
+            Map<String, Double> tickerPrices = new HashMap<>();
+            for (Holding holding : portfolio.getHoldings()) {
+                // Start tracking FIRST so fetchTransactionPrice can update timestamps
+                startTrackingStock(holding.getTicker());
+                double price = fetchTransactionPrice(holding.getTicker());
+                tickerPrices.put(holding.getTicker(), price);
+            }
+
+            portfolioRepository.save(portfolio);
+
+            // Record buy transactions and initial journal entries with validated prices
+            Instant creationTime = Instant.now();
+            for (Holding holding : portfolio.getHoldings()) {
+                double price = tickerPrices.get(holding.getTicker());
+                transactionService.recordBuyTransaction(holding.getTicker(), holding.getShares(), price, creationTime);
+                journalEntryService.createInitialEntry(user, holding.getTicker(), price, creationTime);
+            }
+        }
+    }
+
+    // Start tracking a stock ticker. If already tracked, increment holder count
+    private void startTrackingStock(String ticker) {
+        TrackedStock trackedStock = trackedStockRepository.findByTicker(ticker)
+            .orElse(null);
+
+        if (trackedStock == null) {
+            trackedStock = new TrackedStock(ticker);
+            trackedStockRepository.save(trackedStock);
+        } else {
+            trackedStock.incrementHolderCount();
+            trackedStockRepository.save(trackedStock);
+        }
+    }
+
+    // Stop tracking a stock ticker. Decrement holder count, delete if no holders remain.
+    private void stopTrackingStock(String ticker) {
+        TrackedStock trackedStock = trackedStockRepository.findByTicker(ticker)
+            .orElse(null);
+
+        if (trackedStock != null) {
+            trackedStock.decrementHolderCount();
+            if (trackedStock.getHolderCount() <= 0) {
+                trackedStockRepository.delete(trackedStock);
+            } else {
+                trackedStockRepository.save(trackedStock);
+            }
+        }
+    }
+
+     
+    // Fetch live price for a transaction with one retry on fetch failures.
+    // Also updates TrackedStock timestamps so the data doesn't show as stale.
+    private double fetchTransactionPrice(String ticker) {
+        Exception lastError = null;
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                Stock stock = stockService.updateStockData(ticker, Stock.StockType.INITIAL);
+                if (stock != null && stock.getCurrentPrice() > 0.0) {
+                    // Update tracked stock timestamps after successful fetch
+                    TrackedStock tracked = trackedStockRepository.findByTicker(ticker).orElse(null);
+                    if (tracked != null) {
+                        Instant now = Instant.now();
+                        tracked.setLastFetchAttempt(now);
+                        tracked.setLastSuccessfulFetch(now);
+                        trackedStockRepository.save(tracked);
+                    }
+                    return stock.getCurrentPrice();
+                }
+                if (stock == null) {
+                    lastError = new PriceFetchException(ticker, "No stock data returned");
+                } else {
+                    lastError = new PriceFetchException(ticker, "Invalid price (" + stock.getCurrentPrice() + ")");
+                }
+            } catch (UnknownTickerException e) {
+                // no retry for unknown tickers saves a api call
+                throw e;
+            } catch (Exception e) {
+                lastError = e;
+            }
+                // retry once after 500ms
+            if (attempt == 1) {
+                try {
+                    TimeUnit.MILLISECONDS.sleep(500);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new PriceFetchException(ticker, "Retry interrupted", ie);
+                }
+            }
+        }
+
+        throw new PriceFetchException(ticker, lastError.getMessage(), lastError);
+    }
+
+    public void addHolding(String ticker, double shares) {
+        addHolding(ticker, shares, null, null);
+    }
+
+    public void addHolding(String ticker, double shares, Double price, Instant timestamp) {
+        Portfolio portfolio = getPortfolio();
+        if (portfolio == null) {
+            throw new RuntimeException("No portfolio found for current user");
+        }
+
+        // Fetch and validate price BEFORE modifying portfolio (unless manually provided)
+        startTrackingStock(ticker);
+        double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
+
+        Holding existingHolding = portfolio.getHoldings().stream()
+            .filter(h -> h.getTicker().equals(ticker))
+            .findFirst()
+            .orElse(null);
+
+        if (existingHolding != null) {
+            existingHolding.setShares(existingHolding.getShares() + shares);
+        } else {
+            Holding newHolding = new Holding(ticker, shares);
+            portfolio.getHoldings().add(newHolding);
+        }
+
+        portfolioRepository.save(portfolio);
+
+        // Record buy transaction with validated price
+        transactionService.recordBuyTransaction(ticker, shares, currentPrice, timestamp);
+    }
+
+    public JournalEntry removeHolding(String ticker) {
+        return removeHolding(ticker, null, null);
+    }
+
+    public JournalEntry removeHolding(String ticker, Double price, Instant timestamp) {
+        Portfolio portfolio = getPortfolio();
+        if (portfolio == null) {
+            throw new RuntimeException("No portfolio found for current user");
+        }
+
+        Holding holding = portfolio.getHoldings().stream()
+            .filter(h -> h.getTicker().equals(ticker))
+            .findFirst()
+            .orElse(null);
+        if (holding == null) {
+            return null;
+        }
+        double shares = holding.getShares();
+
+        // Fetch and validate price BEFORE modifying portfolio (unless manually provided)
+        double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
+
+        // Create the auto sell journal entry before recording the transaction
+        // so realized PnL reflects the cost basis prior to this sale
+        JournalEntry sellEntry = journalEntryService.createAutoSellEntry(getCurrentUser(), ticker, shares, currentPrice, timestamp);
+
+        portfolio.getHoldings().remove(holding);
+        portfolioRepository.save(portfolio);
+
+        // Stop tracking this stock
+        stopTrackingStock(ticker);
+
+        // Record sell transaction with validated price
+        transactionService.recordSellTransaction(ticker, shares, currentPrice, timestamp);
+        return sellEntry;
+    }
+
+    // Sell a portion of a holding (partial sell).
+    public JournalEntry sellHolding(String ticker, double sharesToSell) {
+        return sellHolding(ticker, sharesToSell, null, null);
+    }
+
+    public JournalEntry sellHolding(String ticker, double sharesToSell, Double price, Instant timestamp) {
+        Portfolio portfolio = getPortfolio();
+        if (portfolio == null) {
+            throw new RuntimeException("No portfolio found for current user");
+        }
+
+        Holding holding = portfolio.getHoldings().stream()
+            .filter(h -> h.getTicker().equals(ticker))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("Holding not found for ticker: " + ticker));
+
+        if (sharesToSell > holding.getShares()) {
+            throw new RuntimeException("Cannot sell more shares than owned");
+        }
+
+        // Fetch and validate price BEFORE modifying portfolio (unless manually provided)
+        double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
+
+        // Create the auto sell journal entry before recording the transaction
+        // so realized PnL reflects the cost basis prior to this sale
+        JournalEntry sellEntry = journalEntryService.createAutoSellEntry(getCurrentUser(), ticker, sharesToSell, currentPrice, timestamp);
+
+        // Record sell transaction with validated price
+        transactionService.recordSellTransaction(ticker, sharesToSell, currentPrice, timestamp);
+
+        // Update or remove holding
+        if (sharesToSell == holding.getShares()) {
+            // Selling all shares - remove the holding
+            portfolio.getHoldings().remove(holding);
+            stopTrackingStock(ticker);
+        } else {
+            // Partial sell, update shares
+            holding.setShares(holding.getShares() - sharesToSell);
+        }
+        portfolioRepository.save(portfolio);
+        return sellEntry;
+    }
+
+    public List<String> getTickersfromPortfolio(Portfolio portfolio) {
+        List<String> tickers = portfolio.getHoldings().stream()
+                .map(Holding::getTicker)
+                .distinct()
+                .toList();
+        return tickers;
+    }
+
+
+
+    public boolean existsByUserId() {
+        Integer userId = getCurrentUserId();
+        return portfolioRepository.existsByUserId(userId);
+    }
+
+    public Portfolio getPortfolio() {
+        Integer userId = getCurrentUserId();
+        return portfolioRepository.findByUserId(userId).orElse(null);
+    }
+    
+    
+    public Stock getStockData(String ticker) {
+        return stockService.getLatestStockData(ticker).orElse(null);
+    }
+
+    public Stock getStockData(String ticker, Instant timestamp) {
+        return stockService.getStockData(ticker, timestamp).orElse(null);
+    }
+
+    /**
+     * Calculate total, unrealized, and realized P/L for the current user's portfolio.
+     * Uses average cost basis method per ticker.
+     */
+    public PnLSummaryDTO getPnLSummary() {
+        List<Transaction> transactions = transactionService.getTransactionHistory();
+
+        // Group transactions by ticker
+        Map<String, List<Transaction>> byTicker = new HashMap<>();
+        for (Transaction tx : transactions) {
+            byTicker.computeIfAbsent(tx.getTicker(), k -> new ArrayList<>()).add(tx);
+        }
+
+        double totalUnrealized = 0;
+        double totalRealized = 0;
+        double totalCurrentCostBasis = 0;
+        double totalSoldCostBasis = 0;
+
+        for (List<Transaction> tickerTxs : byTicker.values()) {
+            double buyShares = 0;
+            double buyCost = 0;
+            double sellShares = 0;
+            double sellProceeds = 0;
+
+            for (Transaction tx : tickerTxs) {
+                if (tx.getType() == Transaction.TransactionType.BUY) {
+                    buyShares += tx.getShares();
+                    buyCost += tx.getTotalValue();
+                } else {
+                    sellShares += tx.getShares();
+                    sellProceeds += tx.getTotalValue();
+                }
+            }
+
+            if (buyShares == 0) continue;
+
+            double avgCost = buyCost / buyShares;
+            double realizedForTicker = sellProceeds - (avgCost * sellShares);
+            totalRealized += realizedForTicker;
+            totalSoldCostBasis += avgCost * sellShares;
+
+            double currentShares = buyShares - sellShares;
+            if (currentShares > 0) {
+                String ticker = tickerTxs.get(0).getTicker();
+                Stock stock = getStockData(ticker);
+                double currentPrice = (stock != null) ? stock.getCurrentPrice() : 0;
+                double unrealizedForTicker = (currentPrice - avgCost) * currentShares;
+                totalUnrealized += unrealizedForTicker;
+                totalCurrentCostBasis += avgCost * currentShares;
+            }
+        }
+
+        double totalPnL = totalUnrealized + totalRealized;
+        double totalCostBasis = totalCurrentCostBasis + totalSoldCostBasis;
+        double totalPnLPercent = totalCostBasis > 0
+                ? (totalPnL / totalCostBasis) * 100
+                : 0;
+        double unrealizedPercent = totalCurrentCostBasis > 0
+                ? (totalUnrealized / totalCurrentCostBasis) * 100
+                : 0;
+        double realizedPercent = totalSoldCostBasis > 0
+                ? (totalRealized / totalSoldCostBasis) * 100
+                : 0;
+
+        return new PnLSummaryDTO(totalPnL, totalPnLPercent,
+                                 totalUnrealized, unrealizedPercent,
+                                 totalRealized, realizedPercent);
+    }
+
+    /**
+     * Calculate portfolio value history for the current user's portfolio.
+     * Returns list of portfolio values grouped by hour bucket.
+     * Uses the transaction ledger to determine actual shares owned at each point in time,
+     * which correctly handles multiple purchases of the same ticker.
+     */
+    public List<PortfolioHistoryDTO> getPortfolioHistory() {
+        Portfolio portfolio = getPortfolio();
+        if (portfolio == null || portfolio.getHoldings() == null || portfolio.getHoldings().isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<Holding> holdings = portfolio.getHoldings();
+
+        // Fetch all transactions to calculate shares-at-time accurately
+        List<Transaction> transactions = transactionService.getTransactionHistory();
+        Map<String, List<Transaction>> transactionsByTicker = new HashMap<>();
+        for (Transaction tx : transactions) {
+            transactionsByTicker
+                .computeIfAbsent(tx.getTicker(), k -> new ArrayList<>())
+                .add(tx);
+        }
+
+        // Map to store all stock data grouped by hour bucket
+        Map<Instant, Map<String, Stock>> dataByHourBucket = new HashMap<>();
+
+        // Reference timestamp per ticker: the holding's buy timestamp when still held,
+        // otherwise the earliest ledger transaction (for fully sold tickers)
+        Map<String, Instant> referenceTimeByTicker = new HashMap<>();
+        for (Holding holding : holdings) {
+            referenceTimeByTicker.put(holding.getTicker(), holding.getBuyTimestamp());
+        }
+        for (Map.Entry<String, List<Transaction>> tickerTxs : transactionsByTicker.entrySet()) {
+            referenceTimeByTicker.computeIfAbsent(tickerTxs.getKey(), k -> tickerTxs.getValue().stream()
+                .map(Transaction::getTimestamp)
+                .min(Comparator.naturalOrder())
+                .orElse(Instant.now()));
+        }
+
+        // Fetch historical data for each ticker in current holdings or the transaction ledger,
+        // so buckets before a full sell still have prices for the sold ticker
+        for (Map.Entry<String, Instant> tickerEntry : referenceTimeByTicker.entrySet()) {
+            String ticker = tickerEntry.getKey();
+            Instant referenceTime = tickerEntry.getValue();
+            List<Stock> stockHistory = stockRepository.findByTickerOrderByTimestampDesc(ticker);
+
+            for (Stock stock : stockHistory) {
+                // Only include INTRADAY and INITIAL data, exclude EOD
+                if (stock.getType() == Stock.StockType.EOD) {
+                    continue;
+                }
+
+                // Determine the effective bucket for this stock data point
+                Instant effectiveBucket = stock.getHourBucket();
+                if (stock.getType() == Stock.StockType.INITIAL) {
+                    // Truncate to nearest minute so simultaneous buys share a bucket
+                    effectiveBucket = effectiveBucket.truncatedTo(ChronoUnit.MINUTES);
+                }
+
+                // INITIAL data always included (it's the creation/buy price point)
+                // INTRADAY data only from first buy time onward
+                if (stock.getType() == Stock.StockType.INITIAL ||
+                    !effectiveBucket.isBefore(referenceTime)) {
+                    dataByHourBucket
+                        .computeIfAbsent(effectiveBucket, k -> new HashMap<>())
+                        .put(stock.getTicker(), stock);
+                }
+            }
+        }
+
+        // Calculate portfolio value at each hour bucket
+        List<PortfolioHistoryDTO> result = new ArrayList<>();
+
+        for (Map.Entry<Instant, Map<String, Stock>> entry : dataByHourBucket.entrySet()) {
+            Instant hourBucket = entry.getKey();
+            Map<String, Stock> stocksAtHour = entry.getValue();
+
+            // Calculate actual shares owned for each ticker at this hour bucket
+            // by summing all buy transactions and subtracting sell transactions
+            // that occurred at or before this hour bucket
+            Map<String, Double> sharesAtTime = new HashMap<>();
+            for (Map.Entry<String, List<Transaction>> tickerTxs : transactionsByTicker.entrySet()) {
+                String ticker = tickerTxs.getKey();
+                double shares = 0;
+                for (Transaction tx : tickerTxs.getValue()) {
+                    // Truncate transaction timestamp to minute for comparison
+                    // so simultaneous buys in portfolio creation match the bucket
+                    Instant txMinute = tx.getTimestamp().truncatedTo(ChronoUnit.MINUTES);
+                    if (!txMinute.isAfter(hourBucket)) {
+                        if (tx.getType() == Transaction.TransactionType.BUY) {
+                            shares += tx.getShares();
+                        } else {
+                            shares -= tx.getShares();
+                        }
+                    }
+                }
+                if (shares > 0) {
+                    sharesAtTime.put(ticker, shares);
+                }
+            }
+
+            // Check if we have stock data for all tickers with shares > 0
+            if (stocksAtHour.size() >= sharesAtTime.size()) {
+                double totalValue = 0.0;
+                boolean hasAllData = true;
+
+                for (Map.Entry<String, Double> shareEntry : sharesAtTime.entrySet()) {
+                    String ticker = shareEntry.getKey();
+                    double shares = shareEntry.getValue();
+                    Stock stock = stocksAtHour.get(ticker);
+
+                    if (stock == null) {
+                        hasAllData = false;
+                        break;
+                    }
+
+                    totalValue += stock.getCurrentPrice() * shares;
+                }
+
+                if (hasAllData && !sharesAtTime.isEmpty()) {
+                    result.add(new PortfolioHistoryDTO(hourBucket, totalValue));
+                }
+            }
+        }
+        // Sort, oldest first for chart display
+        result.sort(Comparator.comparing(PortfolioHistoryDTO::getTimestamp));
+        return result;
+    }
+
+}
+

@@ -18,8 +18,11 @@ jobs:
         with:
           java-version: '17'
           distribution: 'corretto'
+          cache: maven
+          cache-dependency-path: services/api/pom.xml
 
       - name: Build with Maven
+        working-directory: services/api
         run: ./mvnw clean package -DskipTests
 
       - name: Deploy to Elastic Beanstalk
@@ -31,4 +34,4 @@ jobs:
           environment_name: portfolio-monitor-api-env
           region: us-east-1
           version_label: ${{ github.sha }}
-          deployment_package: target/portfolio-monitor-0.0.1-SNAPSHOT.jar
+          deployment_package: services/api/target/vestry-api-0.0.1-SNAPSHOT.jar

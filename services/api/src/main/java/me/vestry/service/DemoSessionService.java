@@ -1,0 +1,821 @@
+package me.vestry.service;
+
+import me.vestry.dto.PnLSummaryDTO;
+import me.vestry.dto.PortfolioHistoryDTO;
+import me.vestry.exception.DemoTradeLimitExceededException;
+import me.vestry.exception.PriceFetchException;
+import me.vestry.exception.UnknownTickerException;
+import me.vestry.model.DemoSession;
+import me.vestry.model.Holding;
+import me.vestry.model.JournalEntry;
+import me.vestry.model.JournalEntryType;
+import me.vestry.model.Portfolio;
+import me.vestry.model.Stock;
+import me.vestry.model.Transaction;
+import me.vestry.model.WatchlistItem;
+import me.vestry.model.TrackedStock;
+import me.vestry.repository.HoldingRepository;
+import me.vestry.repository.JournalEntryRepository;
+import me.vestry.repository.PortfolioRepository;
+import me.vestry.repository.StockRepository;
+import me.vestry.repository.TrackedStockRepository;
+import me.vestry.repository.TransactionRepository;
+import me.vestry.repository.WatchlistItemRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+import me.vestry.dto.CalendarDayDTO;
+import me.vestry.model.Tag;
+
+@Service
+public class DemoSessionService {
+
+    private static final Logger logger = LoggerFactory.getLogger(DemoSessionService.class);
+
+    private final PortfolioRepository portfolioRepository;
+    private final HoldingRepository holdingRepository;
+    private final TransactionRepository transactionRepository;
+    private final JournalEntryRepository journalEntryRepository;
+    private final WatchlistItemRepository watchlistItemRepository;
+    private final StockRepository stockRepository;
+    private final StockService stockService;
+    private final TrackedStockRepository trackedStockRepository;
+    private final RealizedPnlCalculator realizedPnlCalculator;
+
+    public DemoSessionService(PortfolioRepository portfolioRepository,
+                              HoldingRepository holdingRepository,
+                              TransactionRepository transactionRepository,
+                              JournalEntryRepository journalEntryRepository,
+                              WatchlistItemRepository watchlistItemRepository,
+                              StockRepository stockRepository,
+                              StockService stockService,
+                              TrackedStockRepository trackedStockRepository,
+                              RealizedPnlCalculator realizedPnlCalculator) {
+        this.portfolioRepository = portfolioRepository;
+        this.holdingRepository = holdingRepository;
+        this.transactionRepository = transactionRepository;
+        this.journalEntryRepository = journalEntryRepository;
+        this.watchlistItemRepository = watchlistItemRepository;
+        this.stockRepository = stockRepository;
+        this.stockService = stockService;
+        this.trackedStockRepository = trackedStockRepository;
+        this.realizedPnlCalculator = realizedPnlCalculator;
+    }
+
+    public DemoSession createSession(me.vestry.model.User user) {
+        DemoSession session = new DemoSession();
+
+        Portfolio dbPortfolio = portfolioRepository.findByUserId(user.getId()).orElse(null);
+        if (dbPortfolio != null) {
+            Portfolio portfolioCopy = new Portfolio();
+            portfolioCopy.setId(session.nextId());
+            portfolioCopy.setUser(user);
+
+            List<Holding> holdingsCopy = new ArrayList<>();
+            if (dbPortfolio.getHoldings() != null) {
+                for (Holding h : dbPortfolio.getHoldings()) {
+                    Holding copy = new Holding(h.getTicker(), h.getShares());
+                    copy.setId(session.nextId());
+                    copy.setBuyTimestamp(h.getBuyTimestamp());
+                    copy.setMetadata(h.getMetadata());
+                    holdingsCopy.add(copy);
+                }
+            }
+            portfolioCopy.setHoldings(holdingsCopy);
+            session.setPortfolio(portfolioCopy);
+
+            for (Holding holding : holdingsCopy) {
+                String ticker = holding.getTicker();
+                startTrackingStockForSession(session, ticker);
+            }
+        }
+
+        List<Transaction> txCopy = new ArrayList<>();
+        for (Transaction tx : transactionRepository.findByUserIdOrderByTimestampDesc(user.getId())) {
+            Transaction copy = new Transaction(tx.getTicker(), tx.getShares(), tx.getPrice(), tx.getType());
+            copy.setId(session.nextId());
+            copy.setTimestamp(tx.getTimestamp());
+            copy.setTotalValue(tx.getTotalValue());
+            copy.setUser(user);
+            txCopy.add(copy);
+        }
+        session.setTransactions(txCopy);
+
+        List<JournalEntry> journalCopy = new ArrayList<>();
+        Map<String, Tag> sessionTagsByName = new HashMap<>();
+        for (JournalEntry entry : journalEntryRepository.findByUserIdOrderByTimestampDesc(user.getId())) {
+            JournalEntry copy = new JournalEntry();
+            copy.setId(session.nextId());
+            copy.setEntryType(entry.getEntryType());
+            copy.setBody(entry.getBody());
+            copy.setTicker(entry.getTicker());
+            copy.setTimestamp(entry.getTimestamp());
+            copy.setPriceSnapshot(entry.getPriceSnapshot());
+            copy.setUser(user);
+
+            Set<Tag> tagCopies = new HashSet<>();
+            for (Tag tag : entry.getTags()) {
+                Tag tagCopy = sessionTagsByName.computeIfAbsent(tag.getName(), name -> {
+                    Tag t = new Tag();
+                    t.setId(session.nextId());
+                    t.setName(tag.getName());
+                    t.setColor(tag.getColor());
+                    t.setUser(user);
+                    return t;
+                });
+                tagCopies.add(tagCopy);
+            }
+            copy.setTags(tagCopies);
+
+            journalCopy.add(copy);
+        }
+        session.setJournalEntries(journalCopy);
+
+        List<WatchlistItem> watchlistCopy = new ArrayList<>();
+        for (WatchlistItem item : watchlistItemRepository.findByUserId(user.getId())) {
+            WatchlistItem copy = new WatchlistItem();
+            copy.setId(session.nextId());
+            copy.setTicker(item.getTicker());
+            copy.setUser(user);
+            copy.setMetadata(item.getMetadata());
+            watchlistCopy.add(copy);
+        }
+        session.setWatchlistItems(watchlistCopy);
+
+        return session;
+    }
+
+    public Portfolio getPortfolio(DemoSession session) {
+        return session.getPortfolio();
+    }
+
+    public boolean existsByUserId(DemoSession session) {
+        return session.getPortfolio() != null;
+    }
+
+    public void createPortfolio(DemoSession session, me.vestry.model.User user, Portfolio portfolio) {
+        if (portfolio != null && portfolio.getHoldings() != null) {
+            Map<String, Holding> byTicker = new HashMap<>();
+            List<Holding> aggregated = new ArrayList<>();
+            for (Holding holding : portfolio.getHoldings()) {
+                Holding existing = byTicker.get(holding.getTicker());
+                if (existing != null) {
+                    existing.setShares(existing.getShares() + holding.getShares());
+                } else {
+                    Holding copy = new Holding(holding.getTicker(), holding.getShares());
+                    copy.setId(session.nextId());
+                    byTicker.put(holding.getTicker(), copy);
+                    aggregated.add(copy);
+                }
+            }
+
+            Map<String, Double> tickerPrices = new HashMap<>();
+            for (Holding holding : aggregated) {
+                tickerPrices.put(holding.getTicker(), fetchTransactionPrice(holding.getTicker()));
+            }
+
+            Portfolio newPortfolio = new Portfolio();
+            newPortfolio.setId(session.nextId());
+            newPortfolio.setUser(user);
+            newPortfolio.setHoldings(aggregated);
+            session.setPortfolio(newPortfolio);
+
+            Instant creationTime = Instant.now();
+            for (Holding holding : aggregated) {
+                double price = tickerPrices.get(holding.getTicker());
+                recordBuyTransaction(session, user, holding.getTicker(), holding.getShares(), price, creationTime);
+                createInitialEntry(session, user, holding.getTicker(), price, creationTime);
+                startTrackingStockForSession(session, holding.getTicker());
+            }
+        }
+    }
+
+    public void addHolding(DemoSession session, me.vestry.model.User user, String ticker, double shares, Double price, Instant timestamp) {
+        assertTradeRemaining(session);
+        Portfolio portfolio = session.getPortfolio();
+        if (portfolio == null) {
+            throw new RuntimeException("No portfolio found for current user");
+        }
+
+        double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
+
+        Holding existing = portfolio.getHoldings().stream()
+            .filter(h -> h.getTicker().equals(ticker))
+            .findFirst()
+            .orElse(null);
+
+        if (existing != null) {
+            existing.setShares(existing.getShares() + shares);
+        } else {
+            Holding newHolding = new Holding(ticker, shares);
+            newHolding.setId(session.nextId());
+            if (timestamp != null) {
+                newHolding.setBuyTimestamp(timestamp);
+            }
+            portfolio.getHoldings().add(newHolding);
+            startTrackingStockForSession(session, ticker);
+        }
+
+        session.setRemainingTrades(session.getRemainingTrades() - 1);
+        recordBuyTransaction(session, user, ticker, shares, currentPrice, timestamp);
+    }
+
+    public JournalEntry removeHolding(DemoSession session, me.vestry.model.User user, String ticker, Double price, Instant timestamp) {
+        assertTradeRemaining(session);
+        Portfolio portfolio = session.getPortfolio();
+        if (portfolio == null) {
+            throw new RuntimeException("No portfolio found for current user");
+        }
+
+        Holding holding = portfolio.getHoldings().stream()
+            .filter(h -> h.getTicker().equals(ticker))
+            .findFirst()
+            .orElse(null);
+        if (holding == null) {
+            return null;
+        }
+        double shares = holding.getShares();
+        double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
+
+        // Create the auto sell journal entry before recording the transaction
+        // so realized PnL reflects the cost basis prior to this sale
+        JournalEntry sellEntry = createAutoSellEntry(session, user, ticker, shares, currentPrice, timestamp);
+
+        portfolio.getHoldings().remove(holding);
+        stopTrackingStockForSession(session, ticker);
+        session.setRemainingTrades(session.getRemainingTrades() - 1);
+        recordSellTransaction(session, user, ticker, shares, currentPrice, timestamp);
+        return sellEntry;
+    }
+
+    public JournalEntry sellHolding(DemoSession session, me.vestry.model.User user, String ticker, double sharesToSell, Double price, Instant timestamp) {
+        assertTradeRemaining(session);
+        Portfolio portfolio = session.getPortfolio();
+        if (portfolio == null) {
+            throw new RuntimeException("No portfolio found for current user");
+        }
+
+        Holding holding = portfolio.getHoldings().stream()
+            .filter(h -> h.getTicker().equals(ticker))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("Holding not found for ticker: " + ticker));
+
+        if (sharesToSell > holding.getShares()) {
+            throw new RuntimeException("Cannot sell more shares than owned");
+        }
+
+        double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
+
+        // Create the auto sell journal entry before recording the transaction
+        // so realized PnL reflects the cost basis prior to this sale
+        JournalEntry sellEntry = createAutoSellEntry(session, user, ticker, sharesToSell, currentPrice, timestamp);
+
+        session.setRemainingTrades(session.getRemainingTrades() - 1);
+        recordSellTransaction(session, user, ticker, sharesToSell, currentPrice, timestamp);
+
+        if (sharesToSell == holding.getShares()) {
+            portfolio.getHoldings().remove(holding);
+            stopTrackingStockForSession(session, ticker);
+        } else {
+            holding.setShares(holding.getShares() - sharesToSell);
+        }
+        return sellEntry;
+    }
+
+    private JournalEntry createInitialEntry(DemoSession session, me.vestry.model.User user, String ticker, double price, Instant timestamp) {
+        JournalEntry entry = new JournalEntry();
+        entry.setEntryType(JournalEntryType.BUY);
+        entry.setBody("Initial portfolio creation");
+        entry.setTicker(ticker);
+        entry.setTimestamp(timestamp != null ? timestamp : Instant.now());
+        entry.setPriceSnapshot(price);
+        return createJournalEntry(session, user, entry, List.of());
+    }
+
+    private JournalEntry createAutoSellEntry(DemoSession session, me.vestry.model.User user, String ticker, double shares, double price, Instant timestamp) {
+        JournalEntry entry = new JournalEntry();
+        entry.setEntryType(JournalEntryType.SELL);
+        entry.setBody("Sold " + shares + " " + ticker);
+        entry.setTicker(ticker);
+        entry.setTimestamp(timestamp != null ? timestamp : Instant.now());
+        entry.setPriceSnapshot(price);
+
+        Double realizedPnl = realizedPnlCalculator.computeRealizedPnl(session.getTransactions(), ticker, entry.getTimestamp(), shares, price);
+        String resultTag = realizedPnlCalculator.resultTagFor(realizedPnl);
+        return createJournalEntry(session, user, entry, resultTag != null ? List.of(resultTag) : List.of());
+    }
+
+    private void assertTradeRemaining(DemoSession session) {
+        if (session.getRemainingTrades() <= 0) {
+            throw new DemoTradeLimitExceededException();
+        }
+    }
+
+    private double fetchTransactionPrice(String ticker) {
+        Exception lastError = null;
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                Stock stock = stockService.updateStockData(ticker, Stock.StockType.INITIAL);
+                if (stock != null && stock.getCurrentPrice() > 0.0) {
+                    return stock.getCurrentPrice();
+                }
+                if (stock == null) {
+                    lastError = new PriceFetchException(ticker, "No stock data returned");
+                } else {
+                    lastError = new PriceFetchException(ticker, "Invalid price (" + stock.getCurrentPrice() + ")");
+                }
+            } catch (UnknownTickerException e) {
+                throw e;
+            } catch (Exception e) {
+                lastError = e;
+            }
+            if (attempt == 1) {
+                try {
+                    TimeUnit.MILLISECONDS.sleep(500);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new PriceFetchException(ticker, "Retry interrupted", ie);
+                }
+            }
+        }
+        throw new PriceFetchException(ticker, lastError.getMessage(), lastError);
+    }
+
+    public void startTrackingStockForSession(DemoSession session, String ticker) {
+        if (session.getSessionTrackedTickers().contains(ticker)) {
+            return;
+        }
+        TrackedStock trackedStock = trackedStockRepository.findByTicker(ticker)
+            .orElse(null);
+
+        if (trackedStock == null) {
+            trackedStock = new TrackedStock(ticker);
+            trackedStockRepository.save(trackedStock);
+            logger.info("Demo session created new tracked stock for ticker={}", ticker);
+        } else {
+            trackedStock.incrementHolderCount();
+            trackedStockRepository.save(trackedStock);
+            logger.info("Demo session incremented holder count for ticker={} to {}", ticker, trackedStock.getHolderCount());
+        }
+        session.getSessionTrackedTickers().add(ticker);
+    }
+
+    public void stopTrackingStockForSession(DemoSession session, String ticker) {
+        if (!session.getSessionTrackedTickers().contains(ticker)) {
+            logger.warn("Demo session attempted to stop tracking ticker={} that it was not responsible for", ticker);
+            return;
+        }
+        TrackedStock trackedStock = trackedStockRepository.findByTicker(ticker)
+            .orElse(null);
+
+        if (trackedStock != null) {
+            trackedStock.decrementHolderCount();
+            if (trackedStock.getHolderCount() <= 0) {
+                trackedStockRepository.delete(trackedStock);
+                logger.info("Demo session deleted tracked stock for ticker={}", ticker);
+            } else {
+                trackedStockRepository.save(trackedStock);
+                logger.info("Demo session decremented holder count for ticker={} to {}", ticker, trackedStock.getHolderCount());
+            }
+        } else {
+            logger.warn("Demo session could not find tracked stock to stop tracking ticker={}", ticker);
+        }
+        session.getSessionTrackedTickers().remove(ticker);
+    }
+
+    private Transaction recordBuyTransaction(DemoSession session, me.vestry.model.User user, String ticker, double shares, double price, Instant timestamp) {
+        Transaction transaction = new Transaction(ticker, shares, price, Transaction.TransactionType.BUY);
+        if (timestamp != null) {
+            transaction.setTimestamp(timestamp);
+        }
+        transaction.setTotalValue(shares * price);
+        transaction.setUser(user);
+        transaction.setId(session.nextId());
+        session.getTransactions().add(transaction);
+        return transaction;
+    }
+
+    private Transaction recordSellTransaction(DemoSession session, me.vestry.model.User user, String ticker, double shares, double price, Instant timestamp) {
+        Transaction transaction = new Transaction(ticker, shares, price, Transaction.TransactionType.SELL);
+        if (timestamp != null) {
+            transaction.setTimestamp(timestamp);
+        }
+        transaction.setTotalValue(shares * price);
+        transaction.setUser(user);
+        transaction.setId(session.nextId());
+        session.getTransactions().add(transaction);
+        return transaction;
+    }
+
+    public List<Transaction> getTransactions(DemoSession session) {
+        List<Transaction> result = new ArrayList<>(session.getTransactions());
+        result.sort(Comparator.comparing(Transaction::getTimestamp).reversed());
+        return result;
+    }
+
+    public PnLSummaryDTO getPnLSummary(DemoSession session) {
+        List<Transaction> transactions = session.getTransactions();
+
+        Map<String, List<Transaction>> byTicker = new HashMap<>();
+        for (Transaction tx : transactions) {
+            byTicker.computeIfAbsent(tx.getTicker(), k -> new ArrayList<>()).add(tx);
+        }
+
+        double totalUnrealized = 0;
+        double totalRealized = 0;
+        double totalCurrentCostBasis = 0;
+        double totalSoldCostBasis = 0;
+
+        for (List<Transaction> tickerTxs : byTicker.values()) {
+            double buyShares = 0;
+            double buyCost = 0;
+            double sellShares = 0;
+            double sellProceeds = 0;
+
+            for (Transaction tx : tickerTxs) {
+                if (tx.getType() == Transaction.TransactionType.BUY) {
+                    buyShares += tx.getShares();
+                    buyCost += tx.getTotalValue();
+                } else {
+                    sellShares += tx.getShares();
+                    sellProceeds += tx.getTotalValue();
+                }
+            }
+
+            if (buyShares == 0) continue;
+
+            double avgCost = buyCost / buyShares;
+            double realizedForTicker = sellProceeds - (avgCost * sellShares);
+            totalRealized += realizedForTicker;
+            totalSoldCostBasis += avgCost * sellShares;
+
+            double currentShares = buyShares - sellShares;
+            if (currentShares > 0) {
+                String ticker = tickerTxs.get(0).getTicker();
+                double currentPrice = stockService.getLatestStockData(ticker)
+                    .map(Stock::getCurrentPrice)
+                    .orElse(0.0);
+                double unrealizedForTicker = (currentPrice - avgCost) * currentShares;
+                totalUnrealized += unrealizedForTicker;
+                totalCurrentCostBasis += avgCost * currentShares;
+            }
+        }
+
+        double totalPnL = totalUnrealized + totalRealized;
+        double totalCostBasis = totalCurrentCostBasis + totalSoldCostBasis;
+        double totalPnLPercent = totalCostBasis > 0 ? (totalPnL / totalCostBasis) * 100 : 0;
+        double unrealizedPercent = totalCurrentCostBasis > 0 ? (totalUnrealized / totalCurrentCostBasis) * 100 : 0;
+        double realizedPercent = totalSoldCostBasis > 0 ? (totalRealized / totalSoldCostBasis) * 100 : 0;
+
+        return new PnLSummaryDTO(totalPnL, totalPnLPercent, totalUnrealized, unrealizedPercent, totalRealized, realizedPercent);
+    }
+
+    public List<PortfolioHistoryDTO> getPortfolioHistory(DemoSession session) {
+        Portfolio portfolio = session.getPortfolio();
+        if (portfolio == null || portfolio.getHoldings() == null || portfolio.getHoldings().isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<Holding> holdings = portfolio.getHoldings();
+        List<Transaction> transactions = session.getTransactions();
+        Map<String, List<Transaction>> transactionsByTicker = new HashMap<>();
+        for (Transaction tx : transactions) {
+            transactionsByTicker.computeIfAbsent(tx.getTicker(), k -> new ArrayList<>()).add(tx);
+        }
+
+        Map<Instant, Map<String, Stock>> dataByHourBucket = new HashMap<>();
+
+        Map<String, Instant> referenceTimeByTicker = new HashMap<>();
+        for (Holding holding : holdings) {
+            referenceTimeByTicker.put(holding.getTicker(), holding.getBuyTimestamp());
+        }
+        for (Map.Entry<String, List<Transaction>> tickerTxs : transactionsByTicker.entrySet()) {
+            referenceTimeByTicker.computeIfAbsent(tickerTxs.getKey(), k -> tickerTxs.getValue().stream()
+                .map(Transaction::getTimestamp)
+                .min(Comparator.naturalOrder())
+                .orElse(Instant.now()));
+        }
+
+        for (Map.Entry<String, Instant> tickerEntry : referenceTimeByTicker.entrySet()) {
+            String ticker = tickerEntry.getKey();
+            Instant referenceTime = tickerEntry.getValue();
+            List<Stock> stockHistory = stockRepository.findByTickerOrderByTimestampDesc(ticker);
+            for (Stock stock : stockHistory) {
+                if (stock.getType() == Stock.StockType.EOD) {
+                    continue;
+                }
+
+                Instant effectiveBucket = stock.getHourBucket();
+                if (stock.getType() == Stock.StockType.INITIAL) {
+                    effectiveBucket = effectiveBucket.truncatedTo(ChronoUnit.MINUTES);
+                }
+
+                if (stock.getType() == Stock.StockType.INITIAL ||
+                    !effectiveBucket.isBefore(referenceTime)) {
+                    dataByHourBucket
+                        .computeIfAbsent(effectiveBucket, k -> new HashMap<>())
+                        .put(stock.getTicker(), stock);
+                }
+            }
+        }
+
+        List<PortfolioHistoryDTO> result = new ArrayList<>();
+
+        for (Map.Entry<Instant, Map<String, Stock>> entry : dataByHourBucket.entrySet()) {
+            Instant hourBucket = entry.getKey();
+            Map<String, Stock> stocksAtHour = entry.getValue();
+
+            Map<String, Double> sharesAtTime = new HashMap<>();
+            for (Map.Entry<String, List<Transaction>> tickerTxs : transactionsByTicker.entrySet()) {
+                String ticker = tickerTxs.getKey();
+                double shares = 0;
+                for (Transaction tx : tickerTxs.getValue()) {
+                    Instant txMinute = tx.getTimestamp().truncatedTo(ChronoUnit.MINUTES);
+                    if (!txMinute.isAfter(hourBucket)) {
+                        if (tx.getType() == Transaction.TransactionType.BUY) {
+                            shares += tx.getShares();
+                        } else {
+                            shares -= tx.getShares();
+                        }
+                    }
+                }
+                if (shares > 0) {
+                    sharesAtTime.put(ticker, shares);
+                }
+            }
+
+            if (stocksAtHour.size() >= sharesAtTime.size()) {
+                double totalValue = 0.0;
+                boolean hasAllData = true;
+
+                for (Map.Entry<String, Double> shareEntry : sharesAtTime.entrySet()) {
+                    String ticker = shareEntry.getKey();
+                    double shares = shareEntry.getValue();
+                    Stock stock = stocksAtHour.get(ticker);
+
+                    if (stock == null) {
+                        hasAllData = false;
+                        break;
+                    }
+
+                    totalValue += stock.getCurrentPrice() * shares;
+                }
+
+                if (hasAllData && !sharesAtTime.isEmpty()) {
+                    result.add(new PortfolioHistoryDTO(hourBucket, totalValue));
+                }
+            }
+        }
+
+        result.sort(Comparator.comparing(PortfolioHistoryDTO::getTimestamp));
+        return result;
+    }
+
+    public List<String> getTickersFromPortfolio(DemoSession session) {
+        Portfolio portfolio = session.getPortfolio();
+        if (portfolio == null || portfolio.getHoldings() == null) {
+            return List.of();
+        }
+        return portfolio.getHoldings().stream()
+            .map(Holding::getTicker)
+            .distinct()
+            .toList();
+    }
+
+    public JournalEntry createJournalEntry(DemoSession session, me.vestry.model.User user, JournalEntry entry, List<String> tagNames) {
+        entry.setUser(user);
+        entry.setId(session.nextId());
+        if (entry.getTimestamp() == null) {
+            entry.setTimestamp(Instant.now());
+        }
+        if (entry.getPriceSnapshot() == null) {
+            if (entry.getTicker() != null && !entry.getTicker().isBlank()) {
+                entry.setPriceSnapshot(stockService.getLatestStockData(entry.getTicker())
+                    .map(Stock::getCurrentPrice)
+                    .orElse(0.0));
+            } else {
+                entry.setPriceSnapshot(null);
+            }
+        }
+
+        List<String> combinedTags = new ArrayList<>();
+        if (tagNames != null) {
+            combinedTags.addAll(tagNames);
+        }
+        String autoTag = computeAutoTagForSellEntry(session, entry);
+        if (autoTag != null && !combinedTags.contains(autoTag)) {
+            combinedTags.add(autoTag);
+        }
+
+        entry.setTags(resolveDemoTags(session, user, combinedTags));
+        session.getJournalEntries().add(entry);
+        return entry;
+    }
+
+    public List<JournalEntry> getJournalEntries(DemoSession session) {
+        List<JournalEntry> result = new ArrayList<>(session.getJournalEntries());
+        result.sort(Comparator.comparing(JournalEntry::getTimestamp).reversed());
+        return result;
+    }
+
+    public List<JournalEntry> getJournalEntriesForTicker(DemoSession session, String ticker) {
+        return getJournalEntries(session).stream()
+            .filter(e -> ticker.equals(e.getTicker()))
+            .toList();
+    }
+
+    public List<JournalEntry> getJournalEntriesInRange(DemoSession session, Instant from, Instant to) {
+        return getJournalEntries(session).stream()
+            .filter(e -> !e.getTimestamp().isBefore(from) && !e.getTimestamp().isAfter(to))
+            .toList();
+    }
+
+    public List<JournalEntry> getFilteredJournalEntries(DemoSession session, Instant from, Instant to, List<String> types, String ticker, List<Integer> tagIds, String query) {
+        return getJournalEntries(session).stream()
+            .filter(e -> from == null || !e.getTimestamp().isBefore(from))
+            .filter(e -> to == null || !e.getTimestamp().isAfter(to))
+            .filter(e -> types == null || types.isEmpty() || types.contains(e.getEntryType().name()))
+            .filter(e -> ticker == null || ticker.isBlank() || (e.getTicker() != null && e.getTicker().equalsIgnoreCase(ticker)))
+            .filter(e -> tagIds == null || tagIds.isEmpty() || e.getTags().stream().anyMatch(t -> tagIds.contains(t.getId())))
+            .filter(e -> query == null || query.isBlank() || e.getBody().toLowerCase().contains(query.toLowerCase()))
+            .collect(Collectors.toList());
+    }
+
+    public List<CalendarDayDTO> getJournalCalendarEntries(DemoSession session, int year, int month, Instant from, Instant to, List<String> types, String ticker, List<Integer> tagIds, String query) {
+        YearMonth yearMonth = YearMonth.of(year, month);
+        Instant start = yearMonth.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+        Instant end = yearMonth.atEndOfMonth().atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant();
+        List<JournalEntry> entries = getJournalEntriesInRange(session, start, end);
+
+        Map<LocalDate, Integer> counts = new HashMap<>();
+        for (JournalEntry entry : entries) {
+            if (from != null && entry.getTimestamp().isBefore(from)) continue;
+            if (to != null && entry.getTimestamp().isAfter(to)) continue;
+            if (types != null && !types.isEmpty() && !types.contains(entry.getEntryType().name())) continue;
+            if (ticker != null && !ticker.isBlank() && (entry.getTicker() == null || !entry.getTicker().equalsIgnoreCase(ticker))) continue;
+            if (tagIds != null && !tagIds.isEmpty() && entry.getTags().stream().noneMatch(t -> tagIds.contains(t.getId()))) continue;
+            if (query != null && !query.isBlank() && !entry.getBody().toLowerCase().contains(query.toLowerCase())) continue;
+
+            LocalDate date = entry.getTimestamp().atZone(ZoneId.systemDefault()).toLocalDate();
+            counts.merge(date, 1, Integer::sum);
+        }
+
+        return counts.entrySet().stream()
+            .map(e -> new CalendarDayDTO(e.getKey().toString(), e.getValue()))
+            .collect(Collectors.toList());
+    }
+
+    public List<CalendarDayDTO> getJournalCalendarEntries(DemoSession session, int year, int month) {
+        return getJournalCalendarEntries(session, year, month, null, null, null, null, null, null);
+    }
+
+    public void deleteJournalEntry(DemoSession session, int id) {
+        boolean removed = session.getJournalEntries().removeIf(e -> e.getId() == id);
+        if (!removed) {
+            throw new RuntimeException("Journal entry not found");
+        }
+    }
+
+    public JournalEntry updateJournalEntry(DemoSession session, me.vestry.model.User user, int id, String body, List<String> tagNames) {
+        Optional<JournalEntry> entryOpt = session.getJournalEntries().stream()
+            .filter(e -> e.getId() == id)
+            .findFirst();
+        if (entryOpt.isEmpty()) {
+            throw new RuntimeException("Journal entry not found");
+        }
+        JournalEntry entry = entryOpt.get();
+        entry.setBody(body);
+        List<String> combinedTags = new ArrayList<>();
+        if (tagNames != null) {
+            combinedTags.addAll(tagNames);
+        }
+        String autoTag = computeAutoTagForSellEntry(session, entry);
+        if (autoTag != null && !combinedTags.contains(autoTag)) {
+            combinedTags.add(autoTag);
+        }
+        entry.setTags(resolveDemoTags(session, user, combinedTags));
+        return entry;
+    }
+
+    private Set<Tag> resolveDemoTags(DemoSession session, me.vestry.model.User user, List<String> tagNames) {
+        Set<Tag> tags = new HashSet<>();
+        if (tagNames == null) {
+            return tags;
+        }
+
+        for (String name : tagNames) {
+            String normalized = name.trim().replaceAll("^#+", "").toLowerCase();
+            if (normalized.isEmpty()) {
+                continue;
+            }
+
+            Optional<Tag> existing = session.getJournalEntries().stream()
+                .flatMap(e -> e.getTags().stream())
+                .filter(t -> t.getName().equals(normalized))
+                .findFirst();
+
+            if (existing.isPresent()) {
+                tags.add(existing.get());
+            } else {
+                Tag tag = new Tag();
+                tag.setId(session.nextId());
+                tag.setName(normalized);
+                tag.setColor(assignDemoTagColor(session, normalized));
+                tag.setUser(user);
+                tags.add(tag);
+            }
+        }
+        return tags;
+    }
+
+    private String assignDemoTagColor(DemoSession session) {
+        return assignDemoTagColor(session, null);
+    }
+
+    private String assignDemoTagColor(DemoSession session, String tagName) {
+        if ("win".equals(tagName)) {
+            return "#10b981";
+        }
+        if ("loss".equals(tagName)) {
+            return "#ef4444";
+        }
+        String[] colors = {"#5e9ed6", "#10b981", "#ef4444", "#d6965e", "#8b5cf6", "#f59e0b", "#ec4899", "#6366f1"};
+        int count = 0;
+        for (JournalEntry entry : session.getJournalEntries()) {
+            count += entry.getTags().size();
+        }
+        return colors[count % colors.length];
+    }
+
+    private String computeAutoTagForSellEntry(DemoSession session, JournalEntry entry) {
+        if (entry.getEntryType() != JournalEntryType.SELL || entry.getTicker() == null || entry.getTicker().isBlank()) {
+            return null;
+        }
+        if (entry.getPriceSnapshot() == null) {
+            return null;
+        }
+        Double realizedPnl = realizedPnlCalculator.computeRealizedPnl(session.getTransactions(), entry.getTicker(), entry.getTimestamp(), 1, entry.getPriceSnapshot());
+        return realizedPnlCalculator.resultTagFor(realizedPnl);
+    }
+
+    public List<Tag> getPopularTags(DemoSession session, String prefix, int limit) {
+        String query = prefix == null ? "" : prefix.toLowerCase();
+        Map<String, Tag> tagsByName = new LinkedHashMap<>();
+        Map<String, Integer> counts = new HashMap<>();
+        for (JournalEntry entry : session.getJournalEntries()) {
+            for (Tag tag : entry.getTags()) {
+                tagsByName.putIfAbsent(tag.getName(), tag);
+                counts.merge(tag.getName(), 1, Integer::sum);
+            }
+        }
+        return tagsByName.values().stream()
+            .filter(t -> t.getName().startsWith(query))
+            .sorted(Comparator.<Tag>comparingInt(t -> counts.getOrDefault(t.getName(), 0)).reversed()
+                .thenComparing(Tag::getName))
+            .limit(limit)
+            .collect(Collectors.toList());
+    }
+
+    public void deleteTag(DemoSession session, int tagId) {
+        for (JournalEntry entry : session.getJournalEntries()) {
+            entry.getTags().removeIf(t -> t.getId() == tagId);
+        }
+    }
+
+    public WatchlistItem addToWatchlist(DemoSession session, me.vestry.model.User user, String ticker) {
+        String normalizedTicker = ticker.trim().toUpperCase();
+        boolean exists = session.getWatchlistItems().stream()
+            .anyMatch(item -> item.getTicker().equals(normalizedTicker));
+        if (exists) {
+            throw new RuntimeException("Ticker already in watchlist");
+        }
+        WatchlistItem item = new WatchlistItem();
+        item.setId(session.nextId());
+        item.setUser(user);
+        item.setTicker(normalizedTicker);
+        session.getWatchlistItems().add(item);
+        return item;
+    }
+
+    public List<WatchlistItem> getWatchlistItems(DemoSession session) {
+        return new ArrayList<>(session.getWatchlistItems());
+    }
+
+    public void removeFromWatchlist(DemoSession session, String ticker) {
+        String normalizedTicker = ticker.trim().toUpperCase();
+        boolean removed = session.getWatchlistItems().removeIf(item -> item.getTicker().equals(normalizedTicker));
+        if (!removed) {
+            throw new RuntimeException("Watchlist item not found");
+        }
+    }
+}
