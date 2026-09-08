@@ -69,6 +69,9 @@ export const portfolioApi = {
 
 // Stock API
 export const stockApi = {
+  getUpdateSchedule: (): Promise<{ nextUpdate: string }> =>
+    apiClient('/stock/schedule'),
+
   fetchInitial: () =>
     apiClient('/stock/fetch/initial'),
 

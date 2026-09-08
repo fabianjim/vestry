@@ -5,14 +5,10 @@ An investment portfolio journaling app that helps users reflect on trading decis
 
 ## Project Structure
 
-Vestry is organized as a product monorepo: deployable web applications live in
-`apps/`, while independently deployed backend services live in `services/`.
 
 ### Backend
 
 `services/api/src/`
-
-The API uses the `me.vestry` Java package namespace.
 
 - `api/` — External API client for market data
 - `config/` — Profile-gated scheduling configuration
@@ -47,10 +43,6 @@ The API uses the `me.vestry` Java package namespace.
 - **Frontend**: React 19, TypeScript, Vite, Tailwind CSS
 - **Database**: PostgreSQL (dev/prod), H2 (tests)
 - **Market Data**: Tiingo API
-- **CI/CD**: GitHub Actions for AWS Elastic Beanstalk backend deployment; Vercel frontend deploys automatically
-
-The Vercel project's Root Directory must be set to `apps/web`. The Elastic
-Beanstalk application and environment retain their existing AWS resource names.
 
 ## Build
 
@@ -69,7 +61,6 @@ Beanstalk application and environment retain their existing AWS resource names.
 ### Backend
 
 ```bash
-cd services/api
 ./mvnw spring-boot:run   # Run with the dev profile
 ./mvnw clean package -DskipTests   # Build the deploy JAR
 ```
@@ -80,8 +71,6 @@ cd services/api
 cd apps/web
 npm install
 npm run dev      # Dev server on http://localhost:5173
-npm run build    # Type-check and build
-npm run lint     # Run ESLint
 ```
 
 ### Full Stack Local

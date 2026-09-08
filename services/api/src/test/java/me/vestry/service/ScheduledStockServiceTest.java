@@ -29,11 +29,15 @@ class ScheduledStockServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private MarketScheduleService marketSchedule;
+
     @InjectMocks
     private ScheduledStockService scheduledStockService;
 
     @Test
     void intradayFetchPublishesCompletionEvent() {
+        when(marketSchedule.isTradingDayToday()).thenReturn(true);
         when(trackedStockRepository.findAllActiveTickers()).thenReturn(List.of("AAPL", "MSFT"));
         when(stockService.updateStockData("AAPL", Stock.StockType.INTRADAY)).thenReturn(new Stock());
         when(stockService.updateStockData("MSFT", Stock.StockType.INTRADAY)).thenReturn(new Stock());
@@ -51,6 +55,7 @@ class ScheduledStockServiceTest {
 
     @Test
     void eodFetchPublishesCompletionEvent() {
+        when(marketSchedule.isTradingDayToday()).thenReturn(true);
         when(trackedStockRepository.findAllActiveTickers()).thenReturn(List.of("TSLA"));
         when(stockService.updateStockData("TSLA", Stock.StockType.EOD)).thenReturn(new Stock());
         when(trackedStockRepository.findByTicker("TSLA")).thenReturn(java.util.Optional.of(new TrackedStock()));
@@ -66,7 +71,16 @@ class ScheduledStockServiceTest {
     }
 
     @Test
+    void closedDaySkipsBothBatchesAndCompletionEvents() {
+        when(marketSchedule.isTradingDayToday()).thenReturn(false);
+        scheduledStockService.fetchIntradayStocks();
+        scheduledStockService.fetchEODStocks();
+        verifyNoInteractions(stockService, trackedStockRepository, eventPublisher);
+    }
+
+    @Test
     void noTickersDoesNotPublishEvent() {
+        when(marketSchedule.isTradingDayToday()).thenReturn(true);
         when(trackedStockRepository.findAllActiveTickers()).thenReturn(List.of());
 
         scheduledStockService.fetchIntradayStocks();

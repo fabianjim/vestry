@@ -40,7 +40,7 @@ const getMarketParts = (date: Date): MarketParts => {
     hour: 'numeric',
     minute: 'numeric',
     weekday: 'short',
-    hour12: false,
+    hourCycle: 'h23',
   })
 
   const parts = formatter.formatToParts(date)
@@ -88,38 +88,6 @@ export const isSameMarketDay = (timestamp: string | number | Date, date: Date): 
   const a = getMarketParts(new Date(timestamp))
   const b = getMarketParts(date)
   return a.year === b.year && a.month === b.month && a.day === b.day
-}
-
-/**
- * Computes the next scheduled portfolio price update in America/New_York time.
- * Mirrors the backend schedule:
- *   - Weekdays before 10:00: today at 10:00
- *   - Weekdays 10:00–15:59: top of the next hour
- *   - Weekdays 16:00–16:29: 16:30 EOD fetch
- *   - After 16:30 and weekends: next weekday 10:00
- */
-export const getNextMarketUpdate = (now = new Date()): Date => {
-  const { year, month, day, hour, minute, weekday } = getMarketParts(now)
-
-  const isWeekday = weekday >= 1 && weekday <= 5
-
-  if (isWeekday && hour < 10) {
-    return buildMarketDate(year, month, day, 10, 0)
-  }
-
-  if (isWeekday && hour >= 10 && hour < 16) {
-    return buildMarketDate(year, month, day, hour + 1, 0)
-  }
-
-  if (isWeekday && hour === 16 && minute < 30) {
-    return buildMarketDate(year, month, day, 16, 30)
-  }
-
-  let daysAhead = 1
-  if (weekday === 5) daysAhead = 3
-  else if (weekday === 6) daysAhead = 2
-
-  return buildMarketDate(year, month, day + daysAhead, 10, 0)
 }
 
 /**

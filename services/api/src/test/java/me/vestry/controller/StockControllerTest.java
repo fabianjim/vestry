@@ -7,6 +7,8 @@ import me.vestry.service.DemoSessionResolver;
 import me.vestry.service.DemoSessionService;
 import me.vestry.service.PortfolioService;
 import me.vestry.service.StockService;
+import me.vestry.service.MarketScheduleService;
+import org.springframework.context.annotation.Import;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -28,6 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(StockController.class)
+@Import(MarketScheduleService.class)
 public class StockControllerTest {
 
     @Autowired
@@ -127,14 +130,44 @@ public class StockControllerTest {
         assertFalse(stockController.isEodData(stock, now));
     }
 
+    @Test
+    void fridayEodExpiresOnOrdinaryMondayAtFirstFetch() {
+        Stock stock = createStock(Stock.StockType.EOD, Instant.parse("2026-07-17T20:00:00Z"));
+        assertFalse(stockController.isEodData(stock, ZonedDateTime.parse("2026-07-20T10:00:00-04:00")));
+    }
+
+    @Test
+    void laborDayKeepsFridayEodUntilTuesdayFirstFetch() {
+        Stock stock = createStock(Stock.StockType.EOD, Instant.parse("2026-09-04T20:00:00Z"));
+        assertTrue(stockController.isEodData(stock, ZonedDateTime.parse("2026-09-07T16:00:00-04:00")));
+        assertTrue(stockController.isEodData(stock, ZonedDateTime.parse("2026-09-08T09:59:00-04:00")));
+        assertFalse(stockController.isEodData(stock, ZonedDateTime.parse("2026-09-08T10:00:00-04:00")));
+    }
+
+    @Test
+    void previousWeeksFridayDoesNotQualifyOnWeekend() {
+        Stock stock = createStock(Stock.StockType.EOD, Instant.parse("2026-08-28T20:00:00Z"));
+        assertFalse(stockController.isEodData(stock, ZonedDateTime.parse("2026-09-06T12:00:00-04:00")));
+    }
+
+    @Test
+    @WithMockUser(username = "testuser")
+    void scheduleReturnsNextFutureUpdate() throws Exception {
+        mockMvc.perform(get("/api/stock/schedule"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.nextUpdate").isString());
+    }
+
     // --- Endpoint integration tests ---
 
     @Test
     @WithMockUser(username = "testuser")
     void getStockDataForTodayEodIsNotStale() throws Exception {
         Instant now = Instant.now();
-        // Use today's date for the hour bucket so isEodData always returns true
+        // Use a valid trading session even when this test runs on a holiday.
         LocalDate today = LocalDate.now(ZoneId.of("America/New_York"));
+        MarketScheduleService schedule = new MarketScheduleService("");
+        while (!schedule.isTradingDay(today)) today = today.minusDays(1);
         ZonedDateTime bucket = today.atTime(16, 0).atZone(ZoneId.of("America/New_York"));
 
         Stock stock = createStock(Stock.StockType.EOD, bucket.toInstant());

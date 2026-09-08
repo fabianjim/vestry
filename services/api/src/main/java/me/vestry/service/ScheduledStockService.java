@@ -22,12 +22,14 @@ public class ScheduledStockService {
 
     private static final Logger logger = Logger.getLogger(ScheduledStockService.class.getName());
 
+    private final MarketScheduleService marketSchedule;
     private final StockService stockService;
     private final TrackedStockRepository trackedStockRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     public ScheduledStockService(StockService stockService, TrackedStockRepository trackedStockRepository,
-                                 ApplicationEventPublisher eventPublisher) {
+                                 ApplicationEventPublisher eventPublisher, MarketScheduleService marketSchedule) {
+        this.marketSchedule = marketSchedule;
         this.stockService = stockService;
         this.trackedStockRepository = trackedStockRepository;
         this.eventPublisher = eventPublisher;
@@ -37,8 +39,9 @@ public class ScheduledStockService {
      * Fetches intraday stock data every hour during market hours (10 AM - 4 PM EST)
      * Fetches ALL tracked stocks once, shared across all users
      */
-    @Scheduled(cron = "0 0 10-16 * * MON-FRI", zone = "America/New_York")
+    @Scheduled(cron = MarketScheduleService.INTRADAY_CRON, zone = "America/New_York")
     public void fetchIntradayStocks() {
+        if (!marketSchedule.isTradingDayToday()) return;
         try {
             logger.info("Starting scheduled intraday stock fetch for all tracked stocks...");
 
@@ -72,8 +75,9 @@ public class ScheduledStockService {
      * Fetches End of Day (EOD) stock data at 4:30 PM EST
      * Fetches ALL tracked stocks once, shared across all users
      */
-    @Scheduled(cron = "0 30 16 * * MON-FRI", zone = "America/New_York")
+    @Scheduled(cron = MarketScheduleService.EOD_CRON, zone = "America/New_York")
     public void fetchEODStocks() {
+        if (!marketSchedule.isTradingDayToday()) return;
         try {
             logger.info("Starting scheduled EOD stock fetch for all tracked stocks...");
 

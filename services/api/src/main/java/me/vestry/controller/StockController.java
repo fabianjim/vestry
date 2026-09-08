@@ -11,12 +11,11 @@ import me.vestry.service.DemoSessionResolver;
 import me.vestry.service.DemoSessionService;
 import me.vestry.service.PortfolioService;
 import me.vestry.service.StockService;
+import me.vestry.service.MarketScheduleService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +24,7 @@ import java.util.Optional;
 @RequestMapping("/api/stock")
 public class StockController {
 
+    private final MarketScheduleService marketSchedule;
     private final StockService stockService;
     private final PortfolioService portfolioService;
     private final TrackedStockRepository trackedStockRepository;
@@ -34,7 +34,8 @@ public class StockController {
     public StockController(StockService stockService, PortfolioService portfolioService,
                           TrackedStockRepository trackedStockRepository,
                           DemoSessionResolver demoSessionResolver,
-                          DemoSessionService demoSessionService) {
+                          DemoSessionService demoSessionService, MarketScheduleService marketSchedule) {
+        this.marketSchedule = marketSchedule;
         this.stockService = stockService;
         this.portfolioService = portfolioService;
         this.trackedStockRepository = trackedStockRepository;
@@ -79,53 +80,22 @@ public class StockController {
         return new StockDataDTO(stock, true, "Stock is not currently being tracked", null, false);
     }
 
-    /**
-     * Check if the latest stock data is EOD from the most recent trading day.
-     * EOD data is valid:
-     *   - For the current trading day (Mon-Fri)
-     *   - For the previous trading day before the first intraday fetch (10 AM ET)
-     *   - For Friday EOD through the weekend and Monday pre-market
-     * EOD data has type=EOD and hourBucket pinned to 4:00 PM of the trading day.
-     */
-    private boolean isEodData(Stock stock) {
-        return isEodData(stock, ZonedDateTime.now(ZoneId.of("America/New_York")));
+    public record UpdateSchedule(Instant nextUpdate) {}
+
+    @GetMapping("/schedule")
+    public UpdateSchedule getUpdateSchedule() {
+        return new UpdateSchedule(marketSchedule.nextUpdate(Instant.now()));
     }
 
-    boolean isEodData(Stock stock, ZonedDateTime estNow) {
-        if (stock.getType() != Stock.StockType.EOD) {
-            return false;
-        }
-        Instant hourBucket = stock.getHourBucket();
-        if (hourBucket == null) {
-            return false;
-        }
-        ZonedDateTime estBucket = hourBucket.atZone(ZoneId.of("America/New_York"));
+    private boolean isEodData(Stock stock) {
+        return isEodData(stock, ZonedDateTime.now(MarketScheduleService.MARKET_ZONE));
+    }
 
-        // EOD data is valid if it's from today (Mon-Fri)
-        if (estBucket.toLocalDate().equals(estNow.toLocalDate())) {
-            return true;
-        }
-
-        // Before the first intraday fetch of the day, the previous trading day's EOD
-        // is still the most recent price available (e.g. Wed EOD at 9:44 AM Thu).
-        if (estNow.getHour() < 10) {
-            LocalDate yesterday = estNow.toLocalDate().minusDays(1);
-            if (estBucket.toLocalDate().equals(yesterday)) {
-                return true;
-            }
-        }
-
-        // Friday EOD is valid through the weekend and Monday pre-market
-        // (Monday before 10 AM when no intraday data exists yet)
-        if (estBucket.getDayOfWeek().getValue() == 5) { // Friday = 5
-            int today = estNow.getDayOfWeek().getValue();
-            // Saturday(6), Sunday(7), or Monday(1)
-            if (today == 6 || today == 7 || today == 1) {
-                return true;
-            }
-        }
-
-        return false;
+    // Only the latest trading session's EOD is valid through closures and pre-market.
+    boolean isEodData(Stock stock, ZonedDateTime now) {
+        if (stock.getType() != Stock.StockType.EOD || stock.getHourBucket() == null) return false;
+        return marketSchedule.isCurrentEod(
+                stock.getHourBucket().atZone(MarketScheduleService.MARKET_ZONE).toLocalDate(), now.toInstant());
     }
 
     // Get historical data for a ticker from a specific timestamp
