@@ -24,8 +24,24 @@ async function apiClient(endpoint: string, options: FetchOptions = {}) {
   const response = await fetch(`${API_BASE}${endpoint}`, config)
 
   if (!response.ok) {
-    const error = await response.text()
-    throw new Error(error || `HTTP ${response.status}: ${response.statusText}`)
+    const raw = await response.text()
+    let message = raw || `HTTP ${response.status}: ${response.statusText}`
+
+    try {
+      const payload: unknown = JSON.parse(raw)
+      if (
+        typeof payload === 'object' &&
+        payload !== null &&
+        'error' in payload &&
+        typeof payload.error === 'string'
+      ) {
+        message = payload.error
+      }
+    } catch {
+      // Preserve the fallback for non-JSON error responses.
+    }
+
+    throw new Error(message)
   }
 
   // Handle empty responses

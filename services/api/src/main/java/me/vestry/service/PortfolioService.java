@@ -34,6 +34,8 @@ import java.util.concurrent.TimeUnit;
 @Transactional
 public class PortfolioService {
 
+    private static final int MAX_HOLDINGS = 8;
+
     private final PortfolioRepository portfolioRepository;
     private final StockService stockService;
     private final UserRepository userRepository;
@@ -97,6 +99,10 @@ public class PortfolioService {
                 }
             }
             portfolio.setHoldings(aggregatedHoldings);
+
+            if (aggregatedHoldings.size() > MAX_HOLDINGS) {
+                throw new IllegalArgumentException("A portfolio can contain at most 8 holdings.");
+            }
 
             // Validate all tickers by fetching prices before saving
             Map<String, Double> tickerPrices = new HashMap<>();
@@ -197,19 +203,21 @@ public class PortfolioService {
     }
 
     public void addHolding(String ticker, double shares, Double price, Instant timestamp) {
-        Portfolio portfolio = getPortfolio();
-        if (portfolio == null) {
-            throw new RuntimeException("No portfolio found for current user");
-        }
-
-        // Fetch and validate price BEFORE modifying portfolio (unless manually provided)
-        startTrackingStock(ticker);
-        double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
+        Portfolio portfolio = getPortfolioForUpdate();
 
         Holding existingHolding = portfolio.getHoldings().stream()
             .filter(h -> h.getTicker().equals(ticker))
             .findFirst()
             .orElse(null);
+
+        if (existingHolding == null && portfolio.getHoldings().size() >= MAX_HOLDINGS) {
+            throw new IllegalArgumentException("Your portfolio has reached the 8-holding limit. "
+                + "Sell an entire holding before adding a new ticker.");
+        }
+
+        // Fetch and validate price BEFORE modifying portfolio (unless manually provided)
+        startTrackingStock(ticker);
+        double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
 
         if (existingHolding != null) {
             existingHolding.setShares(existingHolding.getShares() + shares);
@@ -229,10 +237,7 @@ public class PortfolioService {
     }
 
     public JournalEntry removeHolding(String ticker, Double price, Instant timestamp) {
-        Portfolio portfolio = getPortfolio();
-        if (portfolio == null) {
-            throw new RuntimeException("No portfolio found for current user");
-        }
+        Portfolio portfolio = getPortfolioForUpdate();
 
         Holding holding = portfolio.getHoldings().stream()
             .filter(h -> h.getTicker().equals(ticker))
@@ -267,10 +272,7 @@ public class PortfolioService {
     }
 
     public JournalEntry sellHolding(String ticker, double sharesToSell, Double price, Instant timestamp) {
-        Portfolio portfolio = getPortfolio();
-        if (portfolio == null) {
-            throw new RuntimeException("No portfolio found for current user");
-        }
+        Portfolio portfolio = getPortfolioForUpdate();
 
         Holding holding = portfolio.getHoldings().stream()
             .filter(h -> h.getTicker().equals(ticker))
@@ -322,6 +324,12 @@ public class PortfolioService {
     public Portfolio getPortfolio() {
         Integer userId = getCurrentUserId();
         return portfolioRepository.findByUserId(userId).orElse(null);
+    }
+
+    // Serialize holding mutations per portfolio, including the limit check, until commit.
+    private Portfolio getPortfolioForUpdate() {
+        return portfolioRepository.findByUserIdForUpdate(getCurrentUserId())
+            .orElseThrow(() -> new RuntimeException("No portfolio found for current user"));
     }
     
     
@@ -532,4 +540,3 @@ public class PortfolioService {
     }
 
 }
-

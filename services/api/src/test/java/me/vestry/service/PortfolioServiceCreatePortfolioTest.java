@@ -179,6 +179,40 @@ public class PortfolioServiceCreatePortfolioTest {
         verify(transactionService, never()).recordBuyTransaction(anyString(), anyDouble(), anyDouble());
     }
 
+    @Test
+    void rejectsNineDistinctHoldingsBeforeFetchingOrWriting() {
+        Portfolio portfolio = portfolioWithHoldings(9);
+        when(userRepository.findById(1)).thenReturn(Optional.of(mockUser));
+
+        assertThrows(IllegalArgumentException.class, () -> portfolioService.createPortfolio(portfolio));
+
+        verifyNoInteractions(stockService, trackedStockRepository, transactionService, journalEntryService,
+            portfolioRepository);
+    }
+
+    @Test
+    void allowsEightDistinctHoldingsAfterAggregatingDuplicates() {
+        Portfolio portfolio = portfolioWithHoldings(8);
+        portfolio.getHoldings().add(new Holding("T0", 2));
+        when(userRepository.findById(1)).thenReturn(Optional.of(mockUser));
+        when(stockService.updateStockData(anyString(), eq(Stock.StockType.INITIAL)))
+            .thenReturn(createStock("T0", 100));
+
+        portfolioService.createPortfolio(portfolio);
+
+        assertEquals(8, portfolio.getHoldings().size());
+        assertEquals(3, portfolio.getHoldings().get(0).getShares());
+        verify(portfolioRepository).save(portfolio);
+        verify(transactionService, times(8)).recordBuyTransaction(anyString(), anyDouble(), eq(100.0), any(Instant.class));
+    }
+
+    private Portfolio portfolioWithHoldings(int count) {
+        Portfolio portfolio = new Portfolio();
+        portfolio.setHoldings(new ArrayList<>());
+        for (int i = 0; i < count; i++) portfolio.getHoldings().add(new Holding("T" + i, 1));
+        return portfolio;
+    }
+
     private Stock createStock(String ticker, double price) {
         Stock stock = new Stock();
         stock.setTicker(ticker);

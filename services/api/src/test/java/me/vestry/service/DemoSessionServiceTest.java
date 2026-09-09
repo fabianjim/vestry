@@ -72,6 +72,24 @@ public class DemoSessionServiceTest {
     }
 
     @Test
+    void demoCreationAndBuysAreExemptFromHoldingCap() {
+        DemoSession session = new DemoSession();
+        Portfolio portfolio = new Portfolio(demoUser, new ArrayList<>());
+        for (int i = 0; i < 9; i++) portfolio.getHoldings().add(new Holding("T" + i, 1));
+        Stock stock = new Stock();
+        stock.setCurrentPrice(100);
+        when(stockService.updateStockData(anyString(), eq(Stock.StockType.INITIAL))).thenReturn(stock);
+
+        demoSessionService.createPortfolio(session, demoUser, portfolio);
+        assertEquals(9, session.getPortfolio().getHoldings().size());
+        assertEquals(3, session.getRemainingTrades());
+        demoSessionService.addHolding(session, demoUser, "NEW", 1, 100.0, null);
+        assertEquals(10, session.getPortfolio().getHoldings().size());
+        assertEquals(2, session.getRemainingTrades());
+        verifyNoInteractions(portfolioRepository, holdingRepository, transactionRepository, journalEntryRepository);
+    }
+
+    @Test
     void createSessionCopiesPortfolioHoldingsTransactionsJournalAndWatchlist() {
         Portfolio portfolio = new Portfolio();
         portfolio.setId(10);
