@@ -55,30 +55,17 @@ An investment portfolio journaling app that helps users reflect on trading decis
 
 ### Local Configuration
 
-1. Copy `application.properties.example` to `application-dev.properties` and fill in your local database credentials and Tiingo token.
-2. The active Spring profile is selected in `application.properties`. For local development, use the `dev` profile so `application-dev.properties` is loaded.
+1. Copy `services/api/application.properties.example` to `services/api/application-dev.properties` and fill in your local database credentials and Tiingo token.
+2. The Spring profile defaults to `dev`, which loads `application-dev.properties`. Make sure `SPRING_PROFILES_ACTIVE` is unset or set to `dev` for local development.
 
-### Backend
-
-```bash
-./mvnw spring-boot:run   # Run with the dev profile
-./mvnw clean package -DskipTests   # Build the deploy JAR
-```
-
-### Frontend
-
-```bash
-cd apps/web
-npm install
-npm run dev      # Dev server on http://localhost:5173
-```
-
-### Full Stack Local
+### Setup
 
 1. Start PostgreSQL locally.
-2. Run `./mvnw spring-boot:run` from `services/api`.
-3. In another terminal, run `npm run dev` from `apps/web`.
-4. The Vite dev server proxies `/api` requests to `http://localhost:8080`.
+2. Complete the local configuration above and install frontend dependencies with `npm --prefix apps/web ci`.
+3. From the repository root, run `make dev`.
+4. Open `http://localhost:5173`. Vite proxies `/api` requests to `http://localhost:8080`.
+
+Run `make help` to list commands for more .
 
 ## Contributing
 
