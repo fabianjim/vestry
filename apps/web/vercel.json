@@ -1,4 +1,15 @@
 {
+  "headers": [
+    {
+      "source": "/:page(login|portfolio|dashboard|transactions|analysis|journal)/:path*",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/:path*",
