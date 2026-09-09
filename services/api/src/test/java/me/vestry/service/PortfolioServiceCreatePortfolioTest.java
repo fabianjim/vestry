@@ -14,7 +14,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -61,13 +60,15 @@ public class PortfolioServiceCreatePortfolioTest {
     @Mock
     private Authentication authentication;
 
-    @InjectMocks
     private PortfolioService portfolioService;
 
     private User mockUser;
 
     @BeforeEach
     void setUp() {
+        portfolioService = new PortfolioService(portfolioRepository, stockService,
+            new TrackedStockService(trackedStockRepository), userRepository, trackedStockRepository,
+            stockRepository, transactionService, journalEntryService);
         mockUser = new User();
         mockUser.setId(1);
         mockUser.setUsername("testuser");

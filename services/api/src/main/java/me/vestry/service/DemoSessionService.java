@@ -13,12 +13,10 @@ import me.vestry.model.Portfolio;
 import me.vestry.model.Stock;
 import me.vestry.model.Transaction;
 import me.vestry.model.WatchlistItem;
-import me.vestry.model.TrackedStock;
 import me.vestry.repository.HoldingRepository;
 import me.vestry.repository.JournalEntryRepository;
 import me.vestry.repository.PortfolioRepository;
 import me.vestry.repository.StockRepository;
-import me.vestry.repository.TrackedStockRepository;
 import me.vestry.repository.TransactionRepository;
 import me.vestry.repository.WatchlistItemRepository;
 import org.slf4j.Logger;
@@ -49,7 +47,7 @@ public class DemoSessionService {
     private final WatchlistItemRepository watchlistItemRepository;
     private final StockRepository stockRepository;
     private final StockService stockService;
-    private final TrackedStockRepository trackedStockRepository;
+    private final TrackedStockService trackedStockService;
     private final RealizedPnlCalculator realizedPnlCalculator;
 
     public DemoSessionService(PortfolioRepository portfolioRepository,
@@ -59,7 +57,7 @@ public class DemoSessionService {
                               WatchlistItemRepository watchlistItemRepository,
                               StockRepository stockRepository,
                               StockService stockService,
-                              TrackedStockRepository trackedStockRepository,
+                              TrackedStockService trackedStockService,
                               RealizedPnlCalculator realizedPnlCalculator) {
         this.portfolioRepository = portfolioRepository;
         this.holdingRepository = holdingRepository;
@@ -68,7 +66,7 @@ public class DemoSessionService {
         this.watchlistItemRepository = watchlistItemRepository;
         this.stockRepository = stockRepository;
         this.stockService = stockService;
-        this.trackedStockRepository = trackedStockRepository;
+        this.trackedStockService = trackedStockService;
         this.realizedPnlCalculator = realizedPnlCalculator;
     }
 
@@ -355,18 +353,7 @@ public class DemoSessionService {
         if (session.getSessionTrackedTickers().contains(ticker)) {
             return;
         }
-        TrackedStock trackedStock = trackedStockRepository.findByTicker(ticker)
-            .orElse(null);
-
-        if (trackedStock == null) {
-            trackedStock = new TrackedStock(ticker);
-            trackedStockRepository.save(trackedStock);
-            logger.info("Demo session created new tracked stock for ticker={}", ticker);
-        } else {
-            trackedStock.incrementHolderCount();
-            trackedStockRepository.save(trackedStock);
-            logger.info("Demo session incremented holder count for ticker={} to {}", ticker, trackedStock.getHolderCount());
-        }
+        trackedStockService.registerHolding(ticker);
         session.getSessionTrackedTickers().add(ticker);
     }
 
@@ -375,21 +362,7 @@ public class DemoSessionService {
             logger.warn("Demo session attempted to stop tracking ticker={} that it was not responsible for", ticker);
             return;
         }
-        TrackedStock trackedStock = trackedStockRepository.findByTicker(ticker)
-            .orElse(null);
-
-        if (trackedStock != null) {
-            trackedStock.decrementHolderCount();
-            if (trackedStock.getHolderCount() <= 0) {
-                trackedStockRepository.delete(trackedStock);
-                logger.info("Demo session deleted tracked stock for ticker={}", ticker);
-            } else {
-                trackedStockRepository.save(trackedStock);
-                logger.info("Demo session decremented holder count for ticker={} to {}", ticker, trackedStock.getHolderCount());
-            }
-        } else {
-            logger.warn("Demo session could not find tracked stock to stop tracking ticker={}", ticker);
-        }
+        trackedStockService.releaseHolding(ticker);
         session.getSessionTrackedTickers().remove(ticker);
     }
 

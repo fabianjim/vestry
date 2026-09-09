@@ -22,7 +22,6 @@ import me.vestry.repository.WatchlistItemRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -58,13 +57,15 @@ public class DemoSessionServiceTest {
     private TrackedStockRepository trackedStockRepository;
     @Spy
     private RealizedPnlCalculator realizedPnlCalculator = new RealizedPnlCalculator();
-    @InjectMocks
     private DemoSessionService demoSessionService;
 
     private User demoUser;
 
     @BeforeEach
     void setUp() {
+        demoSessionService = new DemoSessionService(portfolioRepository, holdingRepository,
+            transactionRepository, journalEntryRepository, watchlistItemRepository, stockRepository,
+            stockService, new TrackedStockService(trackedStockRepository), realizedPnlCalculator);
         demoUser = new User();
         demoUser.setId(5);
         demoUser.setUsername("demo");
@@ -491,6 +492,50 @@ public class DemoSessionServiceTest {
         assertEquals(0, tracked.getHolderCount());
         verify(trackedStockRepository).delete(tracked);
         assertFalse(session.getSessionTrackedTickers().contains("TSLA"));
+    }
+
+    @Test
+    void repeatedSessionRegistrationAndCleanupChangeDemandOnlyOnce() {
+        DemoSession session = new DemoSession();
+        TrackedStock tracked = new TrackedStock("AAPL");
+        when(trackedStockRepository.findByTicker("AAPL")).thenReturn(Optional.of(tracked));
+
+        demoSessionService.startTrackingStockForSession(session, "AAPL");
+        demoSessionService.startTrackingStockForSession(session, "AAPL");
+        assertEquals(2, tracked.getHolderCount());
+
+        demoSessionService.stopTrackingStockForSession(session, "AAPL");
+        demoSessionService.stopTrackingStockForSession(session, "AAPL");
+        assertEquals(1, tracked.getHolderCount());
+        assertTrue(session.getSessionTrackedTickers().isEmpty());
+        verify(trackedStockRepository, times(2)).save(tracked);
+    }
+
+    @Test
+    void failedRegistrationDoesNotClaimSessionOwnership() {
+        DemoSession session = new DemoSession();
+        when(trackedStockRepository.save(any(TrackedStock.class)))
+            .thenThrow(new IllegalStateException("Database unavailable"));
+
+        assertThrows(IllegalStateException.class,
+            () -> demoSessionService.startTrackingStockForSession(session, "AAPL"));
+
+        assertTrue(session.getSessionTrackedTickers().isEmpty());
+    }
+
+    @Test
+    void failedReleaseRetainsSessionOwnershipForCleanup() {
+        DemoSession session = new DemoSession();
+        session.getSessionTrackedTickers().add("AAPL");
+        TrackedStock tracked = new TrackedStock("AAPL");
+        when(trackedStockRepository.findByTicker("AAPL")).thenReturn(Optional.of(tracked));
+        doThrow(new IllegalStateException("Database unavailable"))
+            .when(trackedStockRepository).delete(tracked);
+
+        assertThrows(IllegalStateException.class,
+            () -> demoSessionService.stopTrackingStockForSession(session, "AAPL"));
+
+        assertTrue(session.getSessionTrackedTickers().contains("AAPL"));
     }
 
     @Test

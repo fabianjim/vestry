@@ -30,7 +30,7 @@ import static org.mockito.Mockito.*;
 
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(PortfolioService.class)
+@Import({PortfolioService.class, TrackedStockService.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class PortfolioHoldingLimitConcurrencyTest {
     @Autowired private PortfolioService portfolioService;

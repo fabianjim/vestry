@@ -38,6 +38,7 @@ public class PortfolioService {
 
     private final PortfolioRepository portfolioRepository;
     private final StockService stockService;
+    private final TrackedStockService trackedStockService;
     private final UserRepository userRepository;
     private final TrackedStockRepository trackedStockRepository;
     private final StockRepository stockRepository;
@@ -46,6 +47,7 @@ public class PortfolioService {
 
     public PortfolioService(PortfolioRepository portfolioRepository,
                           StockService stockService,
+                          TrackedStockService trackedStockService,
                           UserRepository userRepository,
                           TrackedStockRepository trackedStockRepository,
                           StockRepository stockRepository,
@@ -53,6 +55,7 @@ public class PortfolioService {
                           JournalEntryService journalEntryService) {
         this.portfolioRepository = portfolioRepository;
         this.stockService = stockService;
+        this.trackedStockService = trackedStockService;
         this.userRepository = userRepository;
         this.trackedStockRepository = trackedStockRepository;
         this.stockRepository = stockRepository;
@@ -108,7 +111,7 @@ public class PortfolioService {
             Map<String, Double> tickerPrices = new HashMap<>();
             for (Holding holding : portfolio.getHoldings()) {
                 // Start tracking FIRST so fetchTransactionPrice can update timestamps
-                startTrackingStock(holding.getTicker());
+                trackedStockService.registerHolding(holding.getTicker());
                 double price = fetchTransactionPrice(holding.getTicker());
                 tickerPrices.put(holding.getTicker(), price);
             }
@@ -125,36 +128,6 @@ public class PortfolioService {
         }
     }
 
-    // Start tracking a stock ticker. If already tracked, increment holder count
-    private void startTrackingStock(String ticker) {
-        TrackedStock trackedStock = trackedStockRepository.findByTicker(ticker)
-            .orElse(null);
-
-        if (trackedStock == null) {
-            trackedStock = new TrackedStock(ticker);
-            trackedStockRepository.save(trackedStock);
-        } else {
-            trackedStock.incrementHolderCount();
-            trackedStockRepository.save(trackedStock);
-        }
-    }
-
-    // Stop tracking a stock ticker. Decrement holder count, delete if no holders remain.
-    private void stopTrackingStock(String ticker) {
-        TrackedStock trackedStock = trackedStockRepository.findByTicker(ticker)
-            .orElse(null);
-
-        if (trackedStock != null) {
-            trackedStock.decrementHolderCount();
-            if (trackedStock.getHolderCount() <= 0) {
-                trackedStockRepository.delete(trackedStock);
-            } else {
-                trackedStockRepository.save(trackedStock);
-            }
-        }
-    }
-
-     
     // Fetch live price for a transaction with one retry on fetch failures.
     // Also updates TrackedStock timestamps so the data doesn't show as stale.
     private double fetchTransactionPrice(String ticker) {
@@ -216,7 +189,9 @@ public class PortfolioService {
         }
 
         // Fetch and validate price BEFORE modifying portfolio (unless manually provided)
-        startTrackingStock(ticker);
+        if (existingHolding == null) {
+            trackedStockService.registerHolding(ticker);
+        }
         double currentPrice = (price != null && price > 0) ? price : fetchTransactionPrice(ticker);
 
         if (existingHolding != null) {
@@ -259,7 +234,7 @@ public class PortfolioService {
         portfolioRepository.save(portfolio);
 
         // Stop tracking this stock
-        stopTrackingStock(ticker);
+        trackedStockService.releaseHolding(ticker);
 
         // Record sell transaction with validated price
         transactionService.recordSellTransaction(ticker, shares, currentPrice, timestamp);
@@ -297,7 +272,7 @@ public class PortfolioService {
         if (sharesToSell == holding.getShares()) {
             // Selling all shares - remove the holding
             portfolio.getHoldings().remove(holding);
-            stopTrackingStock(ticker);
+            trackedStockService.releaseHolding(ticker);
         } else {
             // Partial sell, update shares
             holding.setShares(holding.getShares() - sharesToSell);
