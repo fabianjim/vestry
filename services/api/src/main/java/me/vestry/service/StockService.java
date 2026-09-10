@@ -38,6 +38,12 @@ public class StockService {
 
     public Stock updateStockData(String ticker, StockType type) {
         Stock freshData = marketDataClient.getStockData(ticker, type);
+        return saveFetchedStock(freshData);
+    }
+
+    /** Persist an already-fetched observation, joining the caller's transaction when present. */
+    public Stock saveFetchedStock(Stock freshData) {
+        String ticker = freshData.getTicker();
 
         // Check if data already exists for this ticker/timestamp combination
         Optional<Stock> existingData = stockRepository.findByTickerAndTimestamp(

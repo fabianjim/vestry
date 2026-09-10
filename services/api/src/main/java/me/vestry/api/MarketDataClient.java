@@ -2,6 +2,7 @@ package me.vestry.api;
 
 import me.vestry.model.Stock;
 import me.vestry.model.Stock.StockType;
+import java.util.List;
 
 public interface MarketDataClient {
     /**
@@ -25,4 +26,11 @@ public interface MarketDataClient {
      * highest price today, and lowest price today of the stock
      */
     Stock getStockData(String ticker, StockType type);
+
+    /**
+     * Fetch one scheduled chunk, returning an outcome for every distinct non-null requested ticker.
+     * Invalid formats are individual failures; no valid symbols means no HTTP request.
+     * HTTP/response failures throw and stop the scheduled run; they are not retried here.
+     */
+    BatchStockResult getStockDataBatch(List<String> tickers, StockType type);
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { portfolioApi } from '../services/api'
 
 export default function Portfolio() {
   const navigate = useNavigate()
@@ -53,21 +54,12 @@ export default function Portfolio() {
     
     setLoading(true)
     try {
-      const payload = {
-        holdings: holdings.map((h) => ({
+      await portfolioApi.createPortfolio(
+        holdings.map((h) => ({
           ticker: h.ticker.trim().toUpperCase(),
           shares: Number(h.shares),
-        })),
-      }
-      
-      const response = await fetch('/api/portfolio/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        credentials: "include",
-      })
-      
-      if (!response.ok) throw new Error('Failed to create portfolio, backend must be running')
+        }))
+      )
 
       navigate('/dashboard')
       

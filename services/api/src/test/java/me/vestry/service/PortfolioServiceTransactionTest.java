@@ -19,7 +19,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -65,7 +64,6 @@ public class PortfolioServiceTransactionTest {
     @Mock
     private Authentication authentication;
 
-    @InjectMocks
     private PortfolioService portfolioService;
 
     private User mockUser;
@@ -73,6 +71,9 @@ public class PortfolioServiceTransactionTest {
 
     @BeforeEach
     void setUp() {
+        portfolioService = new PortfolioService(portfolioRepository, stockService,
+            new TrackedStockService(trackedStockRepository), userRepository, trackedStockRepository,
+            stockRepository, transactionService, journalEntryService);
         mockUser = new User();
         mockUser.setId(1);
         mockUser.setUsername("testuser");
@@ -88,12 +89,88 @@ public class PortfolioServiceTransactionTest {
     }
 
     @Test
+    void rejectsNewTickerAtLimitWithoutSideEffects() {
+        fillHoldings(8);
+        when(portfolioRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(mockPortfolio));
+
+        assertThrows(IllegalArgumentException.class,
+            () -> portfolioService.addHolding("NEW", 1, 100.0, null));
+
+        assertEquals(8, mockPortfolio.getHoldings().size());
+        verifyNoInteractions(stockService, trackedStockRepository, transactionService, journalEntryService);
+        verify(portfolioRepository, never()).save(any());
+    }
+
+    @Test
+    void allowsEighthTicker() {
+        fillHoldings(7);
+        when(portfolioRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(mockPortfolio));
+
+        portfolioService.addHolding("NEW", 1, 100.0, null);
+
+        assertEquals(8, mockPortfolio.getHoldings().size());
+        verify(transactionService).recordBuyTransaction("NEW", 1, 100.0, null);
+    }
+
+    @Test
+    void allowsExistingTickerAtAndAboveLimit() {
+        fillHoldings(8);
+        when(portfolioRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(mockPortfolio));
+        portfolioService.addHolding("T0", 2, 100.0, null);
+        assertEquals(3, mockPortfolio.getHoldings().get(0).getShares());
+        mockPortfolio.getHoldings().add(new Holding("LEGACY", 1));
+        portfolioService.addHolding("T0", 2, 100.0, null);
+        assertEquals(5, mockPortfolio.getHoldings().get(0).getShares());
+        assertThrows(IllegalArgumentException.class,
+            () -> portfolioService.addHolding("NEW", 1, 100.0, null));
+        assertEquals(9, mockPortfolio.getHoldings().size());
+    }
+
+    @Test
+    void onlyFullSaleFreesSlot() {
+        fillHoldings(8);
+        mockPortfolio.getHoldings().get(0).setShares(2);
+        when(portfolioRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(mockPortfolio));
+        portfolioService.sellHolding("T0", 1, 100.0, null);
+        assertThrows(IllegalArgumentException.class,
+            () -> portfolioService.addHolding("NEW", 1, 100.0, null));
+        portfolioService.sellHolding("T0", 1, 100.0, null);
+        portfolioService.addHolding("NEW", 1, 100.0, null);
+        assertEquals(8, mockPortfolio.getHoldings().size());
+        assertTrue(mockPortfolio.getHoldings().stream().noneMatch(h -> h.getTicker().equals("T0")));
+    }
+
+    @Test
+    void removingHoldingFreesSlot() {
+        fillHoldings(8);
+        when(portfolioRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(mockPortfolio));
+        portfolioService.removeHolding("T0", 100.0, null);
+        portfolioService.addHolding("NEW", 1, 100.0, null);
+        assertEquals(8, mockPortfolio.getHoldings().size());
+    }
+
+    @Test
+    void zeroShareHoldingStillCountsTowardLimit() {
+        fillHoldings(8);
+        mockPortfolio.getHoldings().get(0).setShares(0);
+        when(portfolioRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(mockPortfolio));
+        assertThrows(IllegalArgumentException.class,
+            () -> portfolioService.addHolding("NEW", 1, 100.0, null));
+    }
+
+    private void fillHoldings(int count) {
+        for (int i = 0; i < count; i++) {
+            mockPortfolio.getHoldings().add(new Holding("T" + i, 1));
+        }
+    }
+
+    @Test
     void addHoldingRecordsBuyTransaction() {      
         String ticker = "AAPL";
         double shares = 10.0;
         double currentPrice = 150.0;
 
-        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(portfolioRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
             .thenReturn(createStock(ticker, currentPrice));
         when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
@@ -115,7 +192,7 @@ public class PortfolioServiceTransactionTest {
         Holding holding = new Holding(ticker, shares);
         mockPortfolio.getHoldings().add(holding);
 
-        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(portfolioRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
             .thenReturn(createStock(ticker, currentPrice));
         when(transactionService.recordSellTransaction(eq(ticker), eq(shares), eq(currentPrice), isNull()))
@@ -137,7 +214,7 @@ public class PortfolioServiceTransactionTest {
         Holding holding = new Holding(ticker, sharesOwned);
         mockPortfolio.getHoldings().add(holding);
 
-        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(portfolioRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(mockPortfolio));
         when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
         when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
             .thenReturn(createStock(ticker, currentPrice));
@@ -164,7 +241,7 @@ public class PortfolioServiceTransactionTest {
         JournalEntry autoEntry = new JournalEntry();
         autoEntry.setId(42);
 
-        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(portfolioRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(mockPortfolio));
         when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
         when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
             .thenReturn(createStock(ticker, currentPrice));
@@ -191,7 +268,7 @@ public class PortfolioServiceTransactionTest {
         JournalEntry autoEntry = new JournalEntry();
         autoEntry.setId(43);
 
-        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(portfolioRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
             .thenReturn(createStock(ticker, currentPrice));
         when(journalEntryService.createAutoSellEntry(eq(mockUser), eq(ticker), eq(shares), eq(currentPrice), isNull()))
@@ -220,7 +297,7 @@ public class PortfolioServiceTransactionTest {
         Holding existingHolding = new Holding(ticker, initialShares);
         mockPortfolio.getHoldings().add(existingHolding);
 
-        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(portfolioRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
             .thenReturn(createStock(ticker, currentPrice));
         when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
@@ -245,7 +322,7 @@ public class PortfolioServiceTransactionTest {
         String ticker = "NIKE";
         double shares = 10.0;
 
-        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(portfolioRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
             .thenThrow(new UnknownTickerException(ticker));
 
@@ -263,7 +340,7 @@ public class PortfolioServiceTransactionTest {
         double shares = 10.0;
         double currentPrice = 150.0;
 
-        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(portfolioRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
             .thenThrow(new PriceFetchException(ticker, "API timeout"))
             .thenReturn(createStock(ticker, currentPrice));
@@ -284,7 +361,7 @@ public class PortfolioServiceTransactionTest {
         double currentPrice = 150.0;
         TrackedStock tracked = new TrackedStock(ticker);
 
-        when(portfolioRepository.findByUserId(1)).thenReturn(Optional.of(mockPortfolio));
+        when(portfolioRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(mockPortfolio));
         when(stockService.updateStockData(ticker, Stock.StockType.INITIAL))
             .thenReturn(createStock(ticker, currentPrice));
         when(portfolioRepository.save(any(Portfolio.class))).thenReturn(mockPortfolio);
