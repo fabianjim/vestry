@@ -174,3 +174,14 @@ body {
   background-color: var(--color-primary);
   color: var(--color-primary-foreground);
 }
+
+/* Landing-only snapping keeps wheel and touch scrolling native, including tall sections. */
+html.landing-scroll {
+  scroll-snap-type: y mandatory;
+  scroll-padding-top: calc(var(--spacing) * 14);
+}
+
+.landing-scroll [data-landing-stop] {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}

@@ -53,13 +53,13 @@ export default function LandingJournalCard({ onSpxClick }: LandingJournalCardPro
             <span className="px-2 py-1 text-xs font-130 uppercase bg-gain/10 text-gain rounded">BUY</span>
             <span className="text-sm font-150 text-foreground">SPY</span>
           </div>
-          <span className="text-xs text-muted">Jun 18 3:50PM</span>
+          <span className="text-xs text-muted">Jun 18 3:50 PM</span>
         </div>
 
         <div className="text-xs text-muted mb-3">Snapshot: $750.00</div>
 
         <p className="text-sm text-foreground leading-relaxed">
-          Bought near close as markets begin to rebound after yesterdays debut from new Fed chair
+          Bought near close as markets begin to rebound after yesterday’s debut from the new Fed chair.
         </p>
       </div>
       
