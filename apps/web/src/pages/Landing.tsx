@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authApi } from '../services/api'
 import { useScrollReveal } from '../hooks/useScrollReveal'
+import { useLandingNavigation } from '../hooks/useLandingNavigation'
 import LandingNav from '../components/landing/LandingNav'
 import LandingChart from '../components/landing/LandingChart'
 import LandingJournalCard from '../components/landing/LandingJournalCard'
@@ -18,7 +19,7 @@ function RevealSection({ children, className }: { children: React.ReactNode; cla
     <div
       ref={ref}
       className={`
-        transition-all duration-700 ease-out
+        transition-all duration-700 ease-out motion-reduce:transition-none motion-reduce:transform-none
         ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}
         ${className || ''}
       `}
@@ -33,6 +34,8 @@ export default function Landing() {
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [activeSection, setActiveSection] = useState(0)
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
+
+  useLandingNavigation(!checkingAuth)
 
   useEffect(() => {
     document.title = 'Vestry | Portfolio Journal'
@@ -78,7 +81,10 @@ export default function Landing() {
   const scrollTo = (id: string) => {
     const el = document.getElementById(id)
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      el.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+        block: 'start',
+      })
     }
   }
 
@@ -114,9 +120,10 @@ export default function Landing() {
       <main className="pt-14">
         {/* Track */}
         <section
+          data-landing-stop
           id="track"
           ref={(el) => { sectionRefs.current[0] = el }}
-          className="min-h-[calc(100vh-3.5rem)] flex flex-col justify-center px-6 py-16"
+          className="min-h-[calc(100svh-3.5rem)] flex flex-col justify-center px-6 py-16"
         >
           <RevealSection className="max-w-4xl mx-auto w-full">
             <div className="text-center mb-10">
@@ -132,9 +139,10 @@ export default function Landing() {
 
         {/* Reflect */}
         <section
+          data-landing-stop
           id="reflect"
           ref={(el) => { sectionRefs.current[1] = el }}
-          className="min-h-screen flex flex-col justify-center px-6 py-16"
+          className="min-h-[calc(100svh-3.5rem)] flex flex-col justify-center px-6 py-16"
         >
           <RevealSection className="max-w-3xl mx-auto w-full">
             <div className="text-center mb-10">
@@ -150,9 +158,10 @@ export default function Landing() {
 
         {/* Analyze */}
         <section
+          data-landing-stop
           id="analyze"
           ref={(el) => { sectionRefs.current[2] = el }}
-          className="min-h-screen flex flex-col justify-center px-6 py-16"
+          className="min-h-[calc(100svh-3.5rem)] flex flex-col justify-center px-6 py-16"
         >
           <RevealSection className="max-w-3xl mx-auto w-full">
             <div className="text-center mb-10">
@@ -163,15 +172,16 @@ export default function Landing() {
               </p>
             </div>
 
-            <LandingDetailCard onChartClick={() => scrollTo('improve')} />
+            <LandingDetailCard />
           </RevealSection>
         </section>
 
         {/* Improve */}
         <section
+          data-landing-stop
           id="improve"
           ref={(el) => { sectionRefs.current[3] = el }}
-          className="min-h-screen flex flex-col justify-center px-6 py-16"
+          className="min-h-[calc(100svh-3.5rem)] flex flex-col justify-center px-6 py-16"
         >
           <RevealSection className="max-w-3xl mx-auto w-full">
             <LandingCTA onDemoClick={() => {
@@ -182,7 +192,7 @@ export default function Landing() {
         </section>
       </main>
 
-      <footer className="py-8 px-6 text-center text-sm text-muted">
+      <footer data-landing-stop className="py-8 px-6 text-center text-sm text-muted">
         <p className="font-90 mb-3">
           Vestry is open-source. If you would like to self-host please follow the instructions on the GitHub repository.
         </p>
