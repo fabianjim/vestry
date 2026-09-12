@@ -161,7 +161,7 @@ export default function Landing() {
           data-landing-stop
           id="analyze"
           ref={(el) => { sectionRefs.current[2] = el }}
-          className="min-h-[calc(100svh-3.5rem)] flex flex-col justify-center px-6 py-16"
+          className="min-h-[calc(100svh-3.5rem)] flex flex-col justify-center px-6 py-8"
         >
           <RevealSection className="max-w-3xl mx-auto w-full">
             <div className="text-center mb-10">
