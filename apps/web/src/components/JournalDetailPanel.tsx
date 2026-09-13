@@ -221,7 +221,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
 
       {/* Record */}
       <div className="mb-6">
-        <div className="text-sm text-muted mb-1">
+        <div className="text-sm text-foreground mb-1">
           <span className="font-130">Date:</span>{' '}
           {new Date(entry.timestamp).toLocaleDateString('en-US', {
             month: '2-digit',
@@ -236,7 +236,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
             hour12: true,
           })}
         </div>
-        <div className="text-sm text-muted mb-1">
+        <div className="text-sm text-foreground mb-1">
           <span className="font-130">Snapshot:</span>{' '}
           {entry.priceSnapshot != null ? formatCurrency(entry.priceSnapshot) : '-'}
           {(entry.entryType === 'BUY' || entry.entryType === 'SELL') && (
@@ -250,7 +250,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
             </>
           )}
         </div>
-        <div className="text-sm text-foreground mt-3 whitespace-pre-wrap">{entry.body}</div>
+        <div className="text-sm font-90 text-muted mt-3 whitespace-pre-wrap">{entry.body}</div>
       </div>
 
       {error && <div className="text-error mb-4">{error}</div>}
