@@ -21,6 +21,30 @@ export type PriceMovement = {
   percent: number
 }
 
+export function getPriceChange(initialPrice: number | null, latestPrice: number | null): PriceMovement | null {
+  if (initialPrice == null || latestPrice == null || initialPrice <= 0 || latestPrice <= 0
+    || !Number.isFinite(initialPrice) || !Number.isFinite(latestPrice)) return null
+  const diff = latestPrice - initialPrice
+  return { price: latestPrice, diff, percent: diff / initialPrice * 100 }
+}
+
+export function getRecordedRangeSinceEntry(timestamp: string, history: StockHistoryPoint[]) {
+  const points = getPostEntryHistory(timestamp, history)
+    .filter((point) => Number.isFinite(point.currentPrice) && point.currentPrice > 0)
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+  if (!points.length) return null
+  let lowest = points[0]
+  let highest = points[0]
+  for (const point of points) {
+    if (point.currentPrice < lowest.currentPrice) lowest = point
+    if (point.currentPrice > highest.currentPrice) highest = point
+  }
+  return {
+    lowest: { price: lowest.currentPrice, timestamp: lowest.timestamp },
+    highest: { price: highest.currentPrice, timestamp: highest.timestamp },
+  }
+}
+
 export function getWeekBounds(timestamp: string): { start: Date; end: Date } {
   const entryDate = new Date(timestamp)
   const day = entryDate.getDay()

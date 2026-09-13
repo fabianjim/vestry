@@ -1,10 +1,50 @@
 import { describe, expect, it } from 'vitest'
 import type { Transaction } from '../types/transaction'
-import { getRealizedPnLForSell, matchJournalTransaction } from './stockStats'
+import { getPriceChange, getRecordedRangeSinceEntry, getRealizedPnLForSell, matchJournalTransaction } from './stockStats'
 
 const tx = (id: number, type: Transaction['type'], shares: number, price: number): Transaction => ({
   id, type, shares, price, ticker: 'AAPL', totalValue: shares * price,
   timestamp: `2026-01-0${Math.abs(id)}T15:00:00Z`,
+})
+
+describe('journal price metrics', () => {
+  it('reports per-share price changes, including unchanged prices', () => {
+    expect(getPriceChange(100, 120)).toEqual({ price: 120, diff: 20, percent: 20 })
+    expect(getPriceChange(100, 90)).toEqual({ price: 90, diff: -10, percent: -10 })
+    expect(getPriceChange(100, 100)).toEqual({ price: 100, diff: 0, percent: 0 })
+  })
+
+  it('keeps missing or invalid prices unavailable', () => {
+    expect(getPriceChange(null, 100)).toBeNull()
+    expect(getPriceChange(100, null)).toBeNull()
+    expect(getPriceChange(0, 100)).toBeNull()
+    expect(getPriceChange(100, NaN)).toBeNull()
+  })
+
+  const point = (timestamp: string, currentPrice: number) => ({
+    timestamp, currentPrice, high: 1000, low: 1, open: 100, prevClose: 100,
+  })
+
+  it('uses recorded prices after the entry, preserving dates across years', () => {
+    const history = [
+      point('2026-01-01T16:00:00Z', 120), point('2025-12-31T15:00:00Z', 90),
+      point('2025-12-31T14:59:59Z', 200), point('2026-01-02T15:00:00Z', 90),
+    ]
+    const original = [...history]
+    expect(getRecordedRangeSinceEntry('2025-12-31T15:00:00Z', history)).toEqual({
+      lowest: { price: 90, timestamp: '2025-12-31T15:00:00Z' },
+      highest: { price: 120, timestamp: '2026-01-01T16:00:00Z' },
+    })
+    expect(history).toEqual(original)
+  })
+
+  it('returns unavailable without valid subsequent observations', () => {
+    expect(getRecordedRangeSinceEntry('2026-01-01T00:00:00Z', [])).toBeNull()
+    expect(getRecordedRangeSinceEntry('2026-01-01T00:00:00Z', [
+      point('2025-12-31T15:00:00Z', 100), point('2026-01-01T15:00:00Z', 0),
+      point('2026-01-01T16:00:00Z', NaN),
+    ])).toBeNull()
+  })
 })
 
 describe('getRealizedPnLForSell', () => {

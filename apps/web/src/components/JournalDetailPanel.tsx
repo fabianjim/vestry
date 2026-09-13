@@ -15,11 +15,8 @@ import type { StockHistoryPoint } from '../types/stock'
 import { stockApi, journalApi, portfolioApi } from '../services/api'
 import { formatDateTime } from '../utils/dateUtils'
 import {
-  getEntryTimingPercent,
-  getExitTimingPercent,
-  getPeakSinceEntry,
-  getDrawdownSinceEntry,
-  getDriftSinceExit,
+  getPriceChange,
+  getRecordedRangeSinceEntry,
   getRealizedPnLForSell,
   matchJournalTransaction,
 } from '../utils/stockStats'
@@ -143,63 +140,23 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
     return points
   }, [history, entry])
 
-  const performance = useMemo(() => {
-    if (!currentStock || entry.priceSnapshot == null) return null
-
-    const snapshotPrice = entry.priceSnapshot
-    const currentPrice = currentStock.currentPrice
-    const priceDiff = currentPrice - snapshotPrice
-    const percentDiff = (priceDiff / snapshotPrice) * 100
-    const daysSince = Math.floor(
-      (Date.now() - new Date(entry.timestamp).getTime()) / (1000 * 60 * 60 * 24)
-    )
-
-    return { currentPrice, priceDiff, percentDiff, daysSince }
-  }, [currentStock, entry])
-
-  const buyMetrics = useMemo(() => {
-    if (entry.entryType !== 'BUY' || !matchedTransaction || !currentStock) return null
-
-    const buyPrice = matchedTransaction.price
-    const currentPrice = currentStock.currentPrice
-    const unrealizedPnL = currentPrice - buyPrice
-    const unrealizedPercent = (unrealizedPnL / buyPrice) * 100
-
-    const peak = getPeakSinceEntry(buyPrice, entry.timestamp, history)
-    const drawdown = getDrawdownSinceEntry(buyPrice, entry.timestamp, history)
-    const entryTimingPercent = getEntryTimingPercent(buyPrice, entry.timestamp, history)
-
-    return {
-      buyPrice,
-      currentPrice,
-      unrealizedPnL,
-      unrealizedPercent,
-      peakDiff: peak?.diff ?? 0,
-      peakPercent: peak?.percent ?? 0,
-      drawdown: drawdown?.diff ?? 0,
-      drawdownPercent: drawdown?.percent ?? 0,
-      entryTimingPercent,
-    }
-  }, [entry, matchedTransaction, currentStock, history])
-
-  const sellMetrics = useMemo(() => {
-    if (entry.entryType !== 'SELL' || !matchedTransaction) return null
-
-    const sellPrice = matchedTransaction.price
-    const realized = getRealizedPnLForSell(matchedTransaction, transactions)
-
-    const exitTimingPercent = getExitTimingPercent(sellPrice, entry.timestamp, history)
-
-    let drift = 0
-    let driftPercent = 0
-    if (currentStock) {
-      const driftResult = getDriftSinceExit(sellPrice, currentStock.currentPrice)
-      drift = driftResult.diff
-      driftPercent = driftResult.percent
-    }
-
-    return { sellPrice, realized, drift, driftPercent, exitTimingPercent }
-  }, [entry, matchedTransaction, transactions, currentStock, history])
+  const latestPrice = currentStock && Number.isFinite(currentStock.currentPrice) && currentStock.currentPrice > 0
+    ? currentStock.currentPrice : null
+  const priceChange = getPriceChange(matchedTransaction?.price ?? entry.priceSnapshot, latestPrice)
+  const priceChangeLabel = entry.entryType === 'BUY' ? 'Price change since purchase'
+    : entry.entryType === 'SELL' ? 'Price change since sale' : 'Price change since entry'
+  const recordedRange = useMemo(
+    () => entry.entryType === 'BUY'
+      ? getRecordedRangeSinceEntry(matchedTransaction?.timestamp ?? entry.timestamp, history) : null,
+    [entry, matchedTransaction, history]
+  )
+  const realized = useMemo(
+    () => entry.entryType === 'SELL' && matchedTransaction
+      ? getRealizedPnLForSell(matchedTransaction, transactions) : null,
+    [entry.entryType, matchedTransaction, transactions]
+  )
+  const valueColor = (value: number | null | undefined) =>
+    value == null || value === 0 ? 'text-foreground' : value > 0 ? 'text-gain' : 'text-loss'
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
@@ -355,56 +312,39 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
       )}
 
       {/* Performance Section */}
-      {performance && (
+      {entry.ticker && !loading && !error && (
         <div className="mb-6 p-4 bg-surface-hover rounded-lg border border-border">
           <h4 className="text-lg font-150 mb-3">Performance</h4>
 
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-muted">Current Price</span>
-              <span className="text-foreground">{formatCurrency(performance.currentPrice)}</span>
+              <span className="text-muted">Latest price</span>
+              <span className="text-foreground">{latestPrice == null ? '—' : formatCurrency(latestPrice)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted">Price Change</span>
-              <span className={performance.priceDiff >= 0 ? 'text-gain' : 'text-loss'}>
-                {formatSignedCurrencyWithPercent(performance.priceDiff, performance.percentDiff)}
+              <span className="text-muted">{priceChangeLabel}</span>
+              <span className={valueColor(priceChange?.diff)}>
+                {priceChange ? formatSignedCurrencyWithPercent(priceChange.diff, priceChange.percent) : '—'}
               </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted">Days Since</span>
-              <span className="text-foreground">{performance.daysSince}</span>
             </div>
           </div>
 
-          {buyMetrics && (
+          {entry.entryType === 'BUY' && (
             <div className="mt-4 pt-4 border-t border-border space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted">Unrealized P/L</span>
-                <span className={buyMetrics.unrealizedPnL >= 0 ? 'text-gain' : 'text-loss'}>
-                  {formatSignedCurrencyWithPercent(buyMetrics.unrealizedPnL, buyMetrics.unrealizedPercent)}
-                </span>
-              </div>
-              {buyMetrics.entryTimingPercent != null && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted">Entry Timing</span>
-                  <span className={buyMetrics.entryTimingPercent <= 0 ? 'text-gain' : 'text-loss'}>
-                    {buyMetrics.entryTimingPercent >= 0 ? '+' : ''}
-                    {buyMetrics.entryTimingPercent.toFixed(1)}%
+              {(['lowest', 'highest'] as const).map((key) => {
+                const point = recordedRange?.[key]
+                return (
+                <div key={key} className="flex justify-between text-sm">
+                  <span className="text-muted">{key === 'lowest' ? 'Lowest recorded price' : 'Highest recorded price'}</span>
+                  <span className="text-foreground text-right">
+                    {point ? formatCurrency(point.price) : '—'}
+                    {point && <span className="block text-xs text-muted">
+                      {new Date(point.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>}
                   </span>
                 </div>
-              )}
-              <div className="flex justify-between text-sm">
-                <span className="text-muted">Peak Since Entry</span>
-                <span className={buyMetrics.peakDiff >= 0 ? 'text-gain' : 'text-loss'}>
-                  {formatSignedCurrencyWithPercent(buyMetrics.peakDiff, buyMetrics.peakPercent)}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted">Max Drawdown</span>
-                <span className={buyMetrics.drawdown >= 0 ? 'text-gain' : 'text-loss'}>
-                  {formatSignedCurrencyWithPercent(buyMetrics.drawdown, buyMetrics.drawdownPercent)}
-                </span>
-              </div>
+                )
+              })}
             </div>
           )}
 
@@ -412,29 +352,12 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
             <div className="mt-4 pt-4 border-t border-border space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted">Realized gain/loss</span>
-                <span className={sellMetrics?.realized == null ? 'text-foreground' : sellMetrics.realized.realizedPnL >= 0 ? 'text-gain' : 'text-loss'}>
-                  {sellMetrics?.realized
-                    ? formatSignedCurrencyWithPercent(sellMetrics.realized.realizedPnL, sellMetrics.realized.realizedPercent)
+                <span className={valueColor(realized?.realizedPnL)}>
+                  {realized
+                    ? formatSignedCurrencyWithPercent(realized.realizedPnL, realized.realizedPercent)
                     : '—'}
                 </span>
               </div>
-              {sellMetrics?.exitTimingPercent != null && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted">Exit Timing</span>
-                  <span className={sellMetrics.exitTimingPercent <= 0 ? 'text-gain' : 'text-loss'}>
-                    {sellMetrics.exitTimingPercent >= 0 ? '+' : ''}
-                    {sellMetrics.exitTimingPercent.toFixed(1)}%
-                  </span>
-                </div>
-              )}
-              {currentStock && sellMetrics && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted">Drift Since Exit</span>
-                  <span className={sellMetrics.drift >= 0 ? 'text-gain' : 'text-loss'}>
-                    {formatSignedCurrencyWithPercent(sellMetrics.drift, sellMetrics.driftPercent)}
-                  </span>
-                </div>
-              )}
             </div>
           )}
         </div>
