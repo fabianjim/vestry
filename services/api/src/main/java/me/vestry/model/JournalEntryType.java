@@ -4,5 +4,6 @@ public enum JournalEntryType {
     BUY,
     SELL,
     INSIGHT,
-    MARKET_EVENT
+    MARKET_EVENT,
+    REFLECTION
 }

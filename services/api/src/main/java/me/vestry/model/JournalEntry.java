@@ -31,6 +31,10 @@ public class JournalEntry {
     @Column(nullable = true)
     private Double priceSnapshot;
 
+    // Kept as an ID so API responses and demo copies never recursively embed entries.
+    @Column(name = "source_entry_id")
+    private Integer sourceEntryId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @JsonIgnore
@@ -96,6 +100,14 @@ public class JournalEntry {
 
     public User getUser() {
         return user;
+    }
+
+    public Integer getSourceEntryId() {
+        return sourceEntryId;
+    }
+
+    public void setSourceEntryId(Integer sourceEntryId) {
+        this.sourceEntryId = sourceEntryId;
     }
 
     public void setUser(User user) {

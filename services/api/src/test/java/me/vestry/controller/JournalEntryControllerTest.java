@@ -35,6 +35,54 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(JournalEntryController.class)
 public class JournalEntryControllerTest {
 
+    @Test
+    @WithMockUser
+    void createReflectionUsesExistingEndpointAndPassesSourceId() throws Exception {
+        when(journalEntryService.createEntry(any(JournalEntry.class), any())).thenAnswer(call -> call.getArgument(0));
+        mockMvc.perform(post("/api/journal").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"entryType\":\"REFLECTION\",\"sourceEntryId\":7,\"body\":\"Looking back\",\"tags\":[]}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.entryType").value("REFLECTION"))
+            .andExpect(jsonPath("$.sourceEntryId").value(7));
+    }
+
+    @Test
+    @WithMockUser
+    void lookupByIdDoesNotUseTickerRoute() throws Exception {
+        JournalEntry source = new JournalEntry();
+        source.setId(7);
+        source.setBody("Current source text");
+        when(journalEntryService.getEntry(7)).thenReturn(source);
+        mockMvc.perform(get("/api/journal/entries/7"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.body").value("Current source text"));
+    }
+
+    @Test
+    @WithMockUser
+    void demoReflectionCreationAndLookupUseSession() throws Exception {
+        me.vestry.model.DemoSession session = new me.vestry.model.DemoSession();
+        User user = new User();
+        user.setId(5);
+        when(demoSessionResolver.isDemoUser()).thenReturn(true);
+        when(demoSessionResolver.resolveSession(any())).thenReturn(session);
+        when(demoSessionResolver.getCurrentUser()).thenReturn(user);
+        when(demoSessionService.createJournalEntry(eq(session), eq(user), any(), any()))
+            .thenAnswer(call -> call.getArgument(2));
+        mockMvc.perform(post("/api/journal").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"entryType\":\"REFLECTION\",\"sourceEntryId\":-7,\"body\":\"Looking back\",\"tags\":[]}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.sourceEntryId").value(-7));
+        JournalEntry source = new JournalEntry();
+        source.setId(-7);
+        when(demoSessionService.getJournalEntry(session, -7)).thenReturn(source);
+        mockMvc.perform(get("/api/journal/entries/-7"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(-7));
+    }
+
     @Autowired
     private MockMvc mockMvc;
 

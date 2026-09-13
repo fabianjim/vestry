@@ -110,10 +110,13 @@ public class DemoSessionService {
         session.setTransactions(txCopy);
 
         List<JournalEntry> journalCopy = new ArrayList<>();
+        Map<Integer, Integer> journalIds = new HashMap<>();
         Map<String, Tag> sessionTagsByName = new HashMap<>();
         for (JournalEntry entry : journalEntryRepository.findByUserIdOrderByTimestampDesc(user.getId())) {
             JournalEntry copy = new JournalEntry();
             copy.setId(session.nextId());
+            journalIds.put(entry.getId(), copy.getId());
+            copy.setSourceEntryId(entry.getSourceEntryId());
             copy.setEntryType(entry.getEntryType());
             copy.setBody(entry.getBody());
             copy.setTicker(entry.getTicker());
@@ -136,6 +139,14 @@ public class DemoSessionService {
             copy.setTags(tagCopies);
 
             journalCopy.add(copy);
+        }
+        for (JournalEntry copy : journalCopy) {
+            if (copy.getSourceEntryId() != null) {
+                copy.setSourceEntryId(journalIds.get(copy.getSourceEntryId()));
+                if (copy.getSourceEntryId() == null) {
+                    copy.setEntryType(JournalEntryType.INSIGHT);
+                }
+            }
         }
         session.setJournalEntries(journalCopy);
 
@@ -565,33 +576,54 @@ public class DemoSessionService {
     }
 
     public JournalEntry createJournalEntry(DemoSession session, me.vestry.model.User user, JournalEntry entry, List<String> tagNames) {
-        entry.setUser(user);
-        entry.setId(session.nextId());
-        if (entry.getTimestamp() == null) {
-            entry.setTimestamp(Instant.now());
-        }
-        if (entry.getPriceSnapshot() == null) {
-            if (entry.getTicker() != null && !entry.getTicker().isBlank()) {
-                entry.setPriceSnapshot(stockService.getLatestStockData(entry.getTicker())
-                    .map(Stock::getCurrentPrice)
-                    .orElse(0.0));
-            } else {
+        synchronized (session) {
+            if (entry.getEntryType() == JournalEntryType.REFLECTION) {
+                if (entry.getSourceEntryId() == null) {
+                    throw new IllegalArgumentException("A reflection requires a source entry");
+                }
+                JournalEntry source = getJournalEntry(session, entry.getSourceEntryId());
+                if (entry.getBody() == null || entry.getBody().isBlank() || entry.getBody().length() > 2000) {
+                    throw new IllegalArgumentException("A reflection must contain between 1 and 2000 characters");
+                }
+                entry.setTicker(source.getTicker());
+                entry.setTimestamp(Instant.now());
+                entry.setPriceSnapshot(null);
+            } else if (entry.getSourceEntryId() != null) {
+                throw new IllegalArgumentException("Only reflections can link to a source entry");
+            }
+            entry.setUser(user);
+            entry.setId(session.nextId());
+            if (entry.getTimestamp() == null) {
+                entry.setTimestamp(Instant.now());
+            }
+            if (entry.getPriceSnapshot() == null) {
+                if (entry.getTicker() != null && !entry.getTicker().isBlank()) {
+                    entry.setPriceSnapshot(stockService.getLatestStockData(entry.getTicker())
+                        .map(Stock::getCurrentPrice)
+                        .orElse(0.0));
+                } else {
+                    entry.setPriceSnapshot(null);
+                }
+            }
+
+            if (entry.getEntryType() == JournalEntryType.REFLECTION && entry.getPriceSnapshot() != null
+                    && (!Double.isFinite(entry.getPriceSnapshot()) || entry.getPriceSnapshot() <= 0)) {
                 entry.setPriceSnapshot(null);
             }
-        }
 
-        List<String> combinedTags = new ArrayList<>();
-        if (tagNames != null) {
-            combinedTags.addAll(tagNames);
-        }
-        String autoTag = computeAutoTagForSellEntry(session, entry);
-        if (autoTag != null && !combinedTags.contains(autoTag)) {
-            combinedTags.add(autoTag);
-        }
+            List<String> combinedTags = new ArrayList<>();
+            if (tagNames != null) {
+                combinedTags.addAll(tagNames);
+            }
+            String autoTag = computeAutoTagForSellEntry(session, entry);
+            if (autoTag != null && !combinedTags.contains(autoTag)) {
+                combinedTags.add(autoTag);
+            }
 
-        entry.setTags(resolveDemoTags(session, user, combinedTags));
-        session.getJournalEntries().add(entry);
-        return entry;
+            entry.setTags(resolveDemoTags(session, user, combinedTags));
+            session.getJournalEntries().add(entry);
+            return entry;
+        }
     }
 
     public List<JournalEntry> getJournalEntries(DemoSession session) {
@@ -652,10 +684,26 @@ public class DemoSessionService {
     }
 
     public void deleteJournalEntry(DemoSession session, int id) {
-        boolean removed = session.getJournalEntries().removeIf(e -> e.getId() == id);
-        if (!removed) {
-            throw new RuntimeException("Journal entry not found");
+        synchronized (session) {
+            getJournalEntry(session, id);
+            for (JournalEntry reflection : session.getJournalEntries()) {
+                if (Integer.valueOf(id).equals(reflection.getSourceEntryId())) {
+                    reflection.setSourceEntryId(null);
+                    reflection.setEntryType(JournalEntryType.INSIGHT);
+                }
+            }
+            boolean removed = session.getJournalEntries().removeIf(e -> e.getId() == id);
+            if (!removed) {
+                throw new RuntimeException("Journal entry not found");
+            }
         }
+    }
+
+    public JournalEntry getJournalEntry(DemoSession session, int id) {
+        return session.getJournalEntries().stream()
+            .filter(entry -> entry.getId() == id)
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Journal entry not found"));
     }
 
     public JournalEntry updateJournalEntry(DemoSession session, me.vestry.model.User user, int id, String body, List<String> tagNames) {

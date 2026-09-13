@@ -61,6 +61,135 @@ public class JournalEntryServiceTest {
 
     private User mockUser;
 
+    @Test
+    void reflectionInheritsSourceTickerAndCapturesItsOwnSnapshot() {
+        JournalEntry source = reflectionSource();
+        source.setPriceSnapshot(100.0);
+        Stock quote = new Stock();
+        quote.setCurrentPrice(125.0);
+        when(stockService.getLatestStockData("AAPL")).thenReturn(Optional.of(quote));
+        when(journalEntryRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        JournalEntry reflection = newReflection();
+        reflection.setTicker("MSFT");
+        reflection.setTimestamp(Instant.EPOCH);
+        reflection.setPriceSnapshot(999.0);
+
+        JournalEntry saved = journalEntryService.createEntry(reflection, List.of("review"));
+
+        assertEquals(7, saved.getSourceEntryId());
+        assertEquals("AAPL", saved.getTicker());
+        assertEquals(125.0, saved.getPriceSnapshot());
+        assertTrue(saved.getTimestamp().isAfter(Instant.EPOCH));
+        assertEquals(100.0, source.getPriceSnapshot());
+        verifyNoInteractions(transactionRepository);
+        verify(tagService).resolveTags(mockUser, List.of("review"));
+    }
+
+    @Test
+    void reflectionWithMissingQuoteKeepsNullSnapshot() {
+        reflectionSource();
+        when(stockService.getLatestStockData("AAPL")).thenReturn(Optional.empty());
+        when(journalEntryRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        assertNull(journalEntryService.createEntry(newReflection()).getPriceSnapshot());
+    }
+
+    @Test
+    void reflectionWithoutTickerDoesNotRequestQuote() {
+        reflectionSource().setTicker(null);
+        when(journalEntryRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        JournalEntry saved = journalEntryService.createEntry(newReflection());
+        assertNull(saved.getTicker());
+        assertNull(saved.getPriceSnapshot());
+        verifyNoInteractions(stockService);
+    }
+
+    @Test
+    void reflectionRequiresOwnedSourceAndText() {
+        JournalEntry reflection = newReflection();
+        reflection.setSourceEntryId(null);
+        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(reflection));
+        reflection.setSourceEntryId(7);
+        // The owned query also returns empty for another user's entry.
+        when(journalEntryRepository.findOwnedEntryForUpdate(7, 1)).thenReturn(Optional.empty());
+        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(reflection));
+        reflectionSource();
+        reflection.setBody("  ");
+        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(reflection));
+        verify(journalEntryRepository, never()).save(any());
+    }
+
+    @Test
+    void ordinaryEntriesCannotCarrySourceLinks() {
+        JournalEntry entry = newReflection();
+        entry.setEntryType(JournalEntryType.INSIGHT);
+        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(entry));
+        verify(journalEntryRepository, never()).save(any());
+    }
+
+    @Test
+    void deletingSourceConvertsAllLinkedReflectionsAndPreservesTheirContent() {
+        reflectionSource();
+        JournalEntry first = newReflection();
+        first.setPriceSnapshot(125.0);
+        first.setTimestamp(Instant.EPOCH);
+        JournalEntry second = newReflection();
+        when(journalEntryRepository.findByUserIdAndSourceEntryId(1, 7)).thenReturn(List.of(first, second));
+
+        journalEntryService.deleteEntry(7);
+
+        for (JournalEntry reflection : List.of(first, second)) {
+            assertEquals(JournalEntryType.INSIGHT, reflection.getEntryType());
+            assertNull(reflection.getSourceEntryId());
+            assertEquals("My reflection", reflection.getBody());
+        }
+        assertEquals(125.0, first.getPriceSnapshot());
+        assertEquals(Instant.EPOCH, first.getTimestamp());
+        verify(journalEntryRepository).deleteById(7);
+    }
+
+    @Test
+    void editingReflectionPreservesLinkAndPrice() {
+        JournalEntry reflection = newReflection();
+        reflection.setUser(mockUser);
+        reflection.setPriceSnapshot(125.0);
+        when(journalEntryRepository.findById(8)).thenReturn(Optional.of(reflection));
+        when(journalEntryRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        JournalEntry saved = journalEntryService.updateEntry(8, "Revised thoughts");
+        assertEquals(7, saved.getSourceEntryId());
+        assertEquals(125.0, saved.getPriceSnapshot());
+        verifyNoInteractions(stockService, transactionRepository);
+    }
+
+    @Test
+    void entryLookupEnforcesOwnership() {
+        JournalEntry source = new JournalEntry();
+        User other = new User();
+        other.setId(2);
+        source.setUser(other);
+        when(journalEntryRepository.findById(7)).thenReturn(Optional.of(source));
+        assertThrows(IllegalArgumentException.class, () -> journalEntryService.getEntry(7));
+        source.setUser(mockUser);
+        assertSame(source, journalEntryService.getEntry(7));
+    }
+
+    private JournalEntry reflectionSource() {
+        JournalEntry source = new JournalEntry();
+        source.setId(7);
+        source.setTicker("AAPL");
+        source.setEntryType(JournalEntryType.BUY);
+        source.setUser(mockUser);
+        when(journalEntryRepository.findOwnedEntryForUpdate(7, 1)).thenReturn(Optional.of(source));
+        return source;
+    }
+
+    private JournalEntry newReflection() {
+        JournalEntry entry = new JournalEntry();
+        entry.setEntryType(JournalEntryType.REFLECTION);
+        entry.setSourceEntryId(7);
+        entry.setBody("My reflection");
+        return entry;
+    }
+
     @BeforeEach
     void setUp() {
         mockUser = new User();
@@ -362,7 +491,7 @@ public class JournalEntryServiceTest {
         JournalEntry entry = new JournalEntry();
         entry.setId(1);
         entry.setUser(mockUser);
-        when(journalEntryRepository.findById(1)).thenReturn(Optional.of(entry));
+        when(journalEntryRepository.findOwnedEntryForUpdate(1, mockUser.getId())).thenReturn(Optional.of(entry));
 
         journalEntryService.deleteEntry(1);
 
@@ -371,7 +500,7 @@ public class JournalEntryServiceTest {
 
     @Test
     void deleteEntryNotFound() {
-        when(journalEntryRepository.findById(1)).thenReturn(Optional.empty());
+        when(journalEntryRepository.findOwnedEntryForUpdate(1, mockUser.getId())).thenReturn(Optional.empty());
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             journalEntryService.deleteEntry(1);
@@ -388,7 +517,7 @@ public class JournalEntryServiceTest {
         JournalEntry entry = new JournalEntry();
         entry.setId(1);
         entry.setUser(otherUser);
-        when(journalEntryRepository.findById(1)).thenReturn(Optional.of(entry));
+        when(journalEntryRepository.findOwnedEntryForUpdate(1, mockUser.getId())).thenReturn(Optional.of(entry));
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             journalEntryService.deleteEntry(1);

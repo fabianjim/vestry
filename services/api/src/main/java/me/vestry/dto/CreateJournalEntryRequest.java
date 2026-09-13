@@ -13,6 +13,15 @@ public class CreateJournalEntryRequest {
     private Instant timestamp;
     private Double priceSnapshot;
     private List<String> tags;
+    private Integer sourceEntryId;
+
+    public Integer getSourceEntryId() {
+        return sourceEntryId;
+    }
+
+    public void setSourceEntryId(Integer sourceEntryId) {
+        this.sourceEntryId = sourceEntryId;
+    }
 
     public JournalEntryType getEntryType() {
         return entryType;

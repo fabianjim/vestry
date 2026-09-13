@@ -72,11 +72,30 @@ public class JournalEntryService {
     public JournalEntry createEntry(JournalEntry entry, List<String> tagNames) {
         User user = getCurrentUser();
         entry.setUser(user);
+        if (entry.getEntryType() == JournalEntryType.REFLECTION) {
+            if (entry.getSourceEntryId() == null) {
+                throw new IllegalArgumentException("A reflection requires a source entry");
+            }
+            JournalEntry source = journalEntryRepository.findOwnedEntryForUpdate(entry.getSourceEntryId(), user.getId())
+                .orElseThrow(() -> new IllegalArgumentException("Journal entry not found"));
+            if (entry.getBody() == null || entry.getBody().isBlank() || entry.getBody().length() > 2000) {
+                throw new IllegalArgumentException("A reflection must contain between 1 and 2000 characters");
+            }
+            entry.setTicker(source.getTicker());
+            entry.setTimestamp(Instant.now());
+            entry.setPriceSnapshot(null);
+        } else if (entry.getSourceEntryId() != null) {
+            throw new IllegalArgumentException("Only reflections can link to a source entry");
+        }
         if (entry.getTimestamp() == null) {
             entry.setTimestamp(Instant.now());
         }
 
         applyPriceSnapshot(entry);
+        if (entry.getEntryType() == JournalEntryType.REFLECTION && entry.getPriceSnapshot() != null
+                && (!Double.isFinite(entry.getPriceSnapshot()) || entry.getPriceSnapshot() <= 0)) {
+            entry.setPriceSnapshot(null);
+        }
 
         List<String> combinedTags = new ArrayList<>();
         if (tagNames != null) {
@@ -125,6 +144,15 @@ public class JournalEntryService {
 
     public List<JournalEntry> getEntriesForUser() {
         return journalEntryRepository.findByUserIdOrderByTimestampDesc(getCurrentUserId());
+    }
+
+    public JournalEntry getEntry(int id) {
+        JournalEntry entry = journalEntryRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Journal entry not found"));
+        if (entry.getUser().getId() != getCurrentUserId()) {
+            throw new IllegalArgumentException("Journal entry not found");
+        }
+        return entry;
     }
 
     public List<JournalEntry> getEntriesForUserAndTicker(String ticker) {
@@ -177,10 +205,14 @@ public class JournalEntryService {
 
     public void deleteEntry(int id) {
         int userId = getCurrentUserId();
-        JournalEntry entry = journalEntryRepository.findById(id)
+        JournalEntry entry = journalEntryRepository.findOwnedEntryForUpdate(id, userId)
             .orElseThrow(() -> new RuntimeException("Journal entry not found"));
         if (entry.getUser().getId() != userId) {
             throw new RuntimeException("Journal entry not found");
+        }
+        for (JournalEntry reflection : journalEntryRepository.findByUserIdAndSourceEntryId(userId, id)) {
+            reflection.setSourceEntryId(null);
+            reflection.setEntryType(JournalEntryType.INSIGHT);
         }
         journalEntryRepository.deleteById(id);
     }

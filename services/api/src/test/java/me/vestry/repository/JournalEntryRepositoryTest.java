@@ -23,6 +23,60 @@ class JournalEntryRepositoryTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private jakarta.persistence.EntityManager entityManager;
+
+    @Test
+    void reflectionLinkPersistsAndSourceDeletionConvertsOnlyItsChildren() {
+        User user = new User();
+        user.setUsername("reflectionuser");
+        user.setPassword("password");
+        userRepository.save(user);
+        JournalEntry source = savedEntry(user, JournalEntryType.BUY, null);
+        JournalEntry reflection = savedEntry(user, JournalEntryType.REFLECTION, source.getId());
+        JournalEntry secondReflection = savedEntry(user, JournalEntryType.REFLECTION, source.getId());
+        JournalEntry otherSource = savedEntry(user, JournalEntryType.INSIGHT, null);
+        JournalEntry unrelated = savedEntry(user, JournalEntryType.REFLECTION, otherSource.getId());
+        entityManager.flush();
+        entityManager.clear();
+
+        assertEquals(source.getId(), journalEntryRepository.findById(reflection.getId()).orElseThrow().getSourceEntryId());
+        assertTrue(journalEntryRepository.findOwnedEntryForUpdate(source.getId(), user.getId() + 1).isEmpty());
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+            new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(user, null, List.of()));
+        try {
+            new me.vestry.service.JournalEntryService(journalEntryRepository, null, null, null, null)
+                .deleteEntry(source.getId());
+            entityManager.flush();
+            entityManager.clear();
+
+            assertTrue(journalEntryRepository.findById(source.getId()).isEmpty());
+            for (int id : List.of(reflection.getId(), secondReflection.getId())) {
+                JournalEntry converted = journalEntryRepository.findById(id).orElseThrow();
+                assertEquals(JournalEntryType.INSIGHT, converted.getEntryType());
+                assertNull(converted.getSourceEntryId());
+                assertEquals("Keep this text", converted.getBody());
+                assertEquals(125.0, converted.getPriceSnapshot());
+                assertEquals(Instant.EPOCH, converted.getTimestamp());
+            }
+            assertEquals(JournalEntryType.REFLECTION,
+                journalEntryRepository.findById(unrelated.getId()).orElseThrow().getEntryType());
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
+    }
+
+    private JournalEntry savedEntry(User user, JournalEntryType type, Integer sourceId) {
+        JournalEntry entry = new JournalEntry();
+        entry.setUser(user);
+        entry.setEntryType(type);
+        entry.setSourceEntryId(sourceId);
+        entry.setBody("Keep this text");
+        entry.setTimestamp(Instant.EPOCH);
+        entry.setPriceSnapshot(125.0);
+        return journalEntryRepository.save(entry);
+    }
+
     @Test
     void testSaveAndFindJournalEntry() {
         User user = new User();

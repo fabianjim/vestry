@@ -61,6 +61,86 @@ public class DemoSessionServiceTest {
 
     private User demoUser;
 
+    @Test
+    void reflectionCreationAndSourceDeletionStayInSession() {
+        DemoSession session = new DemoSession();
+        JournalEntry source = new JournalEntry();
+        source.setId(session.nextId());
+        source.setTicker("AAPL");
+        source.setPriceSnapshot(100.0);
+        source.setEntryType(JournalEntryType.BUY);
+        session.getJournalEntries().add(source);
+        Stock quote = new Stock();
+        quote.setCurrentPrice(125.0);
+        when(stockService.getLatestStockData("AAPL")).thenReturn(Optional.of(quote));
+        JournalEntry reflection = new JournalEntry();
+        reflection.setEntryType(JournalEntryType.REFLECTION);
+        reflection.setSourceEntryId(source.getId());
+        reflection.setTicker("MSFT");
+        reflection.setPriceSnapshot(999.0);
+        reflection.setBody("Still learning");
+
+        demoSessionService.createJournalEntry(session, demoUser, reflection, List.of("review"));
+        Instant timestamp = reflection.getTimestamp();
+        assertEquals("AAPL", reflection.getTicker());
+        assertEquals(125.0, reflection.getPriceSnapshot());
+        assertTrue(reflection.getId() < 0);
+        assertEquals(source.getId(), reflection.getSourceEntryId());
+        assertEquals(3, session.getRemainingTrades());
+        demoSessionService.deleteJournalEntry(session, source.getId());
+        assertEquals(JournalEntryType.INSIGHT, reflection.getEntryType());
+        assertNull(reflection.getSourceEntryId());
+        assertEquals("Still learning", reflection.getBody());
+        assertEquals(timestamp, reflection.getTimestamp());
+        assertEquals(125.0, reflection.getPriceSnapshot());
+        assertEquals("review", reflection.getTags().iterator().next().getName());
+        verifyNoInteractions(journalEntryRepository, transactionRepository, portfolioRepository);
+    }
+
+    @Test
+    void reflectionRejectsSourcesOutsideSessionAndAllowsMissingPrices() {
+        DemoSession session = new DemoSession();
+        JournalEntry reflection = new JournalEntry();
+        reflection.setEntryType(JournalEntryType.REFLECTION);
+        reflection.setBody("Reflection");
+        reflection.setSourceEntryId(123);
+        assertThrows(IllegalArgumentException.class,
+            () -> demoSessionService.createJournalEntry(session, demoUser, reflection, List.of()));
+        assertTrue(session.getJournalEntries().isEmpty());
+        JournalEntry source = new JournalEntry();
+        source.setId(123);
+        source.setTicker("UNKNOWN");
+        session.getJournalEntries().add(source);
+        when(stockService.getLatestStockData("UNKNOWN")).thenReturn(Optional.empty());
+        demoSessionService.createJournalEntry(session, demoUser, reflection, List.of());
+        assertNull(reflection.getPriceSnapshot());
+        verifyNoInteractions(journalEntryRepository);
+    }
+
+    @Test
+    void sessionCopyRemapsReflectionLinksEvenWhenReflectionComesFirst() {
+        JournalEntry source = new JournalEntry();
+        source.setId(300);
+        source.setEntryType(JournalEntryType.BUY);
+        JournalEntry reflection = new JournalEntry();
+        reflection.setId(301);
+        reflection.setEntryType(JournalEntryType.REFLECTION);
+        reflection.setSourceEntryId(300);
+        when(journalEntryRepository.findByUserIdOrderByTimestampDesc(demoUser.getId()))
+            .thenReturn(List.of(reflection, source));
+
+        DemoSession session = demoSessionService.createSession(demoUser);
+
+        JournalEntry copiedReflection = session.getJournalEntries().get(0);
+        JournalEntry copiedSource = session.getJournalEntries().get(1);
+        assertEquals(copiedSource.getId(), copiedReflection.getSourceEntryId());
+        assertTrue(copiedReflection.getSourceEntryId() < 0);
+        demoSessionService.deleteJournalEntry(session, copiedSource.getId());
+        assertEquals(JournalEntryType.INSIGHT, copiedReflection.getEntryType());
+        assertEquals(JournalEntryType.REFLECTION, reflection.getEntryType());
+        assertEquals(300, reflection.getSourceEntryId());
+    }
+
     @BeforeEach
     void setUp() {
         demoSessionService = new DemoSessionService(portfolioRepository, holdingRepository,

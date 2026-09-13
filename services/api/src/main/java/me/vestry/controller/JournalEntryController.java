@@ -42,6 +42,7 @@ public class JournalEntryController {
         entry.setTicker(dto.getTicker());
         entry.setTimestamp(dto.getTimestamp());
         entry.setPriceSnapshot(dto.getPriceSnapshot());
+        entry.setSourceEntryId(dto.getSourceEntryId());
         return entry;
     }
 
@@ -70,6 +71,14 @@ public class JournalEntryController {
             return demoSessionService.getJournalEntriesForTicker(demoSessionResolver.resolveSession(request), ticker);
         }
         return journalEntryService.getEntriesForUserAndTicker(ticker);
+    }
+
+    @GetMapping("/entries/{id}")
+    public JournalEntry getEntry(@PathVariable int id, HttpServletRequest request) {
+        if (demoSessionResolver.isDemoUser()) {
+            return demoSessionService.getJournalEntry(demoSessionResolver.resolveSession(request), id);
+        }
+        return journalEntryService.getEntry(id);
     }
 
     @GetMapping("/range")
