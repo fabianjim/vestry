@@ -21,6 +21,7 @@ import {
   getDrawdownSinceEntry,
   getDriftSinceExit,
   getRealizedPnLForSell,
+  matchJournalTransaction,
 } from '../utils/stockStats'
 import { formatSignedCurrencyWithPercent } from '../utils/formatUtils'
 
@@ -101,15 +102,10 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
     load()
   }, [entry.id, entry.ticker])
 
-  const matchedTransaction = useMemo(() => {
-    if (!entry.ticker || !transactions.length) return null
-    const entryTime = new Date(entry.timestamp).getTime()
-    return transactions.find(
-      (tx) =>
-        tx.ticker === entry.ticker &&
-        Math.abs(new Date(tx.timestamp).getTime() - entryTime) <= 5 * 60 * 1000
-    )
-  }, [entry, transactions])
+  const matchedTransaction = useMemo(
+    () => matchJournalTransaction(entry, transactions),
+    [entry, transactions]
+  )
 
   const chartData = useMemo(() => {
     if (!history.length) return []
@@ -190,14 +186,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
     if (entry.entryType !== 'SELL' || !matchedTransaction) return null
 
     const sellPrice = matchedTransaction.price
-    const shares = matchedTransaction.shares
-
-    const { realizedPnL, realizedPercent } = getRealizedPnLForSell(
-      shares,
-      sellPrice,
-      entry.ticker || '',
-      transactions
-    )
+    const realized = getRealizedPnLForSell(matchedTransaction, transactions)
 
     const exitTimingPercent = getExitTimingPercent(sellPrice, entry.timestamp, history)
 
@@ -209,7 +198,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
       driftPercent = driftResult.percent
     }
 
-    return { sellPrice, realizedPnL, realizedPercent, drift, driftPercent, exitTimingPercent }
+    return { sellPrice, realized, drift, driftPercent, exitTimingPercent }
   }, [entry, matchedTransaction, transactions, currentStock, history])
 
   const formatCurrency = (value: number) => {
@@ -419,15 +408,17 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
             </div>
           )}
 
-          {sellMetrics && (
+          {entry.entryType === 'SELL' && (
             <div className="mt-4 pt-4 border-t border-border space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-muted">Realized P/L</span>
-                <span className={sellMetrics.realizedPnL >= 0 ? 'text-gain' : 'text-loss'}>
-                  {formatSignedCurrencyWithPercent(sellMetrics.realizedPnL, sellMetrics.realizedPercent)}
+                <span className="text-muted">Realized gain/loss</span>
+                <span className={sellMetrics?.realized == null ? 'text-foreground' : sellMetrics.realized.realizedPnL >= 0 ? 'text-gain' : 'text-loss'}>
+                  {sellMetrics?.realized
+                    ? formatSignedCurrencyWithPercent(sellMetrics.realized.realizedPnL, sellMetrics.realized.realizedPercent)
+                    : '—'}
                 </span>
               </div>
-              {sellMetrics.exitTimingPercent != null && (
+              {sellMetrics?.exitTimingPercent != null && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted">Exit Timing</span>
                   <span className={sellMetrics.exitTimingPercent <= 0 ? 'text-gain' : 'text-loss'}>
@@ -436,7 +427,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
                   </span>
                 </div>
               )}
-              {currentStock && (
+              {currentStock && sellMetrics && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted">Drift Since Exit</span>
                   <span className={sellMetrics.drift >= 0 ? 'text-gain' : 'text-loss'}>

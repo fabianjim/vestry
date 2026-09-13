@@ -1,4 +1,6 @@
 import type { StockHistoryPoint } from '../types/stock'
+import type { JournalEntry } from '../types/journal'
+import type { Transaction } from '../types/transaction'
 
 export type WeekRange = {
   high: number
@@ -114,23 +116,59 @@ export function getDriftSinceExit(
   return { price: currentPrice, diff, percent }
 }
 
+export function matchJournalTransaction(
+  entry: Pick<JournalEntry, 'ticker' | 'entryType' | 'timestamp'>,
+  transactions: Transaction[]
+): Transaction | null {
+  if (!entry.ticker || (entry.entryType !== 'BUY' && entry.entryType !== 'SELL')) return null
+
+  const entryTime = new Date(entry.timestamp).getTime()
+  let nearest: Transaction | null = null
+  let nearestDistance = Infinity
+  for (const tx of transactions) {
+    if (tx.ticker !== entry.ticker || tx.type !== entry.entryType) continue
+    const distance = Math.abs(new Date(tx.timestamp).getTime() - entryTime)
+    if (distance <= 5 * 60 * 1000 && distance < nearestDistance) {
+      nearest = tx
+      nearestDistance = distance
+    }
+  }
+  return nearest
+}
+
 export function getRealizedPnLForSell(
-  sellShares: number,
-  sellPrice: number,
-  ticker: string,
-  transactions: { ticker: string; type: 'BUY' | 'SELL'; shares: number; totalValue: number }[]
-): { realizedPnL: number; realizedPercent: number; avgCost: number } {
-  const tickerBuys = transactions.filter(
-    (tx) => tx.ticker === ticker && tx.type === 'BUY'
-  )
-  const totalBuyShares = tickerBuys.reduce((sum, tx) => sum + tx.shares, 0)
-  const totalBuyCost = tickerBuys.reduce((sum, tx) => sum + tx.totalValue, 0)
-  const avgCost = totalBuyShares > 0 ? totalBuyCost / totalBuyShares : 0
+  sale: Transaction,
+  transactions: Transaction[]
+): { realizedPnL: number; realizedPercent: number; avgCost: number } | null {
+  if (sale.type !== 'SELL') return null
+  const history = transactions.filter((tx) => tx.ticker === sale.ticker)
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
-  const realizedPnL = sellShares * (sellPrice - avgCost)
-  const realizedPercent = avgCost > 0 ? ((sellPrice - avgCost) / avgCost) * 100 : 0
-
-  return { realizedPnL, realizedPercent, avgCost }
+  let shares = 0
+  let costBasis = 0
+  // Stop at this sale so subsequent purchases cannot change its result.
+  for (const tx of history) {
+    if (tx.type === 'BUY') {
+      shares += tx.shares
+      costBasis += tx.totalValue
+    } else {
+      if (shares <= 0 || tx.shares > shares + 1e-9) return null
+      const avgCost = costBasis / shares
+      const saleCost = avgCost * tx.shares
+      if (tx.id === sale.id) {
+        const realizedPnL = tx.totalValue - saleCost
+        const realizedPercent = saleCost > 0 ? realizedPnL / saleCost * 100 : 0
+        return { realizedPnL, realizedPercent, avgCost }
+      }
+      shares -= tx.shares
+      costBasis -= saleCost
+      if (Math.abs(shares) < 1e-9) {
+        shares = 0
+        costBasis = 0
+      }
+    }
+  }
+  return null
 }
 
 export function getCurrentWeekRange(history: StockHistoryPoint[]): WeekRange | null {
