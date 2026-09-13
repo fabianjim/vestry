@@ -11,7 +11,9 @@ import {
 import type { JournalEntry } from '../types/journal'
 import type { StockMetadata } from '../types/watchlist'
 import type { StockHistoryPoint, StockSnapshot } from '../types/stock'
-import { stockApi, journalApi } from '../services/api'
+import type { Transaction } from '../types/transaction'
+import { getPositionStats } from '../utils/positionStats'
+import { stockApi, journalApi, portfolioApi } from '../services/api'
 import { formatDateTime, roundToMinute } from '../utils/dateUtils'
 import { getCurrentWeekRange } from '../utils/stockStats'
 import { SECTOR_COLORS } from '../constants/colors'
@@ -43,6 +45,26 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
   const [activeTab, setActiveTab] = useState<TabMode>(defaultTab)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [positionData, setPositionData] = useState<{
+    ticker: string; transactions: Transaction[] | null; error: string
+  } | null>(null)
+
+  useEffect(() => {
+    if (isWatchlist) return
+    let cancelled = false
+    setPositionData(null)
+    portfolioApi.getTransactions().then((data) => {
+      if (!cancelled) setPositionData({ ticker, transactions: (data || []) as Transaction[], error: '' })
+    }).catch(() => {
+      if (!cancelled) setPositionData({ ticker, transactions: null, error: 'Unable to load position.' })
+    })
+    return () => { cancelled = true }
+  }, [ticker, isWatchlist])
+
+  const position = useMemo(() => {
+    if (isWatchlist || positionData?.ticker !== ticker || !positionData.transactions) return null
+    return getPositionStats(positionData.transactions, ticker, snapshot?.currentPrice ?? null)
+  }, [positionData, ticker, isWatchlist, snapshot?.currentPrice])
 
   useEffect(() => {
     const load = async () => {
@@ -179,9 +201,9 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
     return `Last updated: ${time}`
   })()
 
-  const renderPerformance = () => {
+  const renderPricePerformance = () => {
     if (!snapshot) {
-      return <div className="text-muted text-sm">No live price data available.</div>
+      return <div className="text-muted text-sm">No price data available.</div>
     }
 
     return (
@@ -200,7 +222,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
         )}
         {trackingChange && (
           <div className="flex justify-between text-sm">
-            <span className="text-muted">Since Position Opened</span>
+            <span className="text-muted">Price change since tracking</span>
             <span className={trackingChange.diff >= 0 ? 'text-gain' : 'text-loss'}>
               {formatSignedCurrencyWithPercent(trackingChange.diff, trackingChange.percent)}
             </span>
@@ -352,6 +374,50 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
     )
   }
 
+  const renderPerformance = () => (
+    <>
+      <div className="mb-5 pb-5 border-b border-border">
+        <h4 className="text-lg font-150 mb-3">Your position</h4>
+        {positionData?.ticker !== ticker ? (
+          <div className="text-sm text-muted">Loading position...</div>
+        ) : positionData.error ? (
+          <div className="text-sm text-error">{positionData.error}</div>
+        ) : !position ? (
+          <div className="text-sm text-muted">No position data available.</div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex justify-between gap-3 text-sm">
+              <span className="text-muted">Shares</span>
+              <span className="text-foreground">{position.shares.toLocaleString('en-US', { maximumFractionDigits: 9 })}</span>
+            </div>
+            <div className="flex justify-between gap-3 text-sm">
+              <span className="text-muted">Market value</span>
+              <span className="text-foreground">{position.marketValue == null ? '—' : formatCurrency(position.marketValue)}</span>
+            </div>
+            <div className="flex justify-between gap-3 text-sm">
+              <span className="text-muted">Average cost</span>
+              <span className="text-foreground">{position.averageCost == null ? '—' : formatCurrency(position.averageCost)}</span>
+            </div>
+            <div className="flex justify-between gap-3 text-sm">
+              <span className="text-muted">Unrealized gain/loss</span>
+              <span className={position.unrealizedGainLoss == null || position.unrealizedGainLoss === 0 ? 'text-foreground' : position.unrealizedGainLoss > 0 ? 'text-gain' : 'text-loss'}>
+                {position.unrealizedGainLoss == null || position.unrealizedPercent == null ? '—' : formatSignedCurrencyWithPercent(position.unrealizedGainLoss, position.unrealizedPercent)}
+              </span>
+            </div>
+            <div className="flex justify-between gap-3 text-sm">
+              <span className="text-muted">Realized gain/loss</span>
+              <span className={position.realizedGainLoss === 0 ? 'text-foreground' : position.realizedGainLoss > 0 ? 'text-gain' : 'text-loss'}>
+                {formatSignedCurrencyWithPercent(position.realizedGainLoss, position.realizedPercent)}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+      <h4 className="text-lg font-150 mb-3">Price performance</h4>
+      {renderPricePerformance()}
+    </>
+  )
+
   return (
     <div className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-surface border-l border-border shadow-[-4px_0_12px_rgba(0,0,0,0.15)] z-[1200] p-6 overflow-y-auto">
       <div className="flex justify-between items-center mb-5">
@@ -364,7 +430,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
         </button>
       </div>
 
-      {metadata && (
+      {(metadata || !isWatchlist) && (
         <div className="mb-6">
           {isWatchlist ? (
             renderMetadata()
