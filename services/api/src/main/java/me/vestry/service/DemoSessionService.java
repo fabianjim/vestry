@@ -410,37 +410,36 @@ public class DemoSessionService {
         double totalSoldCostBasis = 0;
 
         for (List<Transaction> tickerTxs : byTicker.values()) {
-            double buyShares = 0;
-            double buyCost = 0;
-            double sellShares = 0;
-            double sellProceeds = 0;
+            // Apply sales to the average cost at that point, before any later purchases.
+            tickerTxs.sort(Comparator.comparing(Transaction::getTimestamp));
+            double currentShares = 0;
+            double currentCostBasis = 0;
 
             for (Transaction tx : tickerTxs) {
                 if (tx.getType() == Transaction.TransactionType.BUY) {
-                    buyShares += tx.getShares();
-                    buyCost += tx.getTotalValue();
-                } else {
-                    sellShares += tx.getShares();
-                    sellProceeds += tx.getTotalValue();
+                    currentShares += tx.getShares();
+                    currentCostBasis += tx.getTotalValue();
+                } else if (currentShares > 0) {
+                    double soldCostBasis = (currentCostBasis / currentShares) * tx.getShares();
+                    totalRealized += tx.getTotalValue() - soldCostBasis;
+                    totalSoldCostBasis += soldCostBasis;
+                    currentShares -= tx.getShares();
+                    currentCostBasis -= soldCostBasis;
+                    // Clear floating-point residue when a fractional position is closed.
+                    if (Math.abs(currentShares) < 1e-9) {
+                        currentShares = 0;
+                        currentCostBasis = 0;
+                    }
                 }
             }
 
-            if (buyShares == 0) continue;
-
-            double avgCost = buyCost / buyShares;
-            double realizedForTicker = sellProceeds - (avgCost * sellShares);
-            totalRealized += realizedForTicker;
-            totalSoldCostBasis += avgCost * sellShares;
-
-            double currentShares = buyShares - sellShares;
             if (currentShares > 0) {
                 String ticker = tickerTxs.get(0).getTicker();
                 double currentPrice = stockService.getLatestStockData(ticker)
                     .map(Stock::getCurrentPrice)
                     .orElse(0.0);
-                double unrealizedForTicker = (currentPrice - avgCost) * currentShares;
-                totalUnrealized += unrealizedForTicker;
-                totalCurrentCostBasis += avgCost * currentShares;
+                totalUnrealized += currentPrice * currentShares - currentCostBasis;
+                totalCurrentCostBasis += currentCostBasis;
             }
         }
 

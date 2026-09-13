@@ -227,4 +227,89 @@ public class PortfolioServicePnLTest {
         stock.setCurrentPrice(price);
         return stock;
     }
+
+    @Test
+    void getPnLSummary_PartialSaleThenPurchase() {
+        List<Transaction> history = new ArrayList<>();
+        Transaction tx0 = new Transaction("AAPL", 10, 100, Transaction.TransactionType.BUY);
+        tx0.setTimestamp(java.time.Instant.parse("2026-01-01T15:00:00Z"));
+        history.add(tx0);
+        Transaction tx1 = new Transaction("AAPL", 4, 150, Transaction.TransactionType.SELL);
+        tx1.setTimestamp(java.time.Instant.parse("2026-01-02T15:00:00Z"));
+        history.add(tx1);
+        Transaction tx2 = new Transaction("AAPL", 4, 200, Transaction.TransactionType.BUY);
+        tx2.setTimestamp(java.time.Instant.parse("2026-01-03T15:00:00Z"));
+        history.add(tx2);
+        // Input order must not change the result or be mutated by the calculation.
+        java.util.Collections.reverse(history);
+        List<Transaction> originalOrder = List.copyOf(history);
+        when(transactionService.getTransactionHistory()).thenReturn(history);
+        Stock latest = new Stock();
+        latest.setCurrentPrice(160);
+        when(stockService.getLatestStockData("AAPL")).thenReturn(Optional.of(latest));
+        PnLSummaryDTO result = portfolioService.getPnLSummary();
+        assertEquals(200.0, result.getRealizedPnL(), 0.000001);
+        assertEquals(200.0, result.getUnrealizedPnL(), 0.000001);
+        assertEquals(400.0, result.getTotalPnL(), 0.000001);
+        assertEquals(50.0, result.getRealizedPnLPercent(), 0.000001);
+        assertEquals(14.285714285714286, result.getUnrealizedPnLPercent(), 0.000001);
+        assertEquals(22.22222222222222, result.getTotalPnLPercent(), 0.000001);
+        assertEquals(originalOrder, history);
+    }
+
+    @Test
+    void getPnLSummary_FullSaleThenRepurchase() {
+        List<Transaction> history = new ArrayList<>();
+        Transaction tx0 = new Transaction("AAPL", 10, 100, Transaction.TransactionType.BUY);
+        tx0.setTimestamp(java.time.Instant.parse("2026-01-01T15:00:00Z"));
+        history.add(tx0);
+        Transaction tx1 = new Transaction("AAPL", 10, 150, Transaction.TransactionType.SELL);
+        tx1.setTimestamp(java.time.Instant.parse("2026-01-02T15:00:00Z"));
+        history.add(tx1);
+        Transaction tx2 = new Transaction("AAPL", 5, 200, Transaction.TransactionType.BUY);
+        tx2.setTimestamp(java.time.Instant.parse("2026-01-03T15:00:00Z"));
+        history.add(tx2);
+        // Input order must not change the result or be mutated by the calculation.
+        java.util.Collections.reverse(history);
+        List<Transaction> originalOrder = List.copyOf(history);
+        when(transactionService.getTransactionHistory()).thenReturn(history);
+        Stock latest = new Stock();
+        latest.setCurrentPrice(220);
+        when(stockService.getLatestStockData("AAPL")).thenReturn(Optional.of(latest));
+        PnLSummaryDTO result = portfolioService.getPnLSummary();
+        assertEquals(500.0, result.getRealizedPnL(), 0.000001);
+        assertEquals(100.0, result.getUnrealizedPnL(), 0.000001);
+        assertEquals(600.0, result.getTotalPnL(), 0.000001);
+        assertEquals(50.0, result.getRealizedPnLPercent(), 0.000001);
+        assertEquals(10.0, result.getUnrealizedPnLPercent(), 0.000001);
+        assertEquals(30.0, result.getTotalPnLPercent(), 0.000001);
+        assertEquals(originalOrder, history);
+    }
+
+    @Test
+    void getPnLSummary_FractionalSharesClosed() {
+        List<Transaction> history = new ArrayList<>();
+        Transaction tx0 = new Transaction("AAPL", 0.3, 100, Transaction.TransactionType.BUY);
+        tx0.setTimestamp(java.time.Instant.parse("2026-01-01T15:00:00Z"));
+        history.add(tx0);
+        Transaction tx1 = new Transaction("AAPL", 0.1, 120, Transaction.TransactionType.SELL);
+        tx1.setTimestamp(java.time.Instant.parse("2026-01-02T15:00:00Z"));
+        history.add(tx1);
+        Transaction tx2 = new Transaction("AAPL", 0.2, 130, Transaction.TransactionType.SELL);
+        tx2.setTimestamp(java.time.Instant.parse("2026-01-03T15:00:00Z"));
+        history.add(tx2);
+        // Input order must not change the result or be mutated by the calculation.
+        java.util.Collections.reverse(history);
+        List<Transaction> originalOrder = List.copyOf(history);
+        when(transactionService.getTransactionHistory()).thenReturn(history);
+        PnLSummaryDTO result = portfolioService.getPnLSummary();
+        assertEquals(8.0, result.getRealizedPnL(), 0.000001);
+        assertEquals(0.0, result.getUnrealizedPnL(), 0.000001);
+        assertEquals(8.0, result.getTotalPnL(), 0.000001);
+        assertEquals(26.666666666666668, result.getRealizedPnLPercent(), 0.000001);
+        assertEquals(0.0, result.getUnrealizedPnLPercent(), 0.000001);
+        assertEquals(26.666666666666668, result.getTotalPnLPercent(), 0.000001);
+        assertEquals(originalOrder, history);
+        verifyNoInteractions(stockService);
+    }
 }
