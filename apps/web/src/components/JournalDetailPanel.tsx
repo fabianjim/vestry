@@ -34,7 +34,7 @@ type Props = {
 }
 
 type ChartPoint = {
-  time: string
+  time: string | number
   price: number
   fullTimestamp: string
 }
@@ -166,6 +166,25 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     )
 
+    if (entry.entryType === 'REFLECTION') {
+      // Keep daily history, but place both snapshots at their exact times so
+      // same-day entries and snapshots outside recorded days remain visible.
+      const daily = new Map<string, StockHistoryPoint>()
+      sorted.forEach(point => daily.set(new Date(point.timestamp).toDateString(), point))
+      const points = new Map<number, ChartPoint>()
+      daily.forEach(point => {
+        const time = new Date(point.timestamp).getTime()
+        points.set(time, { time, price: point.currentPrice, fullTimestamp: point.timestamp })
+      })
+      for (const snapshot of [sourceEntry, entry]) {
+        if (snapshot?.priceSnapshot != null && Number.isFinite(snapshot.priceSnapshot) && snapshot.priceSnapshot > 0) {
+          const time = new Date(snapshot.timestamp).getTime()
+          points.set(time, { time, price: snapshot.priceSnapshot, fullTimestamp: snapshot.timestamp })
+        }
+      }
+      return [...points.values()].sort((a, b) => Number(a.time) - Number(b.time))
+    }
+
     const byDay = new Map<string, StockHistoryPoint>()
     sorted.forEach((item) => {
       const day = new Date(item.timestamp).toLocaleDateString('en-US', {
@@ -193,7 +212,11 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
     }
 
     return points
-  }, [history, entry])
+  }, [history, entry, sourceEntry])
+
+  const isSingleDayChart = chartData.length > 0 && chartData.every(point =>
+    new Date(point.fullTimestamp).toDateString() === new Date(chartData[0].fullTimestamp).toDateString()
+  )
 
   const latestPrice = currentStock && Number.isFinite(currentStock.currentPrice) && currentStock.currentPrice > 0
     ? currentStock.currentPrice : null
@@ -218,8 +241,8 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
   }
 
-  const getTypeColor = () => {
-    switch (entry.entryType) {
+  const getTypeColor = (type = entry.entryType) => {
+    switch (type) {
       case 'BUY':
         return '#10b981'
       case 'SELL':
@@ -311,7 +334,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
         {entry.entryType === 'REFLECTION' && entry.sourceEntryId != null && (
           <JournalSourceQuote source={sourceEntry} />
         )}
-        <div className="text-sm font-90 text-muted mt-3 whitespace-pre-wrap break-words">{entry.body}</div>
+        <div className="text-sm text-foreground mt-3 whitespace-pre-wrap break-words">{entry.body}</div>
       </div>
 
       {error && <div className="text-error mb-4">{error}</div>}
@@ -329,7 +352,18 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                  <XAxis dataKey="time" stroke="#6b7280" fontSize={12} tickLine={false} />
+                  <XAxis
+                    dataKey="time"
+                    type={entry.entryType === 'REFLECTION' ? 'number' : 'category'}
+                    domain={entry.entryType === 'REFLECTION' ? ['dataMin', 'dataMax'] : undefined}
+                    tickCount={entry.entryType === 'REFLECTION' ? 3 : undefined}
+                    tickFormatter={entry.entryType === 'REFLECTION'
+                      ? value => isSingleDayChart
+                        ? new Date(value).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                        : new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      : undefined}
+                    stroke="#6b7280" fontSize={12} tickLine={false}
+                  />
                   <YAxis
                     stroke="#6b7280"
                     fontSize={12}
@@ -339,7 +373,8 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
                   />
                   <Tooltip
                     formatter={(value: number) => [formatCurrency(value), 'Price']}
-                    labelFormatter={(label) => `Date: ${label}`}
+                    labelFormatter={(label) => entry.entryType === 'REFLECTION'
+                      ? formatDateTime(new Date(Number(label)).toISOString()) : `Date: ${label}`}
                     contentStyle={{
                       backgroundColor: '#32393d',
                       border: '1px solid rgba(255,255,255,0.08)',
@@ -355,14 +390,30 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
                     dot={false}
                     activeDot={{ r: 5 }}
                   />
-                  {entry.priceSnapshot != null && (
+                  {entry.entryType === 'REFLECTION' && sourceEntry?.priceSnapshot != null
+                    && Number.isFinite(sourceEntry.priceSnapshot) && sourceEntry.priceSnapshot > 0 && (
                     <ReferenceDot
-                      x={entryDay}
+                      x={new Date(sourceEntry.timestamp).getTime()}
+                      y={sourceEntry.priceSnapshot}
+                      r={5}
+                      fill={getTypeColor(sourceEntry.entryType)}
+                      fillOpacity={0.65}
+                      stroke="#fff"
+                      strokeWidth={2}
+                      ifOverflow="extendDomain"
+                      aria-label="Original entry snapshot"
+                    />
+                  )}
+                  {entry.priceSnapshot != null && Number.isFinite(entry.priceSnapshot) && entry.priceSnapshot > 0 && (
+                    <ReferenceDot
+                      x={entry.entryType === 'REFLECTION' ? new Date(entry.timestamp).getTime() : entryDay}
                       y={entry.priceSnapshot}
                       r={6}
                       fill={lineColor}
                       stroke="#fff"
                       strokeWidth={2}
+                      ifOverflow="extendDomain"
+                      aria-label={entry.entryType === 'REFLECTION' ? 'Reflection snapshot' : 'Entry snapshot'}
                     />
                   )}
                 </ComposedChart>
