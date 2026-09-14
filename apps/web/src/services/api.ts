@@ -100,7 +100,7 @@ export const stockApi = {
   },
 }
 
-import type { CalendarDay, CreateJournalEntryRequest, JournalFilters, UpdateJournalEntryRequest } from '../types/journal'
+import type { CalendarDay, CreateJournalEntryRequest, JournalEntry, JournalFilters, UpdateJournalEntryRequest } from '../types/journal'
 
 // Journal API
 export const journalApi = {
@@ -109,6 +109,9 @@ export const journalApi = {
 
   getEntries: () =>
     apiClient('/journal'),
+
+  getEntry: (id: number): Promise<JournalEntry> =>
+    apiClient(`/journal/entries/${id}`),
 
   getEntriesForTicker: (ticker: string) =>
     apiClient(`/journal/${ticker}`),

@@ -1,4 +1,4 @@
-export type JournalEntryType = 'BUY' | 'SELL' | 'INSIGHT' | 'MARKET_EVENT'
+export type JournalEntryType = 'BUY' | 'SELL' | 'INSIGHT' | 'MARKET_EVENT' | 'REFLECTION'
 
 export type Tag = {
   id: number
@@ -13,6 +13,7 @@ export type JournalEntry = {
   ticker: string | null
   timestamp: string
   priceSnapshot: number | null
+  sourceEntryId?: number | null
   tags: Tag[]
 }
 
@@ -23,6 +24,7 @@ export type CreateJournalEntryRequest = {
   timestamp?: string
   priceSnapshot?: number
   tags?: string[]
+  sourceEntryId?: number
 }
 
 export type UpdateJournalEntryRequest = {

@@ -8,11 +8,12 @@ interface CalendarViewProps {
   activeDate?: Date | null
   filters?: JournalFilters
   className?: string
+  refreshKey?: number
 }
 
 const WEEK_DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
-export default function CalendarView({ onDayClick, activeDate, filters, className = '' }: CalendarViewProps) {
+export default function CalendarView({ onDayClick, activeDate, filters, className = '', refreshKey = 0 }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [dayCounts, setDayCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
@@ -49,7 +50,7 @@ export default function CalendarView({ onDayClick, activeDate, filters, classNam
       }
     }
     load()
-  }, [currentDate, countFilters])
+  }, [currentDate, countFilters, refreshKey])
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()

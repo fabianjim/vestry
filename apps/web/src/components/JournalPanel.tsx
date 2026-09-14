@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
 import type { JournalEntry, JournalEntryType } from '../types/journal'
 import { journalApi } from '../services/api'
 import { formatDateTime, isTradingHours } from '../utils/dateUtils'
 import { getDisplayBody, parseTagsFromBody } from '../utils/tagUtils'
 import TagInput from './TagInput'
 import TagPills from './TagPills'
+import JournalSourceQuote from './JournalSourceQuote'
+import { useJournalSources } from '../hooks/useJournalSources'
 
 export interface JournalPanelHandle {
   scrollToEntry: (id: number) => void
@@ -16,13 +18,15 @@ interface JournalPanelProps {
   onClearActive?: () => void
   onEntryClick?: (entry: JournalEntry) => void
   onViewOnChart?: (entry: JournalEntry) => void
+  onEntriesChange?: (entries: JournalEntry[]) => void
 }
 
 const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function JournalPanel(
-  { activeJournalIds, onClearActive, onEntryClick, onViewOnChart },
+  { activeJournalIds, onClearActive, onEntryClick, onViewOnChart, onEntriesChange },
   ref
 ) {
   const [entries, setEntries] = useState<JournalEntry[]>([])
+  const sources = useJournalSources(entries)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [entryType, setEntryType] = useState<JournalEntryType>('INSIGHT')
@@ -69,23 +73,24 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
     }
   }, [activeJournalIds, onClearActive])
 
-  const fetchEntries = async () => {
+  const fetchEntries = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
       const data = await journalApi.getEntries() as JournalEntry[]
       setEntries(data || [])
+      onEntriesChange?.(data || [])
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
       setError(message)
     } finally {
       setLoading(false)
     }
-  }
+  }, [onEntriesChange])
 
   useEffect(() => {
     fetchEntries()
-  }, [])
+  }, [fetchEntries])
 
   const handleSubmit = async () => {
     if (!body.trim()) {
@@ -176,6 +181,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
       case 'BUY': return 'text-gain'
       case 'SELL': return 'text-loss'
       case 'INSIGHT': return 'text-primary'
+      case 'REFLECTION': return 'text-primary'
       case 'MARKET_EVENT': return 'text-event'
       default: return 'text-muted'
     }
@@ -186,6 +192,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
       case 'BUY': return 'bg-gain/10'
       case 'SELL': return 'bg-loss/10'
       case 'INSIGHT': return 'bg-primary/10'
+      case 'REFLECTION': return 'bg-primary/10'
       case 'MARKET_EVENT': return 'bg-secondary/10'
       default: return 'bg-muted/10'
     }
@@ -251,7 +258,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
               <div className="flex justify-between items-start mb-1">
                 <div className="flex items-center gap-2">
                   <span className={`text-xs font-130 uppercase ${getTypeColor(entry.entryType)}`}>
-                    {entry.entryType.replace('_', ' ')}
+                    {entry.entryType === 'REFLECTION' ? 'Reflect' : entry.entryType.replace('_', ' ')}
                   </span>
                   {entry.ticker && (
                     <span className="text-xs font-semibold text-foreground">{entry.ticker}</span>
@@ -259,13 +266,16 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
                 </div>
                 <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
               </div>
-              {entry.priceSnapshot != null && (
+              {(entry.priceSnapshot != null || entry.entryType === 'REFLECTION') && (
                 <div className="text-xs text-muted mb-1">
-                  Snapshot: ${entry.priceSnapshot.toFixed(2)}
+                  Snapshot: {entry.priceSnapshot != null && entry.priceSnapshot > 0 ? `$${entry.priceSnapshot.toFixed(2)}` : '—'}
                 </div>
               )}
+              {entry.entryType === 'REFLECTION' && entry.sourceEntryId != null && (
+                <JournalSourceQuote source={sources.get(entry.sourceEntryId)} />
+              )}
               {editingEntryId === entry.id ? (
-                <div>
+                <div onClick={e => e.stopPropagation()}>
                   <TagInput
                     value={editBody}
                     onChange={setEditBody}
@@ -348,7 +358,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
         >
           <div className="bg-surface p-6 rounded-lg w-11/12 max-w-sm border border-border">
             <h3 className="text-lg font-150 mt-0 mb-4">Delete Journal Entry</h3>
-            <p className="text-secondary mb-6">Are you sure you want to delete this journal entry? This action cannot be undone.</p>
+            <p className="text-secondary mb-6">Are you sure you want to delete this journal entry? This action cannot be undone. Any linked reflections will become insights and lose their comparison with this entry.</p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={handleCancelDelete}

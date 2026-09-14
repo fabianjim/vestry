@@ -21,9 +21,14 @@ import {
   matchJournalTransaction,
 } from '../utils/stockStats'
 import { formatSignedCurrencyWithPercent } from '../utils/formatUtils'
+import { getDisplayBody, parseTagsFromBody } from '../utils/tagUtils'
+import JournalSourceQuote from './JournalSourceQuote'
+import { useJournalSources } from '../hooks/useJournalSources'
 
 type Props = {
   entry: JournalEntry
+  onEntryCreated: (entry: JournalEntry) => void
+  refreshKey?: number
   onClose: () => void
   onEntryClick: (entry: JournalEntry) => void
 }
@@ -40,7 +45,7 @@ type StockDataResponse = {
   } | null
 }
 
-export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Props) {
+export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEntryCreated, refreshKey = 0 }: Props) {
   const [history, setHistory] = useState<StockHistoryPoint[]>([])
   const [relatedEntries, setRelatedEntries] = useState<JournalEntry[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -48,26 +53,74 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
+  const [reflecting, setReflecting] = useState(false)
+  const [reflectionBody, setReflectionBody] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const savingRef = useRef(false)
+  const reflectionInputRef = useRef<HTMLTextAreaElement>(null)
+  const knownEntries = useMemo(() => [entry, ...relatedEntries], [entry, relatedEntries])
+  const sources = useJournalSources(knownEntries)
+  const sourceEntry = entry.sourceEntryId != null ? sources.get(entry.sourceEntryId) : null
+  const comparison = getPriceChange(sourceEntry?.priceSnapshot ?? null, entry.priceSnapshot)
+
+  useEffect(() => {
+    if (reflecting) reflectionInputRef.current?.focus()
+  }, [reflecting])
+
+  const saveReflection = async () => {
+    if (savingRef.current || !reflectionBody.trim()) return
+    const { body, tags } = parseTagsFromBody(reflectionBody)
+    if (!getDisplayBody(body).trim()) {
+      setSaveError('Please enter a reflection, not just tags.')
+      return
+    }
+    if (body.length > 2000) {
+      setSaveError('Please keep your reflection within 2000 characters.')
+      return
+    }
+    savingRef.current = true
+    setSaving(true)
+    setSaveError('')
+    try {
+      const saved = await journalApi.createEntry({ entryType: 'REFLECTION', sourceEntryId: entry.id, body, tags }) as JournalEntry
+      setReflectionBody('')
+      setReflecting(false)
+      onEntryCreated(saved)
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Could not save reflection')
+    } finally {
+      savingRef.current = false
+      setSaving(false)
+    }
+  }
 
   useEffect(() => {
     containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [entry.id])
 
   useEffect(() => {
+    let cancelled = false
     const load = async () => {
+      setError('')
       if (!entry.ticker) {
         setHistory([])
         setRelatedEntries([])
         setTransactions([])
         setCurrentStock(null)
+        setLoading(false)
         return
       }
 
       setLoading(true)
+      setHistory([])
+      setTransactions([])
+      setCurrentStock(null)
       setError('')
       try {
         // Fetch transactions first to determine tracking start date
         const txData = (await portfolioApi.getTransactions()) as Transaction[]
+        if (cancelled) return
         setTransactions(txData || [])
 
         const firstTrackingDate = txData
@@ -81,6 +134,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
           stockApi.getStockData(entry.ticker).catch(() => null),
         ])
 
+        if (cancelled) return
         setHistory(histData || [])
         setRelatedEntries((journalData || []).filter((e: JournalEntry) => e.id !== entry.id))
 
@@ -91,13 +145,14 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
           setCurrentStock(null)
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Unexpected error')
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Unexpected error')
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
     load()
-  }, [entry.id, entry.ticker])
+    return () => { cancelled = true }
+  }, [entry, refreshKey])
 
   const matchedTransaction = useMemo(
     () => matchJournalTransaction(entry, transactions),
@@ -144,7 +199,8 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
     ? currentStock.currentPrice : null
   const priceChange = getPriceChange(matchedTransaction?.price ?? entry.priceSnapshot, latestPrice)
   const priceChangeLabel = entry.entryType === 'BUY' ? 'Price change since purchase'
-    : entry.entryType === 'SELL' ? 'Price change since sale' : 'Price change since entry'
+    : entry.entryType === 'SELL' ? 'Price change since sale'
+    : entry.entryType === 'REFLECTION' ? 'Price change since reflection' : 'Price change since entry'
   const recordedRange = useMemo(
     () => entry.entryType === 'BUY'
       ? getRecordedRangeSinceEntry(matchedTransaction?.timestamp ?? entry.timestamp, history) : null,
@@ -168,6 +224,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
         return '#10b981'
       case 'SELL':
         return '#ef4444'
+      case 'REFLECTION':
       case 'INSIGHT':
         return '#5e9ed6'
       case 'MARKET_EVENT':
@@ -201,18 +258,19 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
                 ? 'text-gain'
                 : entry.entryType === 'SELL'
                 ? 'text-loss'
-                : entry.entryType === 'INSIGHT'
+                : (entry.entryType === 'INSIGHT' || entry.entryType === 'REFLECTION')
                 ? 'text-primary'
                 : entry.entryType === 'MARKET_EVENT'
                 ? 'text-event'
                 : 'text-secondary'
             }`}
           >
-            {entry.entryType.replace('_', ' ')}
+            {entry.entryType === 'REFLECTION' ? 'Reflect' : entry.entryType.replace('_', ' ')}
           </span>
         </div>
         <button
           onClick={onClose}
+          disabled={saving}
           className="px-3 py-1.5 bg-elevated text-foreground rounded-md hover:bg-surface-hover transition-colors"
         >
           Close
@@ -238,7 +296,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
         </div>
         <div className="text-sm text-foreground mb-1">
           <span className="font-130">Snapshot:</span>{' '}
-          {entry.priceSnapshot != null ? formatCurrency(entry.priceSnapshot) : '-'}
+          {entry.priceSnapshot != null && entry.priceSnapshot > 0 ? formatCurrency(entry.priceSnapshot) : '—'}
           {(entry.entryType === 'BUY' || entry.entryType === 'SELL') && (
             <>
               {' · '}
@@ -250,7 +308,10 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
             </>
           )}
         </div>
-        <div className="text-sm font-90 text-muted mt-3 whitespace-pre-wrap">{entry.body}</div>
+        {entry.entryType === 'REFLECTION' && entry.sourceEntryId != null && (
+          <JournalSourceQuote source={sourceEntry} />
+        )}
+        <div className="text-sm font-90 text-muted mt-3 whitespace-pre-wrap break-words">{entry.body}</div>
       </div>
 
       {error && <div className="text-error mb-4">{error}</div>}
@@ -311,10 +372,32 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
         </div>
       )}
 
+      {entry.entryType === 'REFLECTION' && (
+        <div className="mb-6 p-4 bg-surface-hover rounded-lg border border-border">
+          <h4 className="text-lg font-150 mb-3">Entry to reflection</h4>
+          <div className="space-y-2">
+            <div className="flex justify-between gap-3 text-sm">
+              <span className="text-muted">Original snapshot</span>
+              <span>{sourceEntry?.priceSnapshot != null && sourceEntry.priceSnapshot > 0 ? formatCurrency(sourceEntry.priceSnapshot) : '—'}</span>
+            </div>
+            <div className="flex justify-between gap-3 text-sm">
+              <span className="text-muted">Reflection snapshot</span>
+              <span>{entry.priceSnapshot != null && entry.priceSnapshot > 0 ? formatCurrency(entry.priceSnapshot) : '—'}</span>
+            </div>
+            <div className="flex justify-between gap-3 text-sm">
+              <span className="text-muted">Price change</span>
+              <span className={valueColor(comparison?.diff)}>
+                {comparison ? formatSignedCurrencyWithPercent(comparison.diff, comparison.percent) : '—'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Performance Section */}
       {entry.ticker && !loading && !error && (
         <div className="mb-6 p-4 bg-surface-hover rounded-lg border border-border">
-          <h4 className="text-lg font-150 mb-3">Performance</h4>
+          <h4 className="text-lg font-150 mb-3">{entry.entryType === 'REFLECTION' ? 'Since reflection' : 'Performance'}</h4>
 
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
@@ -363,6 +446,37 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
         </div>
       )}
 
+      <div className="mb-6">
+        {!reflecting ? (
+          <button onClick={() => setReflecting(true)} className="px-3 py-2 text-sm text-primary border border-border rounded-md hover:bg-surface-hover transition-colors">
+            Reflect on this entry
+          </button>
+        ) : (
+          <form onSubmit={e => { e.preventDefault(); saveReflection() }}>
+            <label htmlFor="reflection-body" className="block text-sm text-secondary mb-2">Your reflection</label>
+            <textarea
+              id="reflection-body"
+              ref={reflectionInputRef}
+              value={reflectionBody}
+              onChange={e => setReflectionBody(e.target.value)}
+              maxLength={2000}
+              rows={4}
+              disabled={saving}
+              className="w-full p-3 bg-surface-hover border border-border rounded-md text-sm text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+            />
+            {saveError && <div role="alert" className="text-error text-sm mt-2">{saveError}</div>}
+            <div className="flex gap-2 mt-3">
+              <button type="submit" disabled={saving || !reflectionBody.trim()} className="px-3 py-2 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50">
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" disabled={saving} onClick={() => { setReflecting(false); setReflectionBody(''); setSaveError('') }} className="px-3 py-2 text-sm text-secondary rounded-md hover:bg-surface-hover transition-colors disabled:opacity-50">
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
       {/* Related Journal Entries */}
       {relatedEntries.length > 0 && (
         <div>
@@ -371,7 +485,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
             {relatedEntries.map((relatedEntry) => (
               <div
                 key={relatedEntry.id}
-                onClick={() => onEntryClick(relatedEntry)}
+                onClick={() => { if (!saving) onEntryClick(relatedEntry) }}
                 className="p-3 rounded-md transition-colors bg-surface-hover border border-border cursor-pointer hover:bg-elevated"
               >
                 <div className="flex justify-between mb-1">
@@ -381,14 +495,14 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick }: Pro
                         ? 'text-gain'
                         : relatedEntry.entryType === 'SELL'
                         ? 'text-loss'
-                        : relatedEntry.entryType === 'INSIGHT'
+                        : (relatedEntry.entryType === 'INSIGHT' || relatedEntry.entryType === 'REFLECTION')
                         ? 'text-primary'
                         : relatedEntry.entryType === 'MARKET_EVENT'
                         ? 'text-event'
                         : 'text-secondary'
                     }`}
                   >
-                    {relatedEntry.entryType.replace('_', ' ')}
+                    {relatedEntry.entryType === 'REFLECTION' ? 'Reflect' : relatedEntry.entryType.replace('_', ' ')}
                   </span>
                   <span className="text-xs text-muted">{formatDateTime(relatedEntry.timestamp)}</span>
                 </div>

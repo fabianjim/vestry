@@ -5,6 +5,7 @@ const ENTRY_TYPES: { value: JournalEntryType; label: string }[] = [
   { value: 'SELL', label: 'Sell' },
   { value: 'INSIGHT', label: 'Insight' },
   { value: 'MARKET_EVENT', label: 'Market Event' },
+  { value: 'REFLECTION', label: 'Reflect' },
 ]
 
 interface JournalFilterBarProps {

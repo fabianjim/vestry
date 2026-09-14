@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import PortfolioChart from '../components/PortfolioChart'
 import type { PortfolioChartHandle } from '../components/PortfolioChart'
@@ -65,6 +65,10 @@ export default function Dashboard() {
   const [pnlSummary, setPnlSummary] = useState<PnLSummary | null>(null)
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
   const [selectedJournalEntry, setSelectedJournalEntry] = useState<JournalEntry | null>(null)
+  const [journalRevision, setJournalRevision] = useState(0)
+  const handleJournalEntriesChange = useCallback((entries: JournalEntry[]) => {
+    setSelectedJournalEntry(current => current ? entries.find(entry => entry.id === current.id) ?? null : null)
+  }, [])
 
   const selectedHolding = selectedTicker
     ? results.find((h) => h.ticker === selectedTicker)
@@ -379,6 +383,7 @@ export default function Dashboard() {
     const eventSource = new EventSource('/api/events', { withCredentials: true })
 
     eventSource.addEventListener('priceFetchCompleted', () => {
+      setJournalRevision(value => value + 1)
       fetchPortfolioInfo()
       fetchPnLSummary()
       portfolioChartRef.current?.refresh()
@@ -454,6 +459,7 @@ export default function Dashboard() {
         </div>
         <JournalPanel
           ref={journalPanelRef}
+          onEntriesChange={handleJournalEntriesChange}
           activeJournalIds={activeJournalIds}
           onClearActive={() => setActiveJournalIds(null)}
           onEntryClick={(entry) => {
@@ -767,7 +773,13 @@ export default function Dashboard() {
       {/* Journal Detail Panel */}
       {selectedJournalEntry && (
         <JournalDetailPanel
+          key={selectedJournalEntry.id}
           entry={selectedJournalEntry}
+          refreshKey={journalRevision}
+          onEntryCreated={(entry) => {
+            setSelectedJournalEntry(entry)
+            journalPanelRef.current?.refreshEntries()
+          }}
           onClose={() => setSelectedJournalEntry(null)}
           onEntryClick={(entry) => setSelectedJournalEntry(entry)}
         />

@@ -9,6 +9,8 @@ import JournalFilterBar from '../components/JournalFilterBar'
 import TagInput from '../components/TagInput'
 import TagPills from '../components/TagPills'
 import JournalDetailPanel from '../components/JournalDetailPanel'
+import JournalSourceQuote from '../components/JournalSourceQuote'
+import { useJournalSources } from '../hooks/useJournalSources'
 
 export default function JournalPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -31,6 +33,8 @@ export default function JournalPage() {
   })
 
   const [entries, setEntries] = useState<JournalEntry[]>([])
+  const sources = useJournalSources(entries)
+  const [journalRevision, setJournalRevision] = useState(0)
   const [allTags, setAllTags] = useState<Tag[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -183,7 +187,9 @@ export default function JournalPage() {
 
     setLoading(true)
     try {
-      await journalApi.updateEntry(entryId, { body: finalBody, tags })
+      const updated = await journalApi.updateEntry(entryId, { body: finalBody, tags }) as JournalEntry
+      setSelectedEntry(current => current?.id === entryId ? updated : current)
+      setJournalRevision(value => value + 1)
       setEditingEntryId(null)
       setEditBody('')
       setEditError('')
@@ -204,10 +210,12 @@ export default function JournalPage() {
   }
 
   const handleDelete = async (entryId: number) => {
-    if (!confirm('Delete this entry?')) return
+    if (!confirm('Delete this entry? Any linked reflections will become insights and lose their comparison with this entry.')) return
     setLoading(true)
     try {
       await journalApi.deleteEntry(entryId)
+      setSelectedEntry(null)
+      setJournalRevision(value => value + 1)
       await fetchEntries()
       await fetchTags()
     } catch (e) {
@@ -223,6 +231,7 @@ export default function JournalPage() {
       case 'BUY': return 'text-gain'
       case 'SELL': return 'text-loss'
       case 'INSIGHT': return 'text-primary'
+      case 'REFLECTION': return 'text-primary'
       case 'MARKET_EVENT': return 'text-event'
       default: return 'text-muted'
     }
@@ -233,6 +242,7 @@ export default function JournalPage() {
       case 'BUY': return 'bg-gain/10'
       case 'SELL': return 'bg-loss/10'
       case 'INSIGHT': return 'bg-primary/10'
+      case 'REFLECTION': return 'bg-primary/10'
       case 'MARKET_EVENT': return 'bg-secondary/10'
       default: return 'bg-muted/10'
     }
@@ -253,6 +263,7 @@ export default function JournalPage() {
 
         <div className="lg:row-span-2 lg:self-start p-4 bg-surface rounded-lg border border-border">
           <CalendarView
+            refreshKey={journalRevision}
             onDayClick={handleDayClick}
             activeDate={activeDate}
             filters={filters}
@@ -331,7 +342,7 @@ export default function JournalPage() {
                 <div className="flex justify-between items-start mb-1">
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-130 uppercase ${getTypeColor(entry.entryType)}`}>
-                      {entry.entryType.replace('_', ' ')}
+                      {entry.entryType === 'REFLECTION' ? 'Reflect' : entry.entryType.replace('_', ' ')}
                     </span>
                     {entry.ticker && (
                       <span className="text-xs font-semibold text-foreground">{entry.ticker}</span>
@@ -339,10 +350,13 @@ export default function JournalPage() {
                   </div>
                   <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
                 </div>
-                {entry.priceSnapshot != null && (
+                {(entry.priceSnapshot != null || entry.entryType === 'REFLECTION') && (
                   <div className="text-xs text-muted mb-1">
-                    Snapshot: ${entry.priceSnapshot.toFixed(2)}
+                    Snapshot: {entry.priceSnapshot != null && entry.priceSnapshot > 0 ? `$${entry.priceSnapshot.toFixed(2)}` : '—'}
                   </div>
+                )}
+                {entry.entryType === 'REFLECTION' && entry.sourceEntryId != null && (
+                  <JournalSourceQuote source={sources.get(entry.sourceEntryId)} />
                 )}
                 {editingEntryId === entry.id ? (
                   <div onClick={(e) => e.stopPropagation()}>
@@ -413,7 +427,15 @@ export default function JournalPage() {
 
       {selectedEntry && (
         <JournalDetailPanel
+          key={selectedEntry.id}
           entry={selectedEntry}
+          refreshKey={journalRevision}
+          onEntryCreated={(entry) => {
+            setSelectedEntry(entry)
+            setJournalRevision(value => value + 1)
+            fetchEntries()
+            fetchTags()
+          }}
           onClose={() => setSelectedEntry(null)}
           onEntryClick={(entry) => setSelectedEntry(entry)}
         />
