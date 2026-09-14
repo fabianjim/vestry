@@ -110,10 +110,6 @@ public class JournalEntryService {
         return journalEntryRepository.save(entry);
     }
 
-    public JournalEntry createEntry(JournalEntry entry) {
-        return createEntry(entry, List.of());
-    }
-
     public JournalEntry createInitialEntry(User user, String ticker, double price, Instant timestamp) {
         JournalEntry entry = new JournalEntry();
         entry.setEntryType(JournalEntryType.BUY);
@@ -222,10 +218,6 @@ public class JournalEntryService {
         }
         entry.setTags(tagService.resolveTags(getCurrentUser(), combinedTags));
         return journalEntryRepository.save(entry);
-    }
-
-    public JournalEntry updateEntry(int id, String body) {
-        return updateEntry(id, body, List.of());
     }
 
     private String computeAutoTagForSellEntry(User user, JournalEntry entry) {

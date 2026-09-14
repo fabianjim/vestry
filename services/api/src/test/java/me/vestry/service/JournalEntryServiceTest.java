@@ -114,14 +114,14 @@ public class JournalEntryServiceTest {
         reflectionSource();
         when(stockService.getLatestStockData("AAPL")).thenReturn(Optional.empty());
         when(journalEntryRepository.save(any())).thenAnswer(call -> call.getArgument(0));
-        assertNull(journalEntryService.createEntry(newReflection()).getPriceSnapshot());
+        assertNull(journalEntryService.createEntry(newReflection(), List.of()).getPriceSnapshot());
     }
 
     @Test
     void reflectionWithoutTickerDoesNotRequestQuote() {
         reflectionSource().setTicker(null);
         when(journalEntryRepository.save(any())).thenAnswer(call -> call.getArgument(0));
-        JournalEntry saved = journalEntryService.createEntry(newReflection());
+        JournalEntry saved = journalEntryService.createEntry(newReflection(), List.of());
         assertNull(saved.getTicker());
         assertNull(saved.getPriceSnapshot());
         verifyNoInteractions(stockService);
@@ -131,14 +131,14 @@ public class JournalEntryServiceTest {
     void reflectionRequiresOwnedSourceAndText() {
         JournalEntry reflection = newReflection();
         reflection.setSourceEntryId(null);
-        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(reflection));
+        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(reflection, List.of()));
         reflection.setSourceEntryId(7);
         // The owned query also returns empty for another user's entry.
         when(journalEntryRepository.findOwnedEntryForUpdate(7, 1)).thenReturn(Optional.empty());
-        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(reflection));
+        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(reflection, List.of()));
         reflectionSource();
         reflection.setBody("  ");
-        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(reflection));
+        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(reflection, List.of()));
         verify(journalEntryRepository, never()).save(any());
     }
 
@@ -146,7 +146,7 @@ public class JournalEntryServiceTest {
     void ordinaryEntriesCannotCarrySourceLinks() {
         JournalEntry entry = newReflection();
         entry.setEntryType(JournalEntryType.INSIGHT);
-        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(entry));
+        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(entry, List.of()));
         verify(journalEntryRepository, never()).save(any());
     }
 
@@ -178,7 +178,7 @@ public class JournalEntryServiceTest {
         reflection.setPriceSnapshot(125.0);
         when(journalEntryRepository.findById(8)).thenReturn(Optional.of(reflection));
         when(journalEntryRepository.save(any())).thenAnswer(call -> call.getArgument(0));
-        JournalEntry saved = journalEntryService.updateEntry(8, "Revised thoughts");
+        JournalEntry saved = journalEntryService.updateEntry(8, "Revised thoughts", List.of());
         assertEquals(7, saved.getSourceEntryId());
         assertEquals(125.0, saved.getPriceSnapshot());
         verifyNoInteractions(stockService, transactionRepository);
@@ -247,7 +247,7 @@ public class JournalEntryServiceTest {
         entry.setBody("Bought AAPL");
         entry.setTicker(ticker);
 
-        JournalEntry result = journalEntryService.createEntry(entry);
+        JournalEntry result = journalEntryService.createEntry(entry, List.of());
 
         assertNotNull(result);
         assertEquals(price, result.getPriceSnapshot(), 0.01);
@@ -272,7 +272,7 @@ public class JournalEntryServiceTest {
         entry.setBody("Fed announcement");
         entry.setTicker(null);
 
-        JournalEntry result = journalEntryService.createEntry(entry);
+        JournalEntry result = journalEntryService.createEntry(entry, List.of());
 
         assertNotNull(result);
         assertNull(result.getPriceSnapshot());
@@ -294,7 +294,7 @@ public class JournalEntryServiceTest {
         entry.setBody("Insight on unknown");
         entry.setTicker(ticker);
 
-        JournalEntry result = journalEntryService.createEntry(entry);
+        JournalEntry result = journalEntryService.createEntry(entry, List.of());
 
         assertEquals(0.0, result.getPriceSnapshot(), 0.01);
     }
@@ -319,7 +319,7 @@ public class JournalEntryServiceTest {
         entry.setTicker(ticker);
         entry.setPriceSnapshot(120.0);
 
-        journalEntryService.createEntry(entry);
+        journalEntryService.createEntry(entry, List.of());
 
         ArgumentCaptor<List<String>> tagCaptor = ArgumentCaptor.forClass(List.class);
         verify(tagService).resolveTags(eq(mockUser), tagCaptor.capture());
@@ -346,7 +346,7 @@ public class JournalEntryServiceTest {
         entry.setTicker(ticker);
         entry.setPriceSnapshot(80.0);
 
-        journalEntryService.createEntry(entry);
+        journalEntryService.createEntry(entry, List.of());
 
         ArgumentCaptor<List<String>> tagCaptor = ArgumentCaptor.forClass(List.class);
         verify(tagService).resolveTags(eq(mockUser), tagCaptor.capture());
@@ -370,7 +370,7 @@ public class JournalEntryServiceTest {
         entry.setTicker(ticker);
         entry.setPriceSnapshot(120.0);
 
-        journalEntryService.createEntry(entry);
+        journalEntryService.createEntry(entry, List.of());
 
         ArgumentCaptor<List<String>> tagCaptor = ArgumentCaptor.forClass(List.class);
         verify(tagService).resolveTags(eq(mockUser), tagCaptor.capture());
@@ -558,7 +558,7 @@ public class JournalEntryServiceTest {
         when(journalEntryRepository.findById(1)).thenReturn(Optional.of(entry));
         when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        JournalEntry result = journalEntryService.updateEntry(1, "Updated body");
+        JournalEntry result = journalEntryService.updateEntry(1, "Updated body", List.of());
 
         assertEquals("Updated body", result.getBody());
         verify(journalEntryRepository).save(entry);
@@ -569,7 +569,7 @@ public class JournalEntryServiceTest {
         when(journalEntryRepository.findById(1)).thenReturn(Optional.empty());
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            journalEntryService.updateEntry(1, "Updated body");
+            journalEntryService.updateEntry(1, "Updated body", List.of());
         });
         assertEquals("Journal entry not found", exception.getMessage());
     }
@@ -587,7 +587,7 @@ public class JournalEntryServiceTest {
         when(journalEntryRepository.findById(1)).thenReturn(Optional.of(entry));
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            journalEntryService.updateEntry(1, "Updated body");
+            journalEntryService.updateEntry(1, "Updated body", List.of());
         });
         assertEquals("Journal entry not found", exception.getMessage());
     }

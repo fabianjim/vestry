@@ -12,7 +12,6 @@ import me.vestry.model.Transaction;
 import me.vestry.model.User;
 import me.vestry.model.WatchlistItem;
 import me.vestry.model.TrackedStock;
-import me.vestry.repository.HoldingRepository;
 import me.vestry.repository.JournalEntryRepository;
 import me.vestry.repository.PortfolioRepository;
 import me.vestry.repository.StockRepository;
@@ -41,8 +40,6 @@ public class DemoSessionServiceTest {
 
     @Mock
     private PortfolioRepository portfolioRepository;
-    @Mock
-    private HoldingRepository holdingRepository;
     @Mock
     private TransactionRepository transactionRepository;
     @Mock
@@ -167,7 +164,7 @@ public class DemoSessionServiceTest {
 
     @BeforeEach
     void setUp() {
-        demoSessionService = new DemoSessionService(portfolioRepository, holdingRepository,
+        demoSessionService = new DemoSessionService(portfolioRepository,
             transactionRepository, journalEntryRepository, watchlistItemRepository, stockRepository,
             stockService, new TrackedStockService(trackedStockRepository), realizedPnlCalculator);
         demoUser = new User();
@@ -191,7 +188,7 @@ public class DemoSessionServiceTest {
         demoSessionService.addHolding(session, demoUser, "NEW", 1, 100.0, null);
         assertEquals(10, session.getPortfolio().getHoldings().size());
         assertEquals(2, session.getRemainingTrades());
-        verifyNoInteractions(portfolioRepository, holdingRepository, transactionRepository, journalEntryRepository);
+        verifyNoInteractions(portfolioRepository, transactionRepository, journalEntryRepository);
     }
 
     @Test
@@ -679,7 +676,7 @@ public class DemoSessionServiceTest {
         assertEquals(14.285714285714286, result.getUnrealizedPnLPercent(), 0.000001);
         assertEquals(22.22222222222222, result.getTotalPnLPercent(), 0.000001);
         assertEquals(originalOrder, history);
-        verifyNoInteractions(portfolioRepository, holdingRepository, transactionRepository, journalEntryRepository);
+        verifyNoInteractions(portfolioRepository, transactionRepository, journalEntryRepository);
     }
 
     @Test
@@ -710,7 +707,7 @@ public class DemoSessionServiceTest {
         assertEquals(10.0, result.getUnrealizedPnLPercent(), 0.000001);
         assertEquals(30.0, result.getTotalPnLPercent(), 0.000001);
         assertEquals(originalOrder, history);
-        verifyNoInteractions(portfolioRepository, holdingRepository, transactionRepository, journalEntryRepository);
+        verifyNoInteractions(portfolioRepository, transactionRepository, journalEntryRepository);
     }
 
     @Test
@@ -739,6 +736,6 @@ public class DemoSessionServiceTest {
         assertEquals(26.666666666666668, result.getTotalPnLPercent(), 0.000001);
         assertEquals(originalOrder, history);
         verifyNoInteractions(stockService);
-        verifyNoInteractions(portfolioRepository, holdingRepository, transactionRepository, journalEntryRepository);
+        verifyNoInteractions(portfolioRepository, transactionRepository, journalEntryRepository);
     }
 }

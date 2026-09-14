@@ -13,7 +13,6 @@ import me.vestry.model.Portfolio;
 import me.vestry.model.Stock;
 import me.vestry.model.Transaction;
 import me.vestry.model.WatchlistItem;
-import me.vestry.repository.HoldingRepository;
 import me.vestry.repository.JournalEntryRepository;
 import me.vestry.repository.PortfolioRepository;
 import me.vestry.repository.StockRepository;
@@ -41,7 +40,6 @@ public class DemoSessionService {
     private static final Logger logger = LoggerFactory.getLogger(DemoSessionService.class);
 
     private final PortfolioRepository portfolioRepository;
-    private final HoldingRepository holdingRepository;
     private final TransactionRepository transactionRepository;
     private final JournalEntryRepository journalEntryRepository;
     private final WatchlistItemRepository watchlistItemRepository;
@@ -51,7 +49,6 @@ public class DemoSessionService {
     private final RealizedPnlCalculator realizedPnlCalculator;
 
     public DemoSessionService(PortfolioRepository portfolioRepository,
-                              HoldingRepository holdingRepository,
                               TransactionRepository transactionRepository,
                               JournalEntryRepository journalEntryRepository,
                               WatchlistItemRepository watchlistItemRepository,
@@ -60,7 +57,6 @@ public class DemoSessionService {
                               TrackedStockService trackedStockService,
                               RealizedPnlCalculator realizedPnlCalculator) {
         this.portfolioRepository = portfolioRepository;
-        this.holdingRepository = holdingRepository;
         this.transactionRepository = transactionRepository;
         this.journalEntryRepository = journalEntryRepository;
         this.watchlistItemRepository = watchlistItemRepository;
@@ -202,7 +198,7 @@ public class DemoSessionService {
             Instant creationTime = Instant.now();
             for (Holding holding : aggregated) {
                 double price = tickerPrices.get(holding.getTicker());
-                recordBuyTransaction(session, user, holding.getTicker(), holding.getShares(), price, creationTime);
+                recordTransaction(session, user, holding.getTicker(), holding.getShares(), price, creationTime, Transaction.TransactionType.BUY);
                 createInitialEntry(session, user, holding.getTicker(), price, creationTime);
                 startTrackingStockForSession(session, holding.getTicker());
             }
@@ -236,7 +232,7 @@ public class DemoSessionService {
         }
 
         session.setRemainingTrades(session.getRemainingTrades() - 1);
-        recordBuyTransaction(session, user, ticker, shares, currentPrice, timestamp);
+        recordTransaction(session, user, ticker, shares, currentPrice, timestamp, Transaction.TransactionType.BUY);
     }
 
     public JournalEntry removeHolding(DemoSession session, me.vestry.model.User user, String ticker, Double price, Instant timestamp) {
@@ -263,7 +259,7 @@ public class DemoSessionService {
         portfolio.getHoldings().remove(holding);
         stopTrackingStockForSession(session, ticker);
         session.setRemainingTrades(session.getRemainingTrades() - 1);
-        recordSellTransaction(session, user, ticker, shares, currentPrice, timestamp);
+        recordTransaction(session, user, ticker, shares, currentPrice, timestamp, Transaction.TransactionType.SELL);
         return sellEntry;
     }
 
@@ -290,7 +286,7 @@ public class DemoSessionService {
         JournalEntry sellEntry = createAutoSellEntry(session, user, ticker, sharesToSell, currentPrice, timestamp);
 
         session.setRemainingTrades(session.getRemainingTrades() - 1);
-        recordSellTransaction(session, user, ticker, sharesToSell, currentPrice, timestamp);
+        recordTransaction(session, user, ticker, sharesToSell, currentPrice, timestamp, Transaction.TransactionType.SELL);
 
         if (sharesToSell == holding.getShares()) {
             portfolio.getHoldings().remove(holding);
@@ -377,8 +373,8 @@ public class DemoSessionService {
         session.getSessionTrackedTickers().remove(ticker);
     }
 
-    private Transaction recordBuyTransaction(DemoSession session, me.vestry.model.User user, String ticker, double shares, double price, Instant timestamp) {
-        Transaction transaction = new Transaction(ticker, shares, price, Transaction.TransactionType.BUY);
+    private void recordTransaction(DemoSession session, me.vestry.model.User user, String ticker, double shares, double price, Instant timestamp, Transaction.TransactionType type) {
+        Transaction transaction = new Transaction(ticker, shares, price, type);
         if (timestamp != null) {
             transaction.setTimestamp(timestamp);
         }
@@ -386,19 +382,6 @@ public class DemoSessionService {
         transaction.setUser(user);
         transaction.setId(session.nextId());
         session.getTransactions().add(transaction);
-        return transaction;
-    }
-
-    private Transaction recordSellTransaction(DemoSession session, me.vestry.model.User user, String ticker, double shares, double price, Instant timestamp) {
-        Transaction transaction = new Transaction(ticker, shares, price, Transaction.TransactionType.SELL);
-        if (timestamp != null) {
-            transaction.setTimestamp(timestamp);
-        }
-        transaction.setTotalValue(shares * price);
-        transaction.setUser(user);
-        transaction.setId(session.nextId());
-        session.getTransactions().add(transaction);
-        return transaction;
     }
 
     public List<Transaction> getTransactions(DemoSession session) {
@@ -743,10 +726,6 @@ public class DemoSessionService {
             }
         }
         return tags;
-    }
-
-    private String assignDemoTagColor(DemoSession session) {
-        return assignDemoTagColor(session, null);
     }
 
     private String assignDemoTagColor(DemoSession session, String tagName) {
