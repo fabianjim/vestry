@@ -119,18 +119,10 @@ export const journalApi = {
   getEntriesInRange: (from: string, to: string) =>
     apiClient(`/journal/range?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
 
-  getFilteredEntries: (params: {
-    from?: string
-    to?: string
-    types?: string[]
-    ticker?: string
-    tagIds?: number[]
-    query?: string
-  }) => {
+  getFilteredEntries: (params: JournalFilters) => {
     const searchParams = new URLSearchParams()
     if (params.from) searchParams.set('from', params.from)
     if (params.to) searchParams.set('to', params.to)
-    if (params.ticker) searchParams.set('ticker', params.ticker)
     if (params.query) searchParams.set('query', params.query)
     params.types?.forEach((t) => searchParams.append('types', t))
     params.tagIds?.forEach((id) => searchParams.append('tagIds', id.toString()))
@@ -144,7 +136,6 @@ export const journalApi = {
     params.set('month', month.toString())
     if (filters?.from) params.set('from', filters.from)
     if (filters?.to) params.set('to', filters.to)
-    if (filters?.ticker) params.set('ticker', filters.ticker)
     if (filters?.query) params.set('query', filters.query)
     filters?.types?.forEach((t) => params.append('types', t))
     filters?.tagIds?.forEach((id) => params.append('tagIds', id.toString()))

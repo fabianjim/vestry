@@ -19,14 +19,12 @@ export default function JournalPage() {
     const from = searchParams.get('from') || undefined
     const to = searchParams.get('to') || undefined
     const types = searchParams.getAll('types') as JournalEntryType[]
-    const ticker = searchParams.get('ticker') || undefined
     const tagIds = searchParams.getAll('tagIds').map((id) => parseInt(id, 10))
-    const query = searchParams.get('query') || undefined
+    const query = searchParams.get('query') || searchParams.get('ticker') || undefined
     return {
       from,
       to,
       types: types.length > 0 ? types : undefined,
-      ticker,
       tagIds: tagIds.length > 0 ? tagIds : undefined,
       query,
     }
@@ -57,14 +55,12 @@ export default function JournalPage() {
     const from = searchParams.get('from') || undefined
     const to = searchParams.get('to') || undefined
     const types = searchParams.getAll('types') as JournalEntryType[]
-    const ticker = searchParams.get('ticker') || undefined
     const tagIds = searchParams.getAll('tagIds').map((id) => parseInt(id, 10))
-    const query = searchParams.get('query') || undefined
+    const query = searchParams.get('query') || searchParams.get('ticker') || undefined
     setFilters({
       from,
       to,
       types: types.length > 0 ? types : undefined,
-      ticker,
       tagIds: tagIds.length > 0 ? tagIds : undefined,
       query,
     })
@@ -78,19 +74,11 @@ export default function JournalPage() {
         filters.from ||
         filters.to ||
         filters.types?.length ||
-        filters.ticker ||
         filters.tagIds?.length ||
         filters.query
 
       const data = hasFilters
-        ? ((await journalApi.getFilteredEntries({
-            from: filters.from,
-            to: filters.to,
-            types: filters.types,
-            ticker: filters.ticker,
-            tagIds: filters.tagIds,
-            query: filters.query,
-          })) as JournalEntry[])
+        ? ((await journalApi.getFilteredEntries(filters)) as JournalEntry[])
         : ((await journalApi.getEntries()) as JournalEntry[])
       setEntries(data || [])
     } catch (e) {
@@ -123,7 +111,6 @@ export default function JournalPage() {
     if (newFilters.from) params.set('from', newFilters.from)
     if (newFilters.to) params.set('to', newFilters.to)
     newFilters.types?.forEach((t) => params.append('types', t))
-    if (newFilters.ticker) params.set('ticker', newFilters.ticker)
     newFilters.tagIds?.forEach((id) => params.append('tagIds', id.toString()))
     if (newFilters.query) params.set('query', newFilters.query)
     setSearchParams(params, { replace: true })

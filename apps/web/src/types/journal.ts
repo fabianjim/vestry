@@ -41,7 +41,6 @@ export type JournalFilters = {
   from?: string
   to?: string
   types?: JournalEntryType[]
-  ticker?: string
   tagIds?: number[]
   query?: string
 }

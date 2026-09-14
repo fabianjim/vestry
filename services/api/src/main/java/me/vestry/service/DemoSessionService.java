@@ -646,12 +646,7 @@ public class DemoSessionService {
 
     public List<JournalEntry> getFilteredJournalEntries(DemoSession session, Instant from, Instant to, List<String> types, String ticker, List<Integer> tagIds, String query) {
         return getJournalEntries(session).stream()
-            .filter(e -> from == null || !e.getTimestamp().isBefore(from))
-            .filter(e -> to == null || !e.getTimestamp().isAfter(to))
-            .filter(e -> types == null || types.isEmpty() || types.contains(e.getEntryType().name()))
-            .filter(e -> ticker == null || ticker.isBlank() || (e.getTicker() != null && e.getTicker().equalsIgnoreCase(ticker)))
-            .filter(e -> tagIds == null || tagIds.isEmpty() || e.getTags().stream().anyMatch(t -> tagIds.contains(t.getId())))
-            .filter(e -> query == null || query.isBlank() || e.getBody().toLowerCase().contains(query.toLowerCase()))
+            .filter(JournalEntryFilters.matching(from, to, types, ticker, tagIds, query))
             .collect(Collectors.toList());
     }
 
@@ -662,13 +657,9 @@ public class DemoSessionService {
         List<JournalEntry> entries = getJournalEntriesInRange(session, start, end);
 
         Map<LocalDate, Integer> counts = new HashMap<>();
+        var matches = JournalEntryFilters.matching(from, to, types, ticker, tagIds, query);
         for (JournalEntry entry : entries) {
-            if (from != null && entry.getTimestamp().isBefore(from)) continue;
-            if (to != null && entry.getTimestamp().isAfter(to)) continue;
-            if (types != null && !types.isEmpty() && !types.contains(entry.getEntryType().name())) continue;
-            if (ticker != null && !ticker.isBlank() && (entry.getTicker() == null || !entry.getTicker().equalsIgnoreCase(ticker))) continue;
-            if (tagIds != null && !tagIds.isEmpty() && entry.getTags().stream().noneMatch(t -> tagIds.contains(t.getId()))) continue;
-            if (query != null && !query.isBlank() && !entry.getBody().toLowerCase().contains(query.toLowerCase())) continue;
+            if (!matches.test(entry)) continue;
 
             LocalDate date = entry.getTimestamp().atZone(ZoneId.systemDefault()).toLocalDate();
             counts.merge(date, 1, Integer::sum);
@@ -677,10 +668,6 @@ public class DemoSessionService {
         return counts.entrySet().stream()
             .map(e -> new CalendarDayDTO(e.getKey().toString(), e.getValue()))
             .collect(Collectors.toList());
-    }
-
-    public List<CalendarDayDTO> getJournalCalendarEntries(DemoSession session, int year, int month) {
-        return getJournalCalendarEntries(session, year, month, null, null, null, null, null, null);
     }
 
     public void deleteJournalEntry(DemoSession session, int id) {

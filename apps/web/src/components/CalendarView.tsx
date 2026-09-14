@@ -18,12 +18,11 @@ export default function CalendarView({ onDayClick, activeDate, filters, classNam
   const [dayCounts, setDayCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
 
-  const countFiltersKey = JSON.stringify([filters?.types, filters?.ticker, filters?.tagIds, filters?.query])
+  const countFiltersKey = JSON.stringify([filters?.types, filters?.tagIds, filters?.query])
   const countFilters = useMemo<JournalFilters | undefined>(
     () =>
       filters && {
         types: filters.types,
-        ticker: filters.ticker,
         tagIds: filters.tagIds,
         query: filters.query,
       },

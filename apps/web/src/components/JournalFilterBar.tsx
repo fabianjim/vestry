@@ -42,7 +42,6 @@ export default function JournalFilterBar({ filters, availableTags, onChange, cla
     filters.from ||
     filters.to ||
     (filters.types && filters.types.length > 0) ||
-    filters.ticker ||
     (filters.tagIds && filters.tagIds.length > 0) ||
     filters.query
 
@@ -55,13 +54,6 @@ export default function JournalFilterBar({ filters, availableTags, onChange, cla
           value={filters.query || ''}
           onChange={(e) => update({ query: e.target.value || undefined })}
           className="flex-1 px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-        />
-        <input
-          type="text"
-          placeholder="Ticker"
-          value={filters.ticker || ''}
-          onChange={(e) => update({ ticker: e.target.value.toUpperCase() || undefined })}
-          className="w-full sm:w-32 px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm"
         />
       </div>
 

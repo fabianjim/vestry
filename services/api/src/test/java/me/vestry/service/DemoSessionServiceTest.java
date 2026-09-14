@@ -62,6 +62,30 @@ public class DemoSessionServiceTest {
     private User demoUser;
 
     @Test
+    void unifiedSearchMatchesBodyOrTickerInListAndCalendar() {
+        JournalEntry tickerMatch = new JournalEntry();
+        tickerMatch.setTicker("AAPL");
+        tickerMatch.setBody("Initial portfolio creation");
+        JournalEntry bodyMatch = new JournalEntry();
+        bodyMatch.setBody("Watching AAPL earnings");
+        JournalEntry unrelated = new JournalEntry();
+        unrelated.setBody("Other notes");
+        Instant timestamp = Instant.parse("2026-09-10T12:00:00Z");
+        for (JournalEntry entry : List.of(tickerMatch, bodyMatch, unrelated)) {
+            entry.setTimestamp(timestamp);
+        }
+        DemoSession session = new DemoSession();
+        session.getJournalEntries().addAll(List.of(tickerMatch, bodyMatch, unrelated));
+        assertEquals(List.of(tickerMatch, bodyMatch), demoSessionService.getFilteredJournalEntries(session, null, null, null, null, null, "aapl"));
+        var days = demoSessionService.getJournalCalendarEntries(session, 2026, 9, null, null, null, null, null, "aapl");
+        assertEquals(1, days.size());
+        assertEquals("2026-09-10", days.get(0).getDate());
+        assertEquals(2, days.get(0).getCount());
+        assertEquals(3, session.getJournalEntries().size());
+        verifyNoInteractions(journalEntryRepository);
+    }
+
+    @Test
     void reflectionCreationAndSourceDeletionStayInSession() {
         DemoSession session = new DemoSession();
         JournalEntry source = new JournalEntry();
