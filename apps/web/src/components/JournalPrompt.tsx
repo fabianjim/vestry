@@ -25,8 +25,8 @@ export default function JournalPrompt({ isOpen, onClose, onSubmit, ticker, trade
 
   return (
     <div className="fixed inset-0 bg-overlay flex justify-center items-center z-[1100]">
-      <div className="bg-surface p-6 rounded-lg w-11/12 max-w-sm border border-border">
-        <h3 className="text-xl font-150 mt-0 mb-2 text-foreground">
+      <div className="bg-elevated p-6 rounded-lg shadow-floating w-11/12 max-w-sm border border-border">
+        <h3 className="text-xl font-130 mt-0 mb-2 text-foreground">
           Journal this {tradeType === 'BUY' ? 'purchase' : 'sale'}?
         </h3>
         <p className="text-muted mb-4">
@@ -39,17 +39,17 @@ export default function JournalPrompt({ isOpen, onClose, onSubmit, ticker, trade
             onChange={(e) => setBody(e.target.value)}
             placeholder="Why did you make this trade?"
             rows={4}
-            className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full px-2 py-2 bg-background border border-border-control rounded-md text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
         <div className="flex gap-2 justify-end">
-          <button onClick={handleClose} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">
+          <button onClick={handleClose} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors">
             Skip
           </button>
           <button
             onClick={handleSubmit}
             disabled={!body.trim()}
-            className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50"
+            className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
           >
             Save Entry
           </button>

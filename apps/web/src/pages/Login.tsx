@@ -73,14 +73,14 @@ export default function Login() {
 
   return (
     <div className="max-w-sm mx-auto mt-12 px-5">
-      <h2 className="text-2xl font-150 mb-4">{isLogin ? 'Login' : 'Register'}</h2>
+      <h2 className="text-2xl font-90 tracking-tight mb-4">{isLogin ? 'Login' : 'Register'}</h2>
 
       <form onSubmit={handleSubmit} className="mb-4 space-y-2">
         <input
           placeholder="Username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          className="w-full px-3 py-2 bg-surface border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary"
+          className="w-full px-3 py-2 bg-surface border border-border-control rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary"
         />
 
         <input
@@ -88,13 +88,13 @@ export default function Login() {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full px-3 py-2 bg-surface border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary"
+          className="w-full px-3 py-2 bg-surface border border-border-control rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary"
         />
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full px-3 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer disabled:cursor-not-allowed hover:bg-primary-hover transition-colors"
+          className="w-full px-3 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer disabled:cursor-not-allowed disabled:bg-disabled-background disabled:text-disabled-foreground hover:bg-primary-hover active:bg-primary-active transition-colors"
         >
           {loading ? 'Loading...' : (isLogin ? 'Login' : 'Register')}
         </button>
@@ -106,7 +106,7 @@ export default function Login() {
           setError('')
           setSuccess('')
         }}
-        className="w-full px-2 py-2 bg-transparent text-primary border border-primary rounded-md cursor-pointer hover:bg-primary/10 transition-colors"
+        className="w-full px-2 py-2 bg-transparent text-primary border border-primary rounded-md cursor-pointer hover:bg-primary-soft transition-colors"
       >
         {isLogin ? 'Register' : 'Login'}
       </button>
