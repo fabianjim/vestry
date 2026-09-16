@@ -104,7 +104,7 @@ function TransactionOverlay({
 
         const cx = xAxis.scale(point.timestamp)
         const cy = yAxis.scale(point.value)
-        const circleColor = point.transactionType === 'BUY' ? '#10b981' : '#ef4444'
+        const circleColor = point.transactionType === 'BUY' ? 'var(--color-buy)' : 'var(--color-sell)'
         const hasEntries = (point.journalEntryIds?.length ?? 0) > 0
         const tradeCount = point.transactionCount ?? 1
 
@@ -114,7 +114,7 @@ function TransactionOverlay({
             {/* background colored line to remove solid line*/}
             <path
               d={segment}
-              stroke="#32393d"
+              stroke="var(--color-surface)"
               strokeWidth={6}
               fill="none"
             />
@@ -291,7 +291,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
     return processedData[processedData.length - 1].value >= processedData[0].value
   }, [processedData])
 
-  const lineColor = isPositiveTrend ? '#10b981' : '#ef4444'
+  const lineColor = isPositiveTrend ? 'var(--color-gain)' : 'var(--color-loss)'
 
   const getPreviousTradingDay = (date: Date): Date => {
     const newDate = new Date(date)
@@ -440,7 +440,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
             className={`px-4 py-2 text-sm border border-border rounded-l-md cursor-pointer transition-colors ${
               viewMode === 'hourly'
                 ? 'bg-primary text-primary-foreground'
-                : 'bg-elevated text-foreground hover:bg-elevated/75'
+                : 'bg-elevated text-foreground hover:bg-surface-hover active:bg-surface-active'
             }`}
           >
             Hourly
@@ -468,7 +468,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
             className={`px-4 py-2 text-sm border border-border border-l-0 rounded-r-md cursor-pointer transition-colors ${
               viewMode === 'daily'
                 ? 'bg-primary text-primary-foreground'
-                : 'bg-elevated text-foreground hover:bg-elevated/75'
+                : 'bg-elevated text-foreground hover:bg-surface-hover active:bg-surface-active'
             }`}
           >
             Daily
@@ -482,7 +482,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
               disabled={data.length === 0}
               aria-hidden="true"
               tabIndex={-1}
-              className="w-10 h-10 flex items-center justify-center bg-elevated border border-border rounded-md cursor-pointer text-foreground group-hover:bg-elevated/75 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-10 h-10 flex items-center justify-center bg-elevated border border-border rounded-md cursor-pointer text-foreground group-hover:bg-surface-hover transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
             >
               <CalendarIcon className="w-5 h-5" />
             </button>
@@ -502,7 +502,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
             <button
               onClick={handlePrevious}
               aria-label="Previous period"
-              className="w-10 h-10 flex items-center justify-center bg-elevated border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-elevated/75 transition-colors"
+              className="w-10 h-10 flex items-center justify-center bg-elevated border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-surface-hover active:bg-surface-active transition-colors"
             >
               ←
             </button>
@@ -530,7 +530,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
               onClick={handleNext}
               disabled={!canGoForward}
               aria-label="Next period"
-              className="w-10 h-10 flex items-center justify-center bg-elevated border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-elevated/75 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-10 h-10 flex items-center justify-center bg-elevated border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-surface-hover active:bg-surface-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
             >
               →
             </button>
@@ -542,12 +542,12 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={processedData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
               <XAxis
                 dataKey="timestamp"
                 type="number"
                 ticks={xAxisTicks}
-                stroke="#6b7280"
+                stroke="var(--color-muted)"
                 fontSize={12}
                 tickLine={false}
                 tickFormatter={(value) =>
@@ -566,7 +566,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
               />
               <YAxis
                 domain={[(dataMin: number) => dataMin * 0.995, (dataMax: number) => dataMax * 1.005]}
-                stroke="#6b7280"
+                stroke="var(--color-muted)"
                 fontSize={12}
                 tickLine={false}
                 tickFormatter={(value) => formatCurrency(value)}
@@ -580,10 +580,10 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
                     : `Date: ${new Date(label).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`
                 }
                 contentStyle={{
-                  backgroundColor: '#32393d',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  backgroundColor: 'var(--color-elevated)',
+                  border: '1px solid var(--color-border)',
                   borderRadius: '6px',
-                  color: '#bdbdbd',
+                  color: 'var(--color-foreground)',
                 }}
               />
               <Line

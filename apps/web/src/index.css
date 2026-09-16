@@ -5,35 +5,77 @@ html {
 }
 
 @theme {
-  /* Background Surfaces */
-  --color-background: #2d2d2d;
-  --color-surface: #32393d;
-  --color-surface-hover: #373737;
-  --color-elevated: #464646;
+  /* Structural surfaces: docked chrome recedes; overlays sit above the workspace. */
+  --color-background-sidebar: #1c1b1a;
+  --color-background: #202123;
+  --color-surface: #232427;
+  --color-elevated: #292b2f;
+  --color-surface-hover: #303236;
+  --color-surface-active: #393c42;
 
-  /* Text */
-  --color-foreground: #bdbdbd;
-  --color-secondary: #9ca3af;
-  --color-muted: #6b7280;
-  --color-event: #d6965e;
+  /* Readable text on every neutral surface, including pressed controls. */
+  --color-foreground: #ececee;
+  --color-secondary: #b6b8be;
+  --color-muted: #a4a7ae;
+  --color-disabled-foreground: #737780;
+  --color-disabled-background: #232427;
 
-  /* Border */
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-solid: #464646;
+  /* Decorative separators and essential control boundaries have different contrast. */
+  --color-border-subtle: #33363c;
+  --color-border: #454950;
+  --color-border-solid: #454950;
+  --color-border-control: #858a94;
 
-  /* Accent */
-  --color-primary: #5e9ed6;
-  --color-primary-hover: #7ab8e8;
-  --color-primary-foreground: #ffffff;
+  /* Actions, selection and keyboard focus. */
+  --color-primary: #7eafe0;
+  --color-primary-hover: #a0c3e8;
+  --color-primary-active: #689bd0;
+  --color-primary-foreground: #151619;
+  --color-primary-soft: #233247;
+  --color-primary-soft-hover: #2b405a;
+  --color-primary-border: #3f6084;
+  --color-link: #a7cdf2;
 
-  /* Status */
-  --color-gain: #10b981;
-  --color-loss: #ef4444;
-  --color-success: #10b981;
-  --color-error: #ef4444;
+  /* Journal identity. Keep these names distinct from financial results and feedback. */
+  --color-buy: #60c6a0;
+  --color-buy-soft: #20382f;
+  --color-buy-border: #365d4c;
+  --color-buy-hover: #81d5b7;
+  --color-sell: #ee8585;
+  --color-sell-soft: #40292c;
+  --color-sell-border: #714549;
+  --color-sell-hover: #f3a1a1;
+  --color-insight: #7eafe0;
+  --color-insight-soft: #233247;
+  --color-insight-border: #3f6084;
+  --color-reflection: #b5a0e3;
+  --color-reflection-soft: #302b43;
+  --color-reflection-border: #574b76;
+  --color-reflection-hover: #c8b7ec;
+  --color-event: #dfb06f;
+  --color-event-soft: #3b3123;
+  --color-event-border: #6c5639;
+  --color-event-hover: #eac491;
 
-  /* Overlay */
-  --color-overlay: rgba(0, 0, 0, 0.85);
+  /* Financial results and system feedback may share hues without sharing meaning. */
+  --color-gain: #60c6a0;
+  --color-loss: #ee8585;
+  /* Stronger companions for dashboard summary and per-stock change metrics. */
+  --color-gain-emphasis: #2dd49b;
+  --color-loss-emphasis: #f56b6b;
+  --color-success: #60c6a0;
+  --color-success-soft: #20382f;
+  --color-success-border: #365d4c;
+  --color-error: #ee8585;
+  --color-error-hover: #f3a1a1;
+  --color-error-soft: #40292c;
+  --color-error-border: #714549;
+  --color-warning: #dfb06f;
+  --color-warning-soft: #3b3123;
+  --color-warning-border: #6c5639;
+
+  --color-overlay: rgba(0, 0, 0, 0.60);
+  --shadow-floating: 0 12px 32px rgba(0, 0, 0, 0.35);
 
   /* Fonts */
   --font-sans: 'authentic-sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -127,6 +169,7 @@ body {
   color: var(--color-foreground);
   font-family: var(--font-sans);
   font-weight: 90;
+  color-scheme: dark;
   margin: 0;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;

@@ -108,20 +108,20 @@ export default function Layout() {
     <div className="flex min-h-screen gap-6 bg-background text-foreground"> {/* if modifying sidebar gap also update Dashboard.tsx */}
       {/* Sidebar */}
       <aside
-        className={`sticky top-0 h-screen flex flex-col border-r border-border bg-surface transition-all duration-300 ${
+        className={`sticky top-0 h-screen flex flex-col border-r border-border-subtle bg-background-sidebar transition-all duration-300 ${
           isOpen ? 'w-54' : 'w-16'
         }`}
       >
         {/* Toggle Button */}
         <div className="flex items-center justify-between p-4 border-b border-border">
-          {isOpen && <span className="text-lg font-150">Vestry</span>}
+          {isOpen && <span className="text-lg font-130">Vestry</span>}
           <button
             onClick={() => {
               const next = !isOpen
               setIsOpen(next)
               setUserManuallyClosed(!next)
             }}
-            className="p-2 rounded-md hover:bg-surface-hover transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
+            className="p-2 rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
             aria-label={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           >
             {isOpen ? (
@@ -145,8 +145,8 @@ export default function Layout() {
                   isOpen ? 'gap-3 px-4 py-3 mx-2' : 'justify-center px-2 py-3 mx-2'
                 } ${
                   isActive
-                    ? 'bg-primary/20 text-primary'
-                    : 'text-secondary hover:bg-surface-hover hover:text-foreground'
+                    ? 'bg-surface-active text-foreground'
+                    : 'text-secondary hover:bg-surface-hover active:bg-surface-active hover:text-foreground'
                 }`}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
@@ -160,7 +160,7 @@ export default function Layout() {
         <div className={`border-t border-border ${isOpen ? 'p-4' : 'p-2'}`}>
           <button
             onClick={handleLogout}
-            className={`flex items-center rounded-md text-secondary hover:bg-surface-hover hover:text-foreground transition-colors ${
+            className={`flex items-center rounded-md text-secondary hover:bg-surface-hover active:bg-surface-active hover:text-foreground transition-colors ${
               isOpen ? 'gap-3 w-full px-4 py-3' : 'justify-center w-full p-2'
             }`}
           >
@@ -175,8 +175,8 @@ export default function Layout() {
         {isDemo && (
           <div className={`px-6 py-2 text-sm font-130 ${
             remainingTrades === 0
-              ? 'bg-error/20 text-error border-b border-error/30'
-              : 'bg-primary/10 text-primary border-b border-primary/20'
+              ? 'bg-error-soft text-error border-b border-error-border'
+              : 'bg-primary-soft text-primary border-b border-primary/20'
           }`}>
             Demo Mode — {remainingTrades} of 3 trades remaining. Changes are not saved.
           </div>

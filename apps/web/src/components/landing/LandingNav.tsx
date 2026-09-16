@@ -22,7 +22,7 @@ export default function LandingNav() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border">
       <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-        <span className="text-lg font-150 text-foreground">Vestry</span>
+        <span className="text-lg font-130 text-foreground">Vestry</span>
 
         <nav className="flex items-center gap-3">
           <a
@@ -36,7 +36,7 @@ export default function LandingNav() {
             data-demo-button
             onClick={handleDemo}
             disabled={demoLoading}
-            className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50 cursor-pointer"
+            className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed cursor-pointer"
           >
             Try Demo Now
           </button>

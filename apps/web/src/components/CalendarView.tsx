@@ -85,7 +85,7 @@ export default function CalendarView({ onDayClick, activeDate, filters, classNam
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={() => navigate(-1)}
-          className="p-1 rounded-md hover:bg-surface-hover text-secondary hover:text-foreground transition-colors"
+          className="p-1 rounded-md hover:bg-surface-hover active:bg-surface-active text-secondary hover:text-foreground transition-colors"
           aria-label="Previous month"
         >
           <ChevronLeftIcon className="w-5 h-5" />
@@ -95,7 +95,7 @@ export default function CalendarView({ onDayClick, activeDate, filters, classNam
         </span>
         <button
           onClick={() => navigate(1)}
-          className="p-1 rounded-md hover:bg-surface-hover text-secondary hover:text-foreground transition-colors"
+          className="p-1 rounded-md hover:bg-surface-hover active:bg-surface-active text-secondary hover:text-foreground transition-colors"
           aria-label="Next month"
         >
           <ChevronRightIcon className="w-5 h-5" />
@@ -121,20 +121,20 @@ export default function CalendarView({ onDayClick, activeDate, filters, classNam
               onClick={() => onDayClick(new Date(year, month, day))}
               className={`relative aspect-square flex flex-col items-center justify-center rounded-md text-sm transition-colors ${
                 isActive(day)
-                  ? 'ring-2 ring-primary bg-primary/20 text-primary'
+                  ? 'ring-2 ring-primary bg-primary-soft text-primary'
                   : count > 0
-                  ? 'hover:bg-surface-hover text-foreground'
-                  : 'text-secondary hover:bg-surface-hover'
+                  ? 'hover:bg-surface-hover active:bg-surface-active text-foreground'
+                  : 'text-secondary hover:bg-surface-hover active:bg-surface-active'
               }`}
               style={
                 count > 0 && !isActive(day)
-                  ? { backgroundColor: `rgba(94, 158, 214, ${intensity * 0.35})` }
+                  ? { backgroundColor: `color-mix(in srgb, var(--color-primary) ${intensity * 35}%, var(--color-surface))` }
                   : undefined
               }
             >
               <span>{day}</span>
               {count > 0 && (
-                <span className="absolute bottom-0.5 text-[9px] leading-none text-primary">
+                <span className="absolute bottom-0.5 text-[11px] leading-none text-foreground">
                   {count}
                 </span>
               )}

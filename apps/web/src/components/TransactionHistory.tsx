@@ -332,12 +332,12 @@ export default function TransactionHistory() {
           </thead>
           <tbody>
             {filteredTransactions.map((t) => (
-              <tr key={t.id} className="bg-surface hover:bg-surface-hover transition-colors text-secondary">
+              <tr key={t.id} className="bg-surface hover:bg-surface-hover active:bg-surface-active transition-colors text-secondary">
                 <td className="border border-border p-2">
                   {formatDateTime(t.timestamp)}
                 </td>
                 <td
-                  className={`border border-border p-2 font-130 ${t.type === 'BUY' ? 'text-gain' : 'text-loss'}`}
+                  className={`border border-border p-2 font-130 ${t.type === 'BUY' ? 'text-buy' : 'text-sell'}`}
                 >
                   {t.type}
                 </td>
@@ -362,7 +362,7 @@ export default function TransactionHistory() {
       {openFilter === 'date' && createPortal(
         <div
           ref={dateDropdownRef}
-          className="bg-surface border border-border rounded-lg shadow-lg p-3 z-50"
+          className="bg-elevated border border-border rounded-lg shadow-floating p-3 z-50"
           style={{
             position: 'fixed',
             top: dropdownPos.top,
@@ -378,7 +378,7 @@ export default function TransactionHistory() {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full bg-surface-hover border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full bg-background border border-border-control rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
             <div>
@@ -387,7 +387,7 @@ export default function TransactionHistory() {
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="w-full bg-surface-hover border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full bg-background border border-border-control rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
           </div>
@@ -406,7 +406,7 @@ export default function TransactionHistory() {
       {openFilter === 'type' && createPortal(
         <div
           ref={typeDropdownRef}
-          className="bg-surface border border-border rounded-lg shadow-lg p-3 z-50"
+          className="bg-elevated border border-border rounded-lg shadow-floating p-3 z-50"
           style={{
             position: 'fixed',
             top: dropdownPos.top,
@@ -422,9 +422,9 @@ export default function TransactionHistory() {
                   type="checkbox"
                   checked={selectedTypes.has(type as 'BUY' | 'SELL')}
                   onChange={() => toggleType(type as 'BUY' | 'SELL')}
-                  className="rounded border-border"
+                  className="rounded border-border-control"
                 />
-                <span className={type === 'BUY' ? 'text-gain' : 'text-loss'}>{type}</span>
+                <span className={type === 'BUY' ? 'text-buy' : 'text-sell'}>{type}</span>
               </label>
             ))}
           </div>
@@ -443,7 +443,7 @@ export default function TransactionHistory() {
       {openFilter === 'ticker' && createPortal(
         <div
           ref={tickerDropdownRef}
-          className="bg-surface border border-border rounded-lg shadow-lg p-3 z-50"
+          className="bg-elevated border border-border rounded-lg shadow-floating p-3 z-50"
           style={{
             position: 'fixed',
             top: dropdownPos.top,
@@ -459,7 +459,7 @@ export default function TransactionHistory() {
                   type="checkbox"
                   checked={selectedTickers.has(ticker)}
                   onChange={() => toggleTicker(ticker)}
-                  className="rounded border-border"
+                  className="rounded border-border-control"
                 />
                 <span className="text-secondary">{ticker}</span>
               </label>

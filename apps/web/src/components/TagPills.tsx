@@ -17,13 +17,13 @@ export default function TagPills({ tags, onTagClick, className = '' }: TagPillsP
           type="button"
           onClick={() => onTagClick?.(tag)}
           disabled={!onTagClick}
-          className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-opacity ${
+          className={`px-2.5 py-0.5 rounded-full text-xs font-130 transition-opacity ${
             onTagClick ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'
           }`}
           style={{
-            backgroundColor: tag.color ? `${tag.color}25` : 'rgba(255, 255, 255, 0.1)',
-            color: tag.color || '#bdbdbd',
-            border: `1px solid ${tag.color ? `${tag.color}50` : 'rgba(255, 255, 255, 0.1)'}`,
+            backgroundColor: tag.color ? `${tag.color}25` : 'var(--color-surface-active)',
+            color: tag.color || 'var(--color-foreground)',
+            border: `1px solid ${tag.color ? `${tag.color}50` : 'var(--color-border)'}`,
           }}
         >
           #{tag.name}

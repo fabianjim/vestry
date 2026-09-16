@@ -53,7 +53,7 @@ export default function Analysis() {
 
   return (
     <div className="max-w-6xl mx-auto mt-6 px-3 mb-8">
-      <h2 className="text-2xl font-150 mb-6">Holding Analysis</h2>
+      <h2 className="text-2xl font-90 tracking-tight mb-6">Holding Analysis</h2>
 
       {error && <div className="text-error mb-4">{error}</div>}
 
@@ -81,14 +81,14 @@ export default function Analysis() {
                 onChange={(e) =>
                   setPendingSettings((prev) => ({ ...prev, [toggle.key]: e.target.checked }))
                 }
-                className="rounded border-border bg-surface text-primary focus:ring-primary"
+                className="rounded border-border-control bg-surface text-primary focus:ring-primary"
               />
               {toggle.label}
             </label>
           ))}
           <button
             onClick={() => setAppliedSettings(pendingSettings)}
-            className="px-3 py-1.5 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary-hover transition-colors"
+            className="px-3 py-1.5 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors"
           >
             Apply
           </button>

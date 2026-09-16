@@ -166,11 +166,11 @@ export default function TagInput({
         onKeyUp={handleKeyUp}
         placeholder={placeholder}
         rows={rows}
-        className={`w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-primary ${className}`}
+        className={`w-full px-2 py-2 bg-background border border-border-control rounded-md text-foreground placeholder-muted resize-y focus:outline-none focus:ring-2 focus:ring-primary ${className}`}
       />
       {showSuggestions && suggestions.length > 0 && (
         <div
-          className="absolute z-50 bg-surface border border-border rounded-md shadow-lg py-1 min-w-32"
+          className="absolute z-50 bg-elevated border border-border rounded-md shadow-floating py-1 min-w-32"
           style={{
             top: popupPosition.top,
             left: popupPosition.left,
@@ -184,8 +184,8 @@ export default function TagInput({
               onClick={() => insertSuggestion(suggestion)}
               className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
                 index === selectedIndex
-                  ? 'bg-primary/20 text-primary'
-                  : 'text-foreground hover:bg-surface-hover'
+                  ? 'bg-primary-soft text-primary'
+                  : 'text-foreground hover:bg-surface-hover active:bg-surface-active'
               }`}
             >
               #{suggestion.name}

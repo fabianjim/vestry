@@ -115,7 +115,7 @@ function appendNodeVisuals(
   selection
     .append('circle')
     .attr('r', (d) => d.radius)
-    .attr('fill', (d) => (d.type === 'holding' ? d.color : '#2d2d2d'))
+    .attr('fill', (d) => (d.type === 'holding' ? d.color : 'var(--color-surface)'))
     .attr('stroke', (d) => d.color)
     .attr('stroke-width', (d) => (d.type === 'watchlist' ? 3 : 0))
 
@@ -126,8 +126,8 @@ function appendNodeVisuals(
     .attr('y', (d) => d.radius + 14)
     .attr('text-anchor', 'middle')
     .attr('font-size', 12)
-    .attr('font-weight', 'bold')
-    .attr('fill', '#bdbdbd')
+    .attr('font-weight', 130)
+    .attr('fill', 'var(--color-foreground)')
     .attr('pointer-events', 'none')
 }
 
@@ -159,7 +159,7 @@ function bindTooltipEvents(
           .attr('y', 11 + i * 14)
           .attr('dominant-baseline', 'middle')
           .attr('font-size', 11)
-          .attr('fill', '#bdbdbd')
+          .attr('fill', 'var(--color-foreground)')
           .text(line)
       })
 
@@ -288,7 +288,7 @@ export default function HoldingGraph({
 
       const link = g
         .append('g')
-        .attr('stroke', 'rgba(255,255,255,0.45)')
+        .attr('stroke', 'var(--color-border-control)')
         .attr('stroke-opacity', 0.6)
         .selectAll('line')
         .data(edgesCopy)
@@ -302,8 +302,8 @@ export default function HoldingGraph({
         .style('pointer-events', 'none')
 
       tooltip.append('rect')
-        .attr('fill', '#32393d')
-        .attr('stroke', 'rgba(255,255,255,0.08)')
+        .attr('fill', 'var(--color-elevated)')
+        .attr('stroke', 'var(--color-border-subtle)')
         .attr('rx', 4)
 
       const node = g

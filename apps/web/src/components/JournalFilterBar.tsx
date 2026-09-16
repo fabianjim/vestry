@@ -1,3 +1,4 @@
+import { JOURNAL_STYLES } from '../constants/journalStyles'
 import type { Tag, JournalEntryType, JournalFilters } from '../types/journal'
 
 const ENTRY_TYPES: { value: JournalEntryType; label: string }[] = [
@@ -53,7 +54,7 @@ export default function JournalFilterBar({ filters, availableTags, onChange, cla
           placeholder="Search entries..."
           value={filters.query || ''}
           onChange={(e) => update({ query: e.target.value || undefined })}
-          className="flex-1 px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+          className="flex-1 px-2 py-2 bg-background border border-border-control rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm"
         />
       </div>
 
@@ -64,7 +65,7 @@ export default function JournalFilterBar({ filters, availableTags, onChange, cla
             type="date"
             value={filters.from ? filters.from.substring(0, 10) : ''}
             onChange={(e) => update({ from: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
-            className="px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+            className="px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -73,7 +74,7 @@ export default function JournalFilterBar({ filters, availableTags, onChange, cla
             type="date"
             value={filters.to ? filters.to.substring(0, 10) : ''}
             onChange={(e) => update({ to: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
-            className="px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+            className="px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
           />
         </div>
       </div>
@@ -84,9 +85,10 @@ export default function JournalFilterBar({ filters, availableTags, onChange, cla
             key={type.value}
             type="button"
             onClick={() => toggleType(type.value)}
+            aria-pressed={filters.types?.includes(type.value) ?? false}
             className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
               filters.types?.includes(type.value)
-                ? 'bg-primary/20 border-primary text-primary'
+                ? `${JOURNAL_STYLES[type.value].badge} ring-1 ring-primary`
                 : 'bg-surface-hover border-border text-secondary hover:text-foreground'
             }`}
           >

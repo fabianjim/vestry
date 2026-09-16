@@ -83,12 +83,12 @@ export default function WatchlistPanel({ isOpen = true, onCountChange, onBuyClic
               placeholder="Ticker"
               value={newTicker}
               onChange={(e) => setNewTicker(e.target.value.toUpperCase())}
-              className="flex-1 px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              className="flex-1 px-2 py-2 bg-background border border-border-control rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm"
             />
             <button
               onClick={handleAdd}
               disabled={loading || !newTicker.trim()}
-              className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50 text-sm"
+              className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed text-sm"
             >
               {loading ? '…' : 'Add'}
             </button>
@@ -107,7 +107,7 @@ export default function WatchlistPanel({ isOpen = true, onCountChange, onBuyClic
               return (
                 <div
                   key={item.id}
-                  className="flex justify-between items-center py-1 px-2 text-sm hover:bg-surface-hover rounded transition-colors"
+                  className="flex justify-between items-center py-1 px-2 text-sm hover:bg-surface-hover active:bg-surface-active rounded transition-colors"
                 >
                   <span className="font-130">{item.ticker}</span>
                 </div>
@@ -125,14 +125,14 @@ export default function WatchlistPanel({ isOpen = true, onCountChange, onBuyClic
                   <button
                     onClick={() => onBuyClick?.(item.ticker)}
                     disabled={loading}
-                    className="px-2.5 py-1 bg-gain text-white text-xs rounded hover:bg-gain/80 transition-colors disabled:opacity-50"
+                    className="px-2.5 py-1 bg-buy text-primary-foreground text-xs rounded hover:bg-buy-hover transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
                   >
                     Buy
                   </button>
                   <button
                     onClick={() => handleRemove(item.ticker)}
                     disabled={loading}
-                    className="px-2.5 py-1 bg-error text-white text-xs rounded hover:bg-error/80 transition-colors disabled:opacity-50"
+                    className="px-2.5 py-1 bg-sell text-primary-foreground text-xs rounded hover:bg-sell-hover transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
                   >
                     Remove
                   </button>
@@ -140,18 +140,18 @@ export default function WatchlistPanel({ isOpen = true, onCountChange, onBuyClic
                   {item.metadata ? (
                     <div className="col-span-2 mt-1 text-xs text-secondary space-y-1">
                       <div>
-                        <span className="font-semibold">{item.metadata.etf ? 'Asset Class' : 'Sector'}:</span>{' '}
+                        <span className="font-130">{item.metadata.etf ? 'Asset Class' : 'Sector'}:</span>{' '}
                         {item.metadata.sector || '-'}
                       </div>
                       <div>
-                        <span className="font-semibold">{item.metadata.etf ? 'Category' : 'Industry'}:</span>{' '}
+                        <span className="font-130">{item.metadata.etf ? 'Category' : 'Industry'}:</span>{' '}
                         {item.metadata.industry || '-'}
                       </div>
                       <div>
-                        <span className="font-semibold">{item.metadata.etf ? 'Region' : 'Country'}:</span>{' '}
+                        <span className="font-130">{item.metadata.etf ? 'Region' : 'Country'}:</span>{' '}
                         {item.metadata.country || '-'}
                       </div>
-                      <div><span className="font-semibold">Cap:</span> {getTierLabel(item.metadata.marketCapTier)}</div>
+                      <div><span className="font-130">Cap:</span> {getTierLabel(item.metadata.marketCapTier)}</div>
                     </div>
                   ) : (
                     <div className="col-span-2 mt-1 text-xs text-muted italic">

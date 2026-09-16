@@ -73,7 +73,7 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
 
   return (
     <aside
-      className={`sticky top-0 self-start flex flex-col border-l border-border bg-surface rounded-b-lg transition-all duration-300 ${
+      className={`sticky top-0 self-start flex flex-col border-l border-border-subtle bg-background-sidebar rounded-b-lg transition-all duration-300 ${
           isOpen ? 'w-80' : 'w-36'
         }`}
     >
@@ -86,7 +86,7 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
             setIsOpen(next)
             setUserManuallyClosed(!next)
           }}
-          className="p-1.5 rounded-md hover:bg-surface-hover transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
+          className="p-1.5 rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
           aria-label={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
         >
           {isOpen ? (
@@ -103,14 +103,14 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
           <button
             onClick={() => onBuyClick()}
             disabled={loading}
-            className="flex-1 px-3 py-2 bg-gain text-white rounded-md hover:bg-gain/80 transition-colors disabled:opacity-50 text-sm"
+            className="flex-1 px-3 py-2 bg-buy text-primary-foreground rounded-md hover:bg-buy-hover transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed text-sm"
           >
             Buy
           </button>
           <button
             onClick={onSellClick}
             disabled={loading || holdings.length === 0}
-            className="flex-1 px-3 py-2 bg-error text-white rounded-md hover:bg-error/80 transition-colors disabled:opacity-50 text-sm"
+            className="flex-1 px-3 py-2 bg-sell text-primary-foreground rounded-md hover:bg-sell-hover transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed text-sm"
           >
             Sell
           </button>
@@ -142,7 +142,7 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
                   <div
                     key={holding.ticker}
                     onClick={() => onHoldingClick?.(holding.ticker)}
-                    className="flex justify-between items-center py-1 px-2 text-sm hover:bg-surface-hover rounded transition-colors cursor-pointer"
+                    className="flex justify-between items-center py-1 px-2 text-sm hover:bg-surface-hover active:bg-surface-active rounded transition-colors cursor-pointer"
                   >
                     <span className="font-130 text-foreground hover:text-primary transition-colors">
                       {holding.ticker}
@@ -156,7 +156,7 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
                 <div
                   key={holding.ticker}
                   onClick={() => onHoldingClick?.(holding.ticker)}
-                  className={`p-2 mb-1 rounded text-sm cursor-pointer hover:bg-surface-hover transition-colors ${isStale ? 'bg-surface-hover' : 'bg-background/50'}`}
+                  className={`p-2 mb-1 rounded text-sm cursor-pointer hover:bg-surface-hover active:bg-surface-active transition-colors ${isStale ? 'bg-surface-hover' : 'bg-background/50'}`}
                 >
                   <div className="flex justify-between items-center">
                     <span className="font-130 text-foreground hover:text-primary transition-colors">
@@ -166,7 +166,7 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
                   </div>
                   <div className="flex justify-between mt-1 text-xs">
                     <span className="text-secondary">{formatCurrency(currentPrice)}</span>
-                    <span className={dayChange >= 0 ? 'text-gain' : 'text-loss'}>
+                    <span className={dayChange >= 0 ? 'text-gain-emphasis' : 'text-loss-emphasis'}>
                       {formatSignedCurrencyWithPercent(dayChange, dayChangePercent)}
                     </span>
                   </div>

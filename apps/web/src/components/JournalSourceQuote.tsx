@@ -1,14 +1,7 @@
-import type { JournalEntry, JournalEntryType } from '../types/journal'
+import { JOURNAL_STYLES, journalBadge } from '../constants/journalStyles'
+import type { JournalEntry } from '../types/journal'
 import { formatDateTime } from '../utils/dateUtils'
 import { getDisplayBody } from '../utils/tagUtils'
-
-const typeColors: Record<JournalEntryType, string> = {
-  BUY: 'text-gain/65',
-  SELL: 'text-loss/65',
-  INSIGHT: 'text-primary/65',
-  REFLECTION: 'text-primary/65',
-  MARKET_EVENT: 'text-event/65',
-}
 
 export default function JournalSourceQuote({ source }: { source: JournalEntry | null | undefined }) {
   return (
@@ -16,8 +9,8 @@ export default function JournalSourceQuote({ source }: { source: JournalEntry | 
       {source ? (
         <>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted mb-1">
-            <span className={`font-130 uppercase ${typeColors[source.entryType]}`}>
-              {source.entryType === 'REFLECTION' ? 'Reflect' : source.entryType.replace('_', ' ')}
+            <span className={journalBadge(source.entryType)}>
+              {JOURNAL_STYLES[source.entryType].label}
             </span>
             <span>{formatDateTime(source.timestamp)}</span>
           </div>

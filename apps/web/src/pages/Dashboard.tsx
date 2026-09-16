@@ -408,7 +408,7 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="flex-1 max-w-6xl mx-auto mt-6 px-3">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-150">Dashboard</h2>
+          <h2 className="text-2xl font-90 tracking-tight">Dashboard</h2>
           <NextUpdateTimer />
         </div>
 
@@ -422,13 +422,13 @@ export default function Dashboard() {
         </div>
         <div className="p-4 bg-surface rounded-lg border border-border">
           <div className="text-sm text-muted">Total Day's Change</div>
-          <div className={`text-2xl font-130 ${calculateDayChange() >= 0 ? 'text-gain' : 'text-loss'}`}>
+          <div className={`text-2xl font-130 ${calculateDayChange() >= 0 ? 'text-gain-emphasis' : 'text-loss-emphasis'}`}>
             {formatSignedCurrencyWithPercent(calculateDayChange(), calculateDayChangePercent())}
           </div>
         </div>
         <div className="p-4 bg-surface rounded-lg border border-border">
           <div className="text-sm text-muted">Total P/L</div>
-          <div className={`text-2xl font-130 ${(pnlSummary?.totalPnL ?? 0) >= 0 ? 'text-gain' : 'text-loss'}`}>
+          <div className={`text-2xl font-130 ${(pnlSummary?.totalPnL ?? 0) >= 0 ? 'text-gain-emphasis' : 'text-loss-emphasis'}`}>
             {pnlSummary ? formatSignedCurrencyWithPercent(pnlSummary.totalPnL, pnlSummary.totalPnLPercent) : '—'}
           </div>
         </div>
@@ -438,7 +438,7 @@ export default function Dashboard() {
 
       {/* Portfolio History Chart */}
       <div className="mb-8">
-        <h3 className="text-xl font-150 mb-4">Portfolio Performance</h3>
+        <h3 className="text-xl font-130 mb-4">Portfolio Performance</h3>
         <PortfolioChart
           ref={portfolioChartRef}
           onPinClick={(entries) => {
@@ -452,7 +452,7 @@ export default function Dashboard() {
       {/* Journal Section */}
       <div className="mb-8">
         <div className="flex items-center justify-between mt-4 mb-4">
-          <h3 className="text-xl font-150 m-0">Journal</h3>
+          <h3 className="text-xl font-130 m-0">Journal</h3>
           <Link to="/journal" className="text-sm italic text-secondary hover:text-foreground transition-colors">
             Expand
           </Link>
@@ -476,8 +476,8 @@ export default function Dashboard() {
       {/* Add Stock Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-overlay flex justify-center items-center z-50">
-          <div className="bg-surface p-6 rounded-lg w-11/12 max-w-md border border-border">
-            <h3 className="text-xl font-150 mt-0 mb-4">Buy Stock</h3>
+          <div className="bg-elevated p-6 rounded-lg shadow-floating w-11/12 max-w-md border border-border">
+            <h3 className="text-xl font-130 mt-0 mb-4">Buy Stock</h3>
             <div className="mb-4">
               <label className="block mb-1 text-secondary">Ticker Symbol</label>
               <input
@@ -485,7 +485,7 @@ export default function Dashboard() {
                 placeholder="e.g., AAPL"
                 value={newTicker}
                 onChange={(e) => setNewTicker(e.target.value.toUpperCase())}
-                className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div className="mb-4">
@@ -497,7 +497,7 @@ export default function Dashboard() {
                 onChange={(e) => setNewShares(e.target.value)}
                 min="0.01"
                 step="0.01"
-                className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 
@@ -523,7 +523,7 @@ export default function Dashboard() {
                       type="text"
                       value={(manualHour === 0 ? 12 : manualHour > 12 ? manualHour - 12 : manualHour).toString()}
                       readOnly
-                      className="w-full px-2 py-1.5 bg-surface border border-border rounded-md text-foreground text-sm opacity-70 cursor-default"
+                      className="w-full px-2 py-1.5 bg-surface border border-border-control rounded-md text-foreground text-sm opacity-70 cursor-default"
                     />
                   </div>
                   <span className="text-muted pt-5">:</span>
@@ -537,7 +537,7 @@ export default function Dashboard() {
                         const val = e.target.value.replace(/\D/g, '').slice(0, 2)
                         setManualMinutes(val)
                       }}
-                      className="w-full px-2 py-1.5 bg-surface border border-border rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full px-2 py-1.5 bg-surface border border-border-control rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
                   <div className="flex-[2]">
@@ -549,7 +549,7 @@ export default function Dashboard() {
                       onChange={(e) => setManualPrice(e.target.value)}
                       min="0.01"
                       step="0.01"
-                      className="w-full px-2 py-1.5 bg-surface border border-border rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full px-2 py-1.5 bg-surface border border-border-control rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
                   <button
@@ -558,7 +558,7 @@ export default function Dashboard() {
                       setManualMinutes('')
                       setManualPrice('')
                     }}
-                    className="mt-5 px-2 py-1.5 text-sm text-secondary hover:text-foreground bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors"
+                    className="mt-5 px-2 py-1.5 text-sm text-secondary hover:text-foreground bg-surface border border-border rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors"
                   >
                     Clear
                   </button>
@@ -574,13 +574,13 @@ export default function Dashboard() {
                 setNewShares('')
                 setError('')
                 resetManualState()
-              }} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">
+              }} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors">
                 Cancel
               </button>
               <button
                 onClick={addHolding}
                 disabled={loading || !newTicker.trim() || !newShares}
-                className="px-3 py-2 bg-gain text-white rounded-md hover:bg-gain/80 transition-colors disabled:opacity-50"
+                className="px-3 py-2 bg-buy text-primary-foreground rounded-md hover:bg-buy-hover transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
               >
                 {loading ? 'Buying…' : 'Buy'}
               </button>
@@ -592,8 +592,8 @@ export default function Dashboard() {
       {/* Sell Stock Modal */}
       {showSellModal && (
         <div className="fixed inset-0 bg-overlay flex justify-center items-center z-50">
-          <div className="bg-surface p-6 rounded-lg w-11/12 max-w-md border border-border">
-            <h3 className="text-xl font-150 mt-0 mb-4">Sell Stock</h3>
+          <div className="bg-elevated p-6 rounded-lg shadow-floating w-11/12 max-w-md border border-border">
+            <h3 className="text-xl font-130 mt-0 mb-4">Sell Stock</h3>
             
             {!sellTicker && (
               <div className="mb-4">
@@ -608,7 +608,7 @@ export default function Dashboard() {
                       setMaxShares(holding.shares)
                     }
                   }}
-                  className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="">Choose a holding...</option>
                   {results.map(h => (
@@ -637,7 +637,7 @@ export default function Dashboard() {
                     min="0.01"
                     max={maxShares}
                     step="0.01"
-                    className="w-full px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
               </>
@@ -665,7 +665,7 @@ export default function Dashboard() {
                       type="text"
                       value={(manualHour === 0 ? 12 : manualHour > 12 ? manualHour - 12 : manualHour).toString()}
                       readOnly
-                      className="w-full px-2 py-1.5 bg-surface border border-border rounded-md text-foreground text-sm opacity-70 cursor-default"
+                      className="w-full px-2 py-1.5 bg-surface border border-border-control rounded-md text-foreground text-sm opacity-70 cursor-default"
                     />
                   </div>
                   <span className="text-muted pt-5">:</span>
@@ -679,7 +679,7 @@ export default function Dashboard() {
                         const val = e.target.value.replace(/\D/g, '').slice(0, 2)
                         setManualMinutes(val)
                       }}
-                      className="w-full px-2 py-1.5 bg-surface border border-border rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full px-2 py-1.5 bg-surface border border-border-control rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
                   <div className="flex-[2]">
@@ -691,7 +691,7 @@ export default function Dashboard() {
                       onChange={(e) => setManualPrice(e.target.value)}
                       min="0.01"
                       step="0.01"
-                      className="w-full px-2 py-1.5 bg-surface border border-border rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full px-2 py-1.5 bg-surface border border-border-control rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
                   <button
@@ -700,7 +700,7 @@ export default function Dashboard() {
                       setManualMinutes('')
                       setManualPrice('')
                     }}
-                    className="mt-5 px-2 py-1.5 text-sm text-secondary hover:text-foreground bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors"
+                    className="mt-5 px-2 py-1.5 text-sm text-secondary hover:text-foreground bg-surface border border-border rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors"
                   >
                     Clear
                   </button>
@@ -710,13 +710,13 @@ export default function Dashboard() {
             
             <div className="flex items-center justify-end gap-2">
               {error && <span className="text-error text-sm mr-auto">{error}</span>}
-              <button onClick={closeSellModal} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors">
+              <button onClick={closeSellModal} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors">
                 Cancel
               </button>
               <button
                 onClick={executeSell}
                 disabled={loading || !sellShares || Number(sellShares) <= 0 || Number(sellShares) > maxShares}
-                className="px-3 py-2 bg-error text-white rounded-md hover:bg-error/80 transition-colors disabled:opacity-50"
+                className="px-3 py-2 bg-sell text-primary-foreground rounded-md hover:bg-sell-hover transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
               >
                 {loading ? 'Selling…' : 'Sell'}
               </button>
