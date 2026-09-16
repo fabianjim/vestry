@@ -1,3 +1,4 @@
+import { JOURNAL_STYLES, journalBadge } from '../constants/journalStyles'
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
 import type { JournalEntry, JournalEntryType } from '../types/journal'
 import { journalApi } from '../services/api'
@@ -176,28 +177,6 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
     setDeleteConfirmEntryId(null)
   }
 
-  const getTypeColor = (type: JournalEntryType) => {
-    switch (type) {
-      case 'BUY': return 'text-gain'
-      case 'SELL': return 'text-loss'
-      case 'INSIGHT': return 'text-primary'
-      case 'REFLECTION': return 'text-primary'
-      case 'MARKET_EVENT': return 'text-event'
-      default: return 'text-muted'
-    }
-  }
-
-  const getTypeBg = (type: JournalEntryType) => {
-    switch (type) {
-      case 'BUY': return 'bg-gain/10'
-      case 'SELL': return 'bg-loss/10'
-      case 'INSIGHT': return 'bg-primary/10'
-      case 'REFLECTION': return 'bg-primary/10'
-      case 'MARKET_EVENT': return 'bg-secondary/10'
-      default: return 'bg-muted/10'
-    }
-  }
-
   return (
     <div ref={containerRef} className="p-5 bg-surface rounded-lg border border-border">
       <h4 className="text-muted mt-0 mb-3">New Journal Entry</h4>
@@ -205,7 +184,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
         <select
           value={entryType}
           onChange={(e) => setEntryType(e.target.value as JournalEntryType)}
-          className="px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+          className="px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
         >
           <option value="INSIGHT">Insight</option>
           <option value="MARKET_EVENT">Market Event</option>
@@ -218,7 +197,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
           placeholder="Ticker (optional)"
           value={ticker}
           onChange={(e) => setTicker(e.target.value.toUpperCase())}
-          className="px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm w-32"
+          className="px-2 py-2 bg-background border border-border-control rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm w-32"
         />
       </div>
 
@@ -234,7 +213,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
         <button
           onClick={handleSubmit}
           disabled={loading || !body.trim()}
-          className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50"
+          className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
         >
           {loading ? 'Saving…' : 'Save Entry'}
         </button>
@@ -253,15 +232,15 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
                 if (el) entryRefs.current.set(entry.id, el)
               }}
               onClick={() => onEntryClick?.(entry)}
-              className={`relative group p-3 bg-surface-hover rounded-md border border-border cursor-pointer hover:bg-elevated transition-colors ${getTypeBg(entry.entryType)} ${activeJournalIds?.includes(entry.id) ? 'outline-2 outline-primary outline-offset-2' : ''}`}
+              className={`relative group p-3 rounded-md border border-border-subtle cursor-pointer hover:bg-surface-hover active:bg-surface-active transition-colors ${activeJournalIds?.includes(entry.id) ? 'outline-2 outline-primary outline-offset-2 bg-primary-soft' : 'bg-background'}`}
             >
               <div className="flex justify-between items-start mb-1">
                 <div className="flex items-center gap-2">
-                  <span className={`text-xs font-130 uppercase ${getTypeColor(entry.entryType)}`}>
-                    {entry.entryType === 'REFLECTION' ? 'Reflect' : entry.entryType.replace('_', ' ')}
+                  <span className={journalBadge(entry.entryType)}>
+                    {JOURNAL_STYLES[entry.entryType].label}
                   </span>
                   {entry.ticker && (
-                    <span className="text-xs font-semibold text-foreground">{entry.ticker}</span>
+                    <span className="text-xs font-130 text-foreground">{entry.ticker}</span>
                   )}
                 </div>
                 <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
@@ -286,13 +265,13 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
                     <button
                       onClick={() => handleSaveEdit(entry.id)}
                       disabled={loading}
-                      className="px-2 py-1 bg-primary text-primary-foreground text-xs rounded hover:bg-primary-hover transition-colors disabled:opacity-50"
+                      className="px-2 py-1 bg-primary text-primary-foreground text-xs rounded hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
                     >
                       Save
                     </button>
                     <button
                       onClick={handleCancelEdit}
-                      className="px-2 py-1 bg-surface border border-border text-foreground text-xs rounded hover:bg-surface-hover transition-colors"
+                      className="px-2 py-1 bg-surface border border-border text-foreground text-xs rounded hover:bg-surface-hover active:bg-surface-active transition-colors"
                     >
                       Cancel
                     </button>
@@ -312,7 +291,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
                           e.stopPropagation()
                           onViewOnChart?.(entry)
                         }}
-                        className="px-2 py-1 text-xs text-foreground bg-surface border border-border rounded hover:bg-surface-hover transition-colors"
+                        className="px-2 py-1 text-xs text-foreground bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors"
                         title="View on chart"
                       >
                         View
@@ -323,7 +302,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
                         e.stopPropagation()
                         handleEditClick(entry)
                       }}
-                      className="px-2 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover transition-colors"
+                      className="px-2 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors"
                       title="Edit"
                     >
                       Edit
@@ -356,20 +335,20 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
             }
           }}
         >
-          <div className="bg-surface p-6 rounded-lg w-11/12 max-w-sm border border-border">
-            <h3 className="text-lg font-150 mt-0 mb-4">Delete Journal Entry</h3>
+          <div className="bg-elevated p-6 rounded-lg shadow-floating w-11/12 max-w-sm border border-border">
+            <h3 className="text-lg font-130 mt-0 mb-4">Delete Journal Entry</h3>
             <p className="text-secondary mb-6">Are you sure you want to delete this journal entry? This action cannot be undone. Any linked reflections will become insights and lose their comparison with this entry.</p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={handleCancelDelete}
-                className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover transition-colors"
+                className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleConfirmDelete(deleteConfirmEntryId)}
                 disabled={loading}
-                className="px-3 py-2 bg-error text-white rounded-md hover:bg-error/80 transition-colors disabled:opacity-50"
+                className="px-3 py-2 bg-error text-primary-foreground rounded-md hover:bg-error-hover transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
               >
                 {loading ? 'Deleting…' : 'Delete'}
               </button>

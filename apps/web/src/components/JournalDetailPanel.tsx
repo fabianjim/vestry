@@ -1,3 +1,4 @@
+import { JOURNAL_STYLES, journalBadge } from '../constants/journalStyles'
 import { useEffect, useState, useMemo, useRef } from 'react'
 import {
   ComposedChart,
@@ -241,23 +242,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
   }
 
-  const getTypeColor = (type = entry.entryType) => {
-    switch (type) {
-      case 'BUY':
-        return '#10b981'
-      case 'SELL':
-        return '#ef4444'
-      case 'REFLECTION':
-      case 'INSIGHT':
-        return '#5e9ed6'
-      case 'MARKET_EVENT':
-        return '#d6965e'
-      default:
-        return '#6b7280'
-    }
-  }
-
-  const lineColor = getTypeColor()
+  const lineColor = JOURNAL_STYLES[entry.entryType].color
 
   const entryDay = useMemo(() => {
     return new Date(entry.timestamp).toLocaleDateString('en-US', {
@@ -269,32 +254,22 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
   return (
     <div
       ref={containerRef}
-      className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-surface border-l border-border shadow-[-4px_0_12px_rgba(0,0,0,0.15)] z-[1200] p-6 overflow-y-auto"
+      className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-elevated border-l border-border shadow-floating z-[1200] p-6 overflow-y-auto"
     >
       {/* Header */}
       <div className="flex justify-between items-start mb-5">
         <div>
-          <h2 className="text-2xl font-150 m-0">{entry.ticker || 'Journal Entry'}</h2>
+          <h2 className="text-2xl font-130 m-0">{entry.ticker || 'Journal Entry'}</h2>
           <span
-            className={`text-xs font-130 uppercase ${
-              entry.entryType === 'BUY'
-                ? 'text-gain'
-                : entry.entryType === 'SELL'
-                ? 'text-loss'
-                : (entry.entryType === 'INSIGHT' || entry.entryType === 'REFLECTION')
-                ? 'text-primary'
-                : entry.entryType === 'MARKET_EVENT'
-                ? 'text-event'
-                : 'text-secondary'
-            }`}
+            className={journalBadge(entry.entryType)}
           >
-            {entry.entryType === 'REFLECTION' ? 'Reflect' : entry.entryType.replace('_', ' ')}
+            {JOURNAL_STYLES[entry.entryType].label}
           </span>
         </div>
         <button
           onClick={onClose}
           disabled={saving}
-          className="px-3 py-1.5 bg-elevated text-foreground rounded-md hover:bg-surface-hover transition-colors"
+          className="px-3 py-1.5 bg-elevated text-foreground rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors"
         >
           Close
         </button>
@@ -342,7 +317,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
       {/* Price History Chart */}
       {entry.ticker && (
         <div className="mb-6">
-          <h4 className="text-lg font-150 mb-3">Price History</h4>
+          <h4 className="text-lg font-130 mb-3">Price History</h4>
           {loading && chartData.length === 0 ? (
             <div className="text-muted">Loading chart...</div>
           ) : chartData.length === 0 ? (
@@ -351,7 +326,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
                   <XAxis
                     dataKey="time"
                     type={entry.entryType === 'REFLECTION' ? 'number' : 'category'}
@@ -362,10 +337,10 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
                         ? new Date(value).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
                         : new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                       : undefined}
-                    stroke="#6b7280" fontSize={12} tickLine={false}
+                    stroke="var(--color-muted)" fontSize={12} tickLine={false}
                   />
                   <YAxis
-                    stroke="#6b7280"
+                    stroke="var(--color-muted)"
                     fontSize={12}
                     tickLine={false}
                     tickFormatter={(value) => `$${value.toFixed(2)}`}
@@ -376,10 +351,10 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
                     labelFormatter={(label) => entry.entryType === 'REFLECTION'
                       ? formatDateTime(new Date(Number(label)).toISOString()) : `Date: ${label}`}
                     contentStyle={{
-                      backgroundColor: '#32393d',
-                      border: '1px solid rgba(255,255,255,0.08)',
+                      backgroundColor: 'var(--color-elevated)',
+                      border: '1px solid var(--color-border)',
                       borderRadius: '6px',
-                      color: '#bdbdbd',
+                      color: 'var(--color-foreground)',
                     }}
                   />
                   <Line
@@ -396,9 +371,9 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
                       x={new Date(sourceEntry.timestamp).getTime()}
                       y={sourceEntry.priceSnapshot}
                       r={5}
-                      fill={getTypeColor(sourceEntry.entryType)}
+                      fill={JOURNAL_STYLES[sourceEntry.entryType].color}
                       fillOpacity={0.65}
-                      stroke="#fff"
+                      stroke="var(--color-foreground)"
                       strokeWidth={2}
                       ifOverflow="extendDomain"
                       aria-label="Original entry snapshot"
@@ -410,7 +385,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
                       y={entry.priceSnapshot}
                       r={6}
                       fill={lineColor}
-                      stroke="#fff"
+                      stroke="var(--color-foreground)"
                       strokeWidth={2}
                       ifOverflow="extendDomain"
                       aria-label={entry.entryType === 'REFLECTION' ? 'Reflection snapshot' : 'Entry snapshot'}
@@ -425,7 +400,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
 
       {entry.entryType === 'REFLECTION' && (
         <div className="mb-6 p-4 bg-surface-hover rounded-lg border border-border">
-          <h4 className="text-lg font-150 mb-3">Entry to reflection</h4>
+          <h4 className="text-lg font-130 mb-3">Entry to reflection</h4>
           <div className="space-y-2">
             <div className="flex justify-between gap-3 text-sm">
               <span className="text-muted">Original snapshot</span>
@@ -448,7 +423,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
       {/* Performance Section */}
       {entry.ticker && !loading && !error && (
         <div className="mb-6 p-4 bg-surface-hover rounded-lg border border-border">
-          <h4 className="text-lg font-150 mb-3">{entry.entryType === 'REFLECTION' ? 'Since reflection' : 'Performance'}</h4>
+          <h4 className="text-lg font-130 mb-3">{entry.entryType === 'REFLECTION' ? 'Since reflection' : 'Performance'}</h4>
 
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
@@ -499,7 +474,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
 
       <div className="mb-6">
         {!reflecting ? (
-          <button onClick={() => setReflecting(true)} className="px-3 py-2 text-sm text-primary border border-border rounded-md hover:bg-surface-hover transition-colors">
+          <button onClick={() => setReflecting(true)} className="px-3 py-2 text-sm text-primary border border-border rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors">
             Reflect on this entry
           </button>
         ) : (
@@ -513,14 +488,14 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
               maxLength={2000}
               rows={4}
               disabled={saving}
-              className="w-full p-3 bg-surface-hover border border-border rounded-md text-sm text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+              className="w-full p-3 bg-background border border-border-control rounded-md text-sm text-foreground resize-y focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
             />
             {saveError && <div role="alert" className="text-error text-sm mt-2">{saveError}</div>}
             <div className="flex gap-2 mt-3">
-              <button type="submit" disabled={saving || !reflectionBody.trim()} className="px-3 py-2 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50">
+              <button type="submit" disabled={saving || !reflectionBody.trim()} className="px-3 py-2 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed">
                 {saving ? 'Saving…' : 'Save'}
               </button>
-              <button type="button" disabled={saving} onClick={() => { setReflecting(false); setReflectionBody(''); setSaveError('') }} className="px-3 py-2 text-sm text-secondary rounded-md hover:bg-surface-hover transition-colors disabled:opacity-50">
+              <button type="button" disabled={saving} onClick={() => { setReflecting(false); setReflectionBody(''); setSaveError('') }} className="px-3 py-2 text-sm text-secondary rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed">
                 Cancel
               </button>
             </div>
@@ -531,29 +506,19 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
       {/* Related Journal Entries */}
       {relatedEntries.length > 0 && (
         <div>
-          <h4 className="text-lg font-150 mb-3">Related Journal Entries</h4>
+          <h4 className="text-lg font-130 mb-3">Related Journal Entries</h4>
           <div className="flex flex-col gap-3">
             {relatedEntries.map((relatedEntry) => (
               <div
                 key={relatedEntry.id}
                 onClick={() => { if (!saving) onEntryClick(relatedEntry) }}
-                className="p-3 rounded-md transition-colors bg-surface-hover border border-border cursor-pointer hover:bg-elevated"
+                className="p-3 rounded-md transition-colors bg-surface border border-border cursor-pointer hover:bg-surface-hover active:bg-surface-active"
               >
                 <div className="flex justify-between mb-1">
                   <span
-                    className={`text-xs font-130 uppercase ${
-                      relatedEntry.entryType === 'BUY'
-                        ? 'text-gain'
-                        : relatedEntry.entryType === 'SELL'
-                        ? 'text-loss'
-                        : (relatedEntry.entryType === 'INSIGHT' || relatedEntry.entryType === 'REFLECTION')
-                        ? 'text-primary'
-                        : relatedEntry.entryType === 'MARKET_EVENT'
-                        ? 'text-event'
-                        : 'text-secondary'
-                    }`}
+                    className={journalBadge(relatedEntry.entryType)}
                   >
-                    {relatedEntry.entryType === 'REFLECTION' ? 'Reflect' : relatedEntry.entryType.replace('_', ' ')}
+                    {JOURNAL_STYLES[relatedEntry.entryType].label}
                   </span>
                   <span className="text-xs text-muted">{formatDateTime(relatedEntry.timestamp)}</span>
                 </div>

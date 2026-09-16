@@ -49,7 +49,7 @@ export default function HoldingsValueChart({ data }: HoldingsValueChartProps) {
   if (data.length === 0) {
     return (
       <div className="bg-surface rounded-lg border border-border p-4">
-        <h3 className="text-lg font-150 mb-3">Holdings by Value</h3>
+        <h3 className="text-lg font-130 mb-3">Holdings by Value</h3>
         <div className="text-muted text-sm">No holdings to display.</div>
       </div>
     )
@@ -69,11 +69,11 @@ export default function HoldingsValueChart({ data }: HoldingsValueChartProps) {
   return (
     <div className="bg-surface rounded-lg border border-border p-4 flex flex-col">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-150">Holdings by Value</h3>
+        <h3 className="text-lg font-130">Holdings by Value</h3>
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="p-1.5 hover:bg-surface-hover rounded transition-colors"
+            className="p-1.5 hover:bg-surface-hover active:bg-surface-active rounded transition-colors"
             aria-label="Menu"
           >
             <div className="flex flex-col gap-[3px] w-4">
@@ -83,7 +83,7 @@ export default function HoldingsValueChart({ data }: HoldingsValueChartProps) {
             </div>
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-full mt-1 bg-surface border border-border rounded-md shadow-lg z-50 min-w-[180px] py-1">
+            <div className="absolute right-0 top-full mt-1 bg-elevated border border-border rounded-md shadow-floating z-50 min-w-[180px] py-1">
               <div className="px-3 py-2">
                 <div className="text-xs text-muted mb-1.5">View</div>
                 <div className="flex bg-elevated rounded-md p-0.5">
@@ -136,13 +136,13 @@ export default function HoldingsValueChart({ data }: HoldingsValueChartProps) {
               <Tooltip
                 formatter={tooltipFormatter}
                 contentStyle={{
-                  backgroundColor: '#32393d',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  backgroundColor: 'var(--color-elevated)',
+                  border: '1px solid var(--color-border)',
                   borderRadius: '6px',
-                  color: '#bdbdbd',
+                  color: 'var(--color-foreground)',
                 }}
-                itemStyle={{ color: '#bdbdbd' }}
-                labelStyle={{ color: '#bdbdbd' }}
+                itemStyle={{ color: 'var(--color-foreground)' }}
+                labelStyle={{ color: 'var(--color-foreground)' }}
               />
             </PieChart>
           ) : (
@@ -151,10 +151,10 @@ export default function HoldingsValueChart({ data }: HoldingsValueChartProps) {
               layout="vertical"
               margin={{ top: 5, right: 20, bottom: 5, left: 10 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
               <XAxis
                 type="number"
-                stroke="#bdbdbd"
+                stroke="var(--color-foreground)"
                 fontSize={12}
                 tickLine={false}
                 tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
@@ -162,22 +162,22 @@ export default function HoldingsValueChart({ data }: HoldingsValueChartProps) {
               <YAxis
                 type="category"
                 dataKey="ticker"
-                stroke="#bdbdbd"
+                stroke="var(--color-foreground)"
                 fontSize={12}
                 tickLine={false}
                 width={60}
               />
               <Tooltip
-                cursor={{ fill: '#ffffff', fillOpacity: 0.04 }}
+                cursor={{ fill: 'var(--color-foreground)', fillOpacity: 0.04 }}
                 formatter={tooltipFormatter}
                 contentStyle={{
-                  backgroundColor: '#32393d',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  backgroundColor: 'var(--color-elevated)',
+                  border: '1px solid var(--color-border)',
                   borderRadius: '6px',
-                  color: '#bdbdbd',
+                  color: 'var(--color-foreground)',
                 }}
-                itemStyle={{ color: '#bdbdbd' }}
-                labelStyle={{ color: '#bdbdbd' }}
+                itemStyle={{ color: 'var(--color-foreground)' }}
+                labelStyle={{ color: 'var(--color-foreground)' }}
               />
               <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20}>
                 {data.map((entry, index) => (

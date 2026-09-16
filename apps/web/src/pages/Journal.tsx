@@ -1,3 +1,4 @@
+import { JOURNAL_STYLES, journalBadge } from '../constants/journalStyles'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { JournalEntry, JournalEntryType, JournalFilters, Tag } from '../types/journal'
@@ -213,31 +214,9 @@ export default function JournalPage() {
     }
   }
 
-  const getTypeColor = (type: JournalEntryType) => {
-    switch (type) {
-      case 'BUY': return 'text-gain'
-      case 'SELL': return 'text-loss'
-      case 'INSIGHT': return 'text-primary'
-      case 'REFLECTION': return 'text-primary'
-      case 'MARKET_EVENT': return 'text-event'
-      default: return 'text-muted'
-    }
-  }
-
-  const getTypeBg = (type: JournalEntryType) => {
-    switch (type) {
-      case 'BUY': return 'bg-gain/10'
-      case 'SELL': return 'bg-loss/10'
-      case 'INSIGHT': return 'bg-primary/10'
-      case 'REFLECTION': return 'bg-primary/10'
-      case 'MARKET_EVENT': return 'bg-secondary/10'
-      default: return 'bg-muted/10'
-    }
-  }
-
   return (
     <div className="max-w-6xl mx-auto mt-6 px-3 mb-8">
-      <h2 className="text-2xl font-150 mb-6">Journal</h2>
+      <h2 className="text-2xl font-90 tracking-tight mb-6">Journal</h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-y-6 mb-6">
         <div className="lg:col-span-2 p-4">
@@ -265,7 +244,7 @@ export default function JournalPage() {
             </span>
             <button
               onClick={() => setShowNewEntry((prev) => !prev)}
-              className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors text-sm"
+              className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors text-sm"
             >
               {showNewEntry ? 'Cancel' : 'New Entry'}
             </button>
@@ -277,7 +256,7 @@ export default function JournalPage() {
                 <select
                   value={entryType}
                   onChange={(e) => setEntryType(e.target.value as JournalEntryType)}
-                  className="px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  className="px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                 >
                   <option value="INSIGHT">Insight</option>
                   <option value="MARKET_EVENT">Market Event</option>
@@ -289,7 +268,7 @@ export default function JournalPage() {
                   placeholder="Ticker (optional)"
                   value={ticker}
                   onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                  className="px-2 py-2 bg-surface-hover border border-border rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm w-32"
+                  className="px-2 py-2 bg-background border border-border-control rounded-md text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary text-sm w-32"
                 />
               </div>
               <TagInput
@@ -302,7 +281,7 @@ export default function JournalPage() {
                 <button
                   onClick={handleSubmit}
                   disabled={loading || !body.trim()}
-                  className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50"
+                  className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
                 >
                   {loading ? 'Saving…' : 'Save Entry'}
                 </button>
@@ -324,15 +303,15 @@ export default function JournalPage() {
               <div
                 key={entry.id}
                 onClick={() => !editingEntryId && setSelectedEntry(entry)}
-                className={`relative group p-4 bg-surface-hover rounded-lg border border-border cursor-pointer hover:bg-elevated transition-colors ${getTypeBg(entry.entryType)}`}
+                className={`relative group p-4 bg-surface rounded-lg border border-border-subtle cursor-pointer hover:bg-surface-hover active:bg-surface-active transition-colors`}
               >
                 <div className="flex justify-between items-start mb-1">
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs font-130 uppercase ${getTypeColor(entry.entryType)}`}>
-                      {entry.entryType === 'REFLECTION' ? 'Reflect' : entry.entryType.replace('_', ' ')}
+                    <span className={journalBadge(entry.entryType)}>
+                      {JOURNAL_STYLES[entry.entryType].label}
                     </span>
                     {entry.ticker && (
-                      <span className="text-xs font-semibold text-foreground">{entry.ticker}</span>
+                      <span className="text-xs font-130 text-foreground">{entry.ticker}</span>
                     )}
                   </div>
                   <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
@@ -357,13 +336,13 @@ export default function JournalPage() {
                       <button
                         onClick={() => handleSaveEdit(entry.id)}
                         disabled={loading}
-                        className="px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50"
+                        className="px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
                       >
                         {loading ? 'Saving…' : 'Save'}
                       </button>
                       <button
                         onClick={handleCancelEdit}
-                        className="px-3 py-1.5 bg-surface border border-border text-foreground text-xs rounded-md hover:bg-surface-hover transition-colors"
+                        className="px-3 py-1.5 bg-surface border border-border text-foreground text-xs rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors"
                       >
                         Cancel
                       </button>
@@ -388,7 +367,7 @@ export default function JournalPage() {
                           e.stopPropagation()
                           handleEditClick(entry)
                         }}
-                        className="px-2.5 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover transition-colors"
+                        className="px-2.5 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors"
                         title="Edit"
                       >
                         Edit

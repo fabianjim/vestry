@@ -1,3 +1,4 @@
+import { journalBadge } from '../../constants/journalStyles'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceDot } from 'recharts'
 
 import { formatCurrency, formatSignedCurrency } from '../../utils/formatUtils'
@@ -34,8 +35,8 @@ export default function LandingDetailCard() {
     <div className="w-full max-w-2xl mx-auto bg-surface rounded-lg border border-border p-6">
       <div className="flex justify-between items-start mb-5">
         <div>
-          <h3 className="text-2xl font-150 m-0 text-foreground">{entry.ticker}</h3>
-          <span className="px-2 py-0.5 text-xs font-130 uppercase bg-gain/10 text-gain rounded">BUY</span>
+          <h3 className="text-2xl font-130 m-0 text-foreground">{entry.ticker}</h3>
+          <span className={journalBadge('BUY')}>Buy</span>
         </div>
         <div className="text-right">
           <div className="text-xs text-muted">{entry.date} {entry.time}</div>
@@ -48,35 +49,35 @@ export default function LandingDetailCard() {
       <div className="h-56 mb-5">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={history} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
             <XAxis
               dataKey="time"
-              stroke="#6b7280"
+              stroke="var(--color-muted)"
               fontSize={12}
               tickLine={false}
-              axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+              axisLine={{ stroke: 'var(--color-border-subtle)' }}
             />
             <YAxis
-              stroke="#6b7280"
+              stroke="var(--color-muted)"
               fontSize={12}
               tickLine={false}
-              axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+              axisLine={{ stroke: 'var(--color-border-subtle)' }}
               tickFormatter={(value) => `$${value}`}
               domain={['dataMin - 15', 'dataMax + 15']}
             />
             <Tooltip
               formatter={(value: number) => [`$${value}`, 'Price']}
               contentStyle={{
-                backgroundColor: '#32393d',
-                border: '1px solid rgba(255,255,255,0.08)',
+                backgroundColor: 'var(--color-elevated)',
+                border: '1px solid var(--color-border-subtle)',
                 borderRadius: '6px',
-                color: '#bdbdbd',
+                color: 'var(--color-foreground)',
               }}
             />
             <Line
               type="monotone"
               dataKey="price"
-              stroke="#10b981"
+              stroke="var(--color-gain)"
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4, strokeWidth: 0 }}
@@ -85,8 +86,8 @@ export default function LandingDetailCard() {
               x={entry.date}
               y={entry.price}
               r={6}
-              fill="#10b981"
-              stroke="#fff"
+              fill="var(--color-gain)"
+              stroke="var(--color-foreground)"
               strokeWidth={2}
             />
           </LineChart>

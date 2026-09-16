@@ -1,21 +1,21 @@
+import { JOURNAL_STYLES, journalBadge } from '../../constants/journalStyles'
+import type { JournalEntryType } from '../../types/journal'
 import { useState } from 'react'
 
 function ClosedEntry({
   type,
-  typeColor,
   ticker,
   date,
 }: {
-  type: string
-  typeColor: string
+  type: JournalEntryType
   ticker: string
   date: string
 }) {
   return (
     <div className="flex justify-between items-center py-3 px-5 bg-surface border-t border-border">
       <div className="flex items-center gap-3">
-        <span className={`px-2 py-1 text-xs font-130 uppercase rounded ${typeColor}`}>{type}</span>
-        <span className="text-sm font-150 text-foreground opacity-70">{ticker}</span>
+        <span className={journalBadge(type)}>{JOURNAL_STYLES[type].label}</span>
+        <span className="text-sm font-130 text-foreground opacity-70">{ticker}</span>
       </div>
       <span className="text-xs text-muted">{date}</span>
     </div>
@@ -46,12 +46,12 @@ export default function LandingJournalCard({ onSpxClick }: LandingJournalCardPro
             handleClick()
           }
         }}
-        className={`bg-surface p-5 cursor-pointer transition-colors hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-primary${clicked ? '' : ' animate-bg-pulse'}`}
+        className={`bg-surface p-5 cursor-pointer transition-colors hover:bg-surface-hover active:bg-surface-active focus:outline-none focus:ring-2 focus:ring-primary${clicked ? '' : ' animate-bg-pulse'}`}
       >
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-3">
-            <span className="px-2 py-1 text-xs font-130 uppercase bg-gain/10 text-gain rounded">BUY</span>
-            <span className="text-sm font-150 text-foreground">SPY</span>
+            <span className={journalBadge('BUY')}>Buy</span>
+            <span className="text-sm font-130 text-foreground">SPY</span>
           </div>
           <span className="text-xs text-muted">Jun 18 3:50 PM</span>
         </div>
@@ -63,8 +63,8 @@ export default function LandingJournalCard({ onSpxClick }: LandingJournalCardPro
         </p>
       </div>
       
-      <ClosedEntry type="INSIGHT" typeColor="bg-primary/10 text-primary" ticker="NVDA" date="1:45 PM" />
-      <ClosedEntry type="SELL" typeColor="bg-loss/10 text-loss" ticker="AAPL" date="11:35 AM" />
+      <ClosedEntry type="INSIGHT" ticker="NVDA" date="1:45 PM" />
+      <ClosedEntry type="SELL" ticker="AAPL" date="11:35 AM" />
     </div>
   )
 }

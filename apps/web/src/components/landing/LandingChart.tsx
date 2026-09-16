@@ -52,9 +52,9 @@ const data: DataPoint[] = rawData.map((d) => ({
   value: d.value,
 }))
 
-const BUY_COLOR = '#10b981'
-const SELL_COLOR = '#ef4444'
-const INSIGHT_COLOR = '#5e9ed6'
+const BUY_COLOR = 'var(--color-buy)'
+const SELL_COLOR = 'var(--color-sell)'
+const INSIGHT_COLOR = 'var(--color-insight)'
 
 const xAxisTicks = rawData
   .filter((d) => ['10 AM', '11 AM', '12 PM', '1 PM', '2 PM', '3 PM', '3:50 PM'].includes(d.time))
@@ -86,7 +86,7 @@ function EventOverlay({ onBuyClick, buyClicked }: { onBuyClick?: () => void; buy
               cy={cy}
               r={isBuy ? 10 : 4}
               fill={event.color}
-              stroke="#32393d"
+              stroke="var(--color-surface)"
               strokeWidth={2}
               className={isBuy && !buyClicked ? 'animate-pulse' : undefined}
               style={{ cursor: isBuy ? 'pointer' : 'default' }}
@@ -101,13 +101,13 @@ function EventOverlay({ onBuyClick, buyClicked }: { onBuyClick?: () => void; buy
               {isBuy ? (
                 <button
                   onClick={onBuyClick}
-                  className={`inline-flex items-center justify-center gap-1.5 w-full h-full px-2 bg-gain/10 border border-gain/30 text-gain rounded-md text-xs font-130 uppercase tracking-wide hover:bg-gain/20 transition-colors cursor-pointer${buyClicked ? '' : ' animate-pulse'}`}
+                  className={`inline-flex items-center justify-center gap-1.5 w-full h-full px-2 bg-buy-soft border border-buy-border text-buy rounded-md text-xs font-130 uppercase tracking-wide hover:bg-surface-hover active:bg-surface-active transition-colors cursor-pointer${buyClicked ? '' : ' animate-pulse'}`}
                 >
                   <span className="w-2 h-2 rounded-full bg-gain" />
                   BUY
                 </button>
               ) : ( // sell, insight events
-                <div className="inline-flex items-center justify-center gap-1.5 w-11/12 h-11/12 px-1 bg-surface border border-border text-foreground rounded-md text-[9px] font-130 uppercase tracking-wide">
+                <div className="inline-flex items-center justify-center gap-1.5 w-11/12 h-11/12 px-1 bg-surface border border-border text-foreground rounded-md text-[11px] font-130 uppercase tracking-wide">
                   <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: event.color }} />
                   {event.label}
                 </div>
@@ -132,13 +132,13 @@ export default function LandingChart({ onBuyClick }: LandingChartProps) {
     <div className="w-full max-w-3xl mx-auto bg-surface p-6 rounded-lg border border-border hover:border-primary/30 transition-colors">
       <div className="mb-4">
         <span className="text-xs font-130 uppercase text-muted tracking-wide">Portfolio Value</span>
-        <div className="text-2xl font-150 text-foreground mt-1">$45,250</div>
+        <div className="text-2xl font-130 text-foreground mt-1">$45,250</div>
       </div>
 
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 10, right: 20, bottom: 10, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
             <XAxis
               dataKey="time"
               type="number"
@@ -146,16 +146,16 @@ export default function LandingChart({ onBuyClick }: LandingChartProps) {
               domain={['dataMin', 'dataMax']}
               ticks={xAxisTicks}
               tickFormatter={formatTime}
-              stroke="#6b7280"
+              stroke="var(--color-muted)"
               fontSize={12}
               tickLine={false}
-              axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+              axisLine={{ stroke: 'var(--color-border-subtle)' }}
             />
             <YAxis
-              stroke="#6b7280"
+              stroke="var(--color-muted)"
               fontSize={12}
               tickLine={false}
-              axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+              axisLine={{ stroke: 'var(--color-border-subtle)' }}
               tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
               domain={['dataMin - 1000', 'dataMax + 1000']}
             />
@@ -163,16 +163,16 @@ export default function LandingChart({ onBuyClick }: LandingChartProps) {
               formatter={(value: number) => [`$${value.toLocaleString()}`, 'Value']}
               labelFormatter={(label) => formatTime(label as number)}
               contentStyle={{
-                backgroundColor: '#32393d',
-                border: '1px solid rgba(255,255,255,0.08)',
+                backgroundColor: 'var(--color-elevated)',
+                border: '1px solid var(--color-border)',
                 borderRadius: '6px',
-                color: '#bdbdbd',
+                color: 'var(--color-foreground)',
               }}
             />
             <Line
               type="monotone"
               dataKey="value"
-              stroke="#10b981"
+              stroke="var(--color-gain)"
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4, strokeWidth: 0 }}

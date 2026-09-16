@@ -16,7 +16,8 @@ import { getPositionStats } from '../utils/positionStats'
 import { stockApi, journalApi, portfolioApi } from '../services/api'
 import { formatDateTime, roundToMinute } from '../utils/dateUtils'
 import { getCurrentWeekRange } from '../utils/stockStats'
-import { SECTOR_COLORS } from '../constants/colors'
+import { getNodeColor } from '../constants/colors'
+import { JOURNAL_STYLES, journalBadge } from '../constants/journalStyles'
 import { formatCurrency, formatSignedCurrencyWithPercent } from '../utils/formatUtils'
 
 type NodeDetailPanelProps = {
@@ -143,7 +144,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
     }
   }, [snapshot, weekRange])
 
-  const lineColor = metadata?.sector ? SECTOR_COLORS[metadata.sector] || '#6b7280' : '#6b7280'
+  const lineColor = getNodeColor(metadata?.sector)
 
   const trackingChange = useMemo(() => {
     if (!history.length || !snapshot) return null
@@ -168,19 +169,19 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
   const renderMetadata = () => (
     <div className="space-y-2">
       <div className="text-sm text-muted">
-        <span className="font-150">{metadata?.etf ? 'Asset Class' : 'Sector'}:</span>{' '}
+        <span className="font-130">{metadata?.etf ? 'Asset Class' : 'Sector'}:</span>{' '}
         {metadata?.sector || '-'}
       </div>
       <div className="text-sm text-muted">
-        <span className="font-150">{metadata?.etf ? 'Category' : 'Industry'}:</span>{' '}
+        <span className="font-130">{metadata?.etf ? 'Category' : 'Industry'}:</span>{' '}
         {metadata?.industry || '-'}
       </div>
       <div className="text-sm text-muted">
-        <span className="font-150">{metadata?.etf ? 'Region' : 'Country'}:</span>{' '}
+        <span className="font-130">{metadata?.etf ? 'Region' : 'Country'}:</span>{' '}
         {metadata?.country || '-'}
       </div>
       <div className="text-sm text-muted">
-        <span className="font-150">Market Cap Tier:</span>{' '}
+        <span className="font-130">Market Cap Tier:</span>{' '}
         {metadata?.marketCapTier
           ? metadata.marketCapTier.replace('_', ' ').toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())
           : '-'}
@@ -377,7 +378,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
   const renderPerformance = () => (
     <>
       <div className="mb-5 pb-5 border-b border-border">
-        <h4 className="text-lg font-150 mb-3">Your position</h4>
+        <h4 className="text-lg font-130 mb-3">Your position</h4>
         {positionData?.ticker !== ticker ? (
           <div className="text-sm text-muted">Loading position...</div>
         ) : positionData.error ? (
@@ -413,18 +414,18 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
           </div>
         )}
       </div>
-      <h4 className="text-lg font-150 mb-3">Price performance</h4>
+      <h4 className="text-lg font-130 mb-3">Price performance</h4>
       {renderPricePerformance()}
     </>
   )
 
   return (
-    <div className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-surface border-l border-border shadow-[-4px_0_12px_rgba(0,0,0,0.15)] z-[1200] p-6 overflow-y-auto">
+    <div className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-elevated border-l border-border shadow-floating z-[1200] p-6 overflow-y-auto">
       <div className="flex justify-between items-center mb-5">
-        <h2 className="text-2xl font-150 m-0">{ticker}</h2>
+        <h2 className="text-2xl font-130 m-0">{ticker}</h2>
         <button
           onClick={onClose}
-          className="px-3 py-1.5 bg-elevated text-foreground rounded-md hover:bg-surface-hover transition-colors"
+          className="px-3 py-1.5 bg-elevated text-foreground rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors"
         >
           Close
         </button>
@@ -474,7 +475,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
 
       {!isWatchlist && (
         <div className="mb-6">
-          <h4 className="text-lg font-150 mb-3">Price History</h4>
+          <h4 className="text-lg font-130 mb-3">Price History</h4>
           {loading && chartData.length === 0 ? (
             <div className="text-muted">Loading chart...</div>
           ) : chartData.length === 0 ? (
@@ -483,10 +484,10 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                  <XAxis dataKey="time" stroke="#6b7280" fontSize={12} tickLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
+                  <XAxis dataKey="time" stroke="var(--color-muted)" fontSize={12} tickLine={false} />
                   <YAxis
-                    stroke="#6b7280"
+                    stroke="var(--color-muted)"
                     fontSize={12}
                     tickLine={false}
                     tickFormatter={(value) => `$${value.toFixed(2)}`}
@@ -498,10 +499,10 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                     }}
                     labelFormatter={(label) => `Date: ${label}`}
                     contentStyle={{
-                      backgroundColor: '#32393d',
-                      border: '1px solid rgba(255,255,255,0.08)',
+                      backgroundColor: 'var(--color-elevated)',
+                      border: '1px solid var(--color-border)',
                       borderRadius: '6px',
-                      color: '#bdbdbd',
+                      color: 'var(--color-foreground)',
                     }}
                   />
                   <Line
@@ -525,7 +526,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
       )}
 
       <div>
-        <h4 className="text-lg font-150 mb-3">Journal Entries</h4>
+        <h4 className="text-lg font-130 mb-3">Journal Entries</h4>
         {journalEntries.length === 0 ? (
           <div className="text-muted italic">No journal entries for {ticker}.</div>
         ) : (
@@ -534,21 +535,11 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
               <div
                 key={entry.id}
                 onClick={() => onEntryClick?.(entry)}
-                className="p-3 rounded-md transition-colors bg-surface-hover border border-border cursor-pointer hover:bg-elevated"
+                className="p-3 rounded-md transition-colors bg-surface border border-border cursor-pointer hover:bg-surface-hover active:bg-surface-active"
               >
                 <div className="flex justify-between mb-1">
-                  <span
-                    className={`text-xs font-130 uppercase ${
-                      entry.entryType === 'BUY'
-                        ? 'text-gain'
-                        : entry.entryType === 'SELL'
-                        ? 'text-loss'
-                        : entry.entryType === 'INSIGHT'
-                        ? 'text-primary'
-                        : 'text-secondary'
-                    }`}
-                  >
-                    {entry.entryType.replace('_', ' ')}
+                  <span className={journalBadge(entry.entryType)}>
+                    {JOURNAL_STYLES[entry.entryType].label}
                   </span>
                   <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
                 </div>
