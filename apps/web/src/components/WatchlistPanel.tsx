@@ -117,7 +117,7 @@ export default function WatchlistPanel({ isOpen = true, onCountChange, onBuyClic
             return (
               <div
                 key={item.id}
-                className="group p-3 bg-surface-hover rounded-lg border border-border"
+                className="group p-3 bg-surface rounded-lg border border-border"
               >
                 <div className="grid grid-cols-[1fr_auto] gap-x-2">
                   <div className="text-base font-130 text-foreground">{item.ticker}</div>

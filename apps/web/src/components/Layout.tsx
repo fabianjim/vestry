@@ -186,7 +186,7 @@ export default function Layout() {
             <div className="flex-1">
               <Outlet context={{ isDemo, remainingTrades, refreshDemoStatus } as LayoutContext} />
             </div>
-            <footer className="py-5 px-6 border-t border-border flex flex-col items-center gap-3 text-sm text-muted">
+            <footer className="py-3 px-6 border-t border-border flex flex-col items-center gap-3 text-sm text-muted">
               <p className="font-90 text-secondary">
                 Contributions are welcomed and encouraged. For informational purposes only, not financial advice.
               </p>
