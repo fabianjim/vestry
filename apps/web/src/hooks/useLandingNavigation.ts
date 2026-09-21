@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
 
+const MIN_SECTION_OVERFLOW = 16
+
 /** Native scroll snapping handles wheel/touch; keys move between the same sections. */
 export function useLandingNavigation(enabled: boolean) {
   useEffect(() => {
@@ -30,10 +32,12 @@ export function useLandingNavigation(enabled: boolean) {
         stops.push(Math.max(0, Math.min(start, maxScroll)))
         // At small heights or high zoom, let readers traverse all of a tall section.
         const overflow = section.offsetHeight - viewport
+        // Tiny layout/inset differences should not add a stop beside the section's snap point.
+        if (overflow <= MIN_SECTION_OVERFLOW) return
         for (let offset = viewport; offset < overflow; offset += viewport) {
           stops.push(Math.min(start + offset, maxScroll))
         }
-        if (overflow > 1) stops.push(Math.min(start + overflow, maxScroll))
+        stops.push(Math.min(start + overflow, maxScroll))
       })
       stops.sort((a, b) => a - b)
       const destination = direction > 0
