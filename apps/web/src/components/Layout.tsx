@@ -105,10 +105,10 @@ export default function Layout() {
   }
 
   return (
-    <div className="flex min-h-screen gap-6 bg-background text-foreground"> {/* if modifying sidebar gap also update Dashboard.tsx */}
+    <div className="flex h-dvh overflow-hidden bg-background text-foreground">
       {/* Sidebar */}
       <aside
-        className={`sticky top-0 h-screen flex flex-col border-r border-border-subtle bg-background-sidebar transition-all duration-300 ${
+        className={`shrink-0 overflow-y-auto flex flex-col border-r border-border-subtle bg-background-sidebar transition-all duration-300 ${
           isOpen ? 'w-54' : 'w-16'
         }`}
       >
@@ -171,9 +171,9 @@ export default function Layout() {
       </aside>
 
       {/* Main Content */}
-      <main className="min-w-0 flex-1 overflow-x-clip flex flex-col">
+      <main className="min-w-0 flex-1 flex flex-col">
         {isDemo && (
-          <div className={`sticky top-0 z-30 px-6 py-2 text-sm font-130 ${
+          <div className={`shrink-0 z-30 px-6 py-2 text-sm font-130 ${
             remainingTrades === 0
               ? 'bg-error-soft text-error border-b border-error-border'
               : 'bg-primary-soft text-primary border-b border-primary/20'
@@ -181,31 +181,35 @@ export default function Layout() {
             Demo Mode — {remainingTrades} of 3 trades remaining. Changes are not saved.
           </div>
         )}
-        <div className="flex-1">
-          <Outlet context={{ isDemo, remainingTrades, refreshDemoStatus } as LayoutContext} />
-        </div>
-        <footer className="py-5 px-6 border-t border-border flex flex-col items-center gap-3 text-sm text-muted">
-          <p className="font-90 text-secondary">
-            Contributions are welcomed and encouraged. For informational purposes only, not financial advice.
-          </p>
-          <div className="flex items-center gap-6">
-            {footerItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  target={item.external ? '_blank' : undefined}
-                  rel={item.external ? 'noopener noreferrer' : undefined}
-                  className="flex items-center gap-2 hover:text-foreground transition-colors"
-                >
-                  <Icon className="w-4 h-4" />
-                  <span className="font-90">{item.label}</span>
-                </a>
-              )
-            })}
+        <div className="min-h-0 flex-1 flex">
+          <div className="min-w-0 flex-1 overflow-auto pl-6 flex flex-col">
+            <div className="flex-1">
+              <Outlet context={{ isDemo, remainingTrades, refreshDemoStatus } as LayoutContext} />
+            </div>
+            <footer className="py-5 px-6 border-t border-border flex flex-col items-center gap-3 text-sm text-muted">
+              <p className="font-90 text-secondary">
+                Contributions are welcomed and encouraged. For informational purposes only, not financial advice.
+              </p>
+              <div className="flex items-center gap-6">
+                {footerItems.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <a
+                      key={item.label}
+                      href={item.href}
+                      target={item.external ? '_blank' : undefined}
+                      rel={item.external ? 'noopener noreferrer' : undefined}
+                      className="flex items-center gap-2 hover:text-foreground transition-colors"
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span className="font-90">{item.label}</span>
+                    </a>
+                  )
+                })}
+              </div>
+            </footer>
           </div>
-        </footer>
+        </div>
       </main>
     </div>
   )
