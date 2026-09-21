@@ -171,9 +171,9 @@ export default function Layout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto flex flex-col">
+      <main className="min-w-0 flex-1 overflow-x-clip flex flex-col">
         {isDemo && (
-          <div className={`px-6 py-2 text-sm font-130 ${
+          <div className={`sticky top-0 z-30 px-6 py-2 text-sm font-130 ${
             remainingTrades === 0
               ? 'bg-error-soft text-error border-b border-error-border'
               : 'bg-primary-soft text-primary border-b border-primary/20'
