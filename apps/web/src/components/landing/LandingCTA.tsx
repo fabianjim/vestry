@@ -19,7 +19,8 @@ export default function LandingCTA({ onDemoClick }: LandingCTAProps) {
         Try Demo Now
       </button>
 
-      <p className="mt-4 text-xs text-muted">No account required. Limited to 3 demo trades.</p>
+      <p className="mt-4 text-sm text-secondary">No account required.</p>
+      <p className="mt-1 text-xs text-muted">Limited to 3 demo trades.</p>
     </div>
   )
 }

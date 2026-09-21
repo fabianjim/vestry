@@ -181,40 +181,42 @@ export default function Landing() {
           data-landing-stop
           id="improve"
           ref={(el) => { sectionRefs.current[3] = el }}
-          className="min-h-[calc(100svh-3.5rem)] flex flex-col justify-center px-6 py-16"
+          className="min-h-[calc(100svh-3.5rem)] flex flex-col"
         >
-          <RevealSection className="max-w-3xl mx-auto w-full">
-            <LandingCTA onDemoClick={() => {
-              const demoButton = document.querySelector('[data-demo-button]') as HTMLButtonElement | null
-              demoButton?.click()
-            }} />
-          </RevealSection>
+          <div className="flex flex-1 items-center px-6 py-16">
+            <RevealSection className="max-w-3xl mx-auto w-full">
+              <LandingCTA onDemoClick={() => {
+                const demoButton = document.querySelector('[data-demo-button]') as HTMLButtonElement | null
+                demoButton?.click()
+              }} />
+            </RevealSection>
+          </div>
+
+          <footer className="py-8 px-6 text-center text-sm text-muted">
+            <p className="font-90 mb-3">
+              Vestry is open-source. If you would like to self-host please follow the instructions on the GitHub repository.
+            </p>
+            <div className="flex items-center justify-center gap-4">
+              <a
+                href="https://github.com/fabianjim/vestry"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground transition-colors"
+                aria-label="GitHub"
+              >
+                <GithubIcon className="w-4 h-4" />
+              </a>
+              <a
+                href="mailto:fabian.jim26@gmail.com"
+                className="hover:text-foreground transition-colors"
+                aria-label="Email"
+              >
+                <EnvelopeIcon className="w-4 h-4" />
+              </a>
+            </div>
+          </footer>
         </section>
       </main>
-
-      <footer data-landing-stop className="py-8 px-6 text-center text-sm text-muted">
-        <p className="font-90 mb-3">
-          Vestry is open-source. If you would like to self-host please follow the instructions on the GitHub repository.
-        </p>
-        <div className="flex items-center justify-center gap-4">
-          <a
-            href="https://github.com/fabianjim/vestry"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-foreground transition-colors"
-            aria-label="GitHub"
-          >
-            <GithubIcon className="w-4 h-4" />
-          </a>
-          <a
-            href="mailto:fabian.jim26@gmail.com"
-            className="hover:text-foreground transition-colors"
-            aria-label="Email"
-          >
-            <EnvelopeIcon className="w-4 h-4" />
-          </a>
-        </div>
-      </footer>
     </div>
   )
 }
