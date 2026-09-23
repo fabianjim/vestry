@@ -1,6 +1,6 @@
 package me.vestry.security;
 
-import me.vestry.config.DemoSessionLogoutHandler;
+import me.vestry.service.DemoSessionResolver;
 import java.util.Arrays;
 
 import org.springframework.context.annotation.Bean;
@@ -14,15 +14,22 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final DemoSessionLogoutHandler demoSessionLogoutHandler;
-
-    public SecurityConfig(DemoSessionLogoutHandler demoSessionLogoutHandler) {
-        this.demoSessionLogoutHandler = demoSessionLogoutHandler;
+    @Bean
+    public WebMvcConfigurer demoActivity(DemoSessionResolver resolver) {
+        return new WebMvcConfigurer() {
+            @Override
+            public void addInterceptors(InterceptorRegistry registry) {
+                registry.addInterceptor(resolver).addPathPatterns("/api/**")
+                        .excludePathPatterns("/api/auth/login", "/api/auth/register");
+            }
+        };
     }
     
     @Bean
@@ -56,14 +63,13 @@ public class SecurityConfig {
                     .anyRequest().authenticated()
             )
             .securityContext(securityContext -> securityContext
-                .requireExplicitSave(false) 
+                .requireExplicitSave(true)
             )
             .logout(logout -> logout
                 .logoutUrl("/api/auth/logout")
                 .logoutSuccessUrl("/")
                 .invalidateHttpSession(true)
                 .deleteCookies("JSESSIONID")
-                .addLogoutHandler(demoSessionLogoutHandler)
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)

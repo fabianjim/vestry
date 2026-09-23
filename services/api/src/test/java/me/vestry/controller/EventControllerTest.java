@@ -1,6 +1,7 @@
 package me.vestry.controller;
 
 import me.vestry.event.PriceFetchEventService;
+import me.vestry.service.DemoSessionResolver;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -21,6 +22,9 @@ class EventControllerTest {
 
     @MockitoBean
     private PriceFetchEventService priceFetchEventService;
+
+    @MockitoBean
+    private DemoSessionResolver demoSessionResolver;
 
     @Test
     @WithMockUser(username = "testuser")

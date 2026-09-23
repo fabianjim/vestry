@@ -1,17 +1,22 @@
 package me.vestry.controller;
 
-import me.vestry.model.DemoSession;
 import me.vestry.model.User;
 import me.vestry.repository.UserRepository;
-import me.vestry.service.DemoSessionService;
+import me.vestry.service.DemoSessionResolver;
+import me.vestry.service.DemoSessionStore;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
+import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,16 +26,17 @@ import java.util.Optional;
 @RequestMapping("/api/auth")
 public class LoginController {
 
-    private static final String DEMO_SESSION_KEY = "DEMO_SESSION";
-
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final DemoSessionService demoSessionService;
+    private final DemoSessionResolver demoSessionResolver;
+    private final ServerProperties serverProperties;
 
-    public LoginController(UserRepository userRepository, PasswordEncoder passwordEncoder, DemoSessionService demoSessionService) {
+    public LoginController(UserRepository userRepository, PasswordEncoder passwordEncoder,
+                           DemoSessionResolver demoSessionResolver, ServerProperties serverProperties) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
-        this.demoSessionService = demoSessionService;
+        this.demoSessionResolver = demoSessionResolver;
+        this.serverProperties = serverProperties;
     }
 
     @PostMapping("/register")
@@ -50,7 +56,8 @@ public class LoginController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request, HttpSession session) {
+    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request,
+                                              HttpServletRequest httpRequest, HttpServletResponse response) {
         Optional<User> foundUser = userRepository.findByUsername(request.username);
 
         if (foundUser.isEmpty()) {
@@ -63,16 +70,19 @@ public class LoginController {
                     .body(new LoginResponse("Invalid username or password", null, null, false));
         }
 
-        Authentication auth = new UsernamePasswordAuthenticationToken(
-                user, null, List.of()
-        );
-        SecurityContextHolder.getContext().setAuthentication(auth);
-
+        String demoId = user.isDemo() ? demoSessionResolver.resume(user, httpRequest, response) : null;
+        HttpSession previous = httpRequest.getSession(false);
+        if (previous != null) previous.invalidate();
+        HttpSession session = httpRequest.getSession(true);
+        session.setMaxInactiveInterval((int) (user.isDemo() ? DemoSessionStore.IDLE_TIMEOUT
+                : serverProperties.getServlet().getSession().getTimeout()).getSeconds());
         if (user.isDemo()) {
-            DemoSession demoSession = demoSessionService.createSession(user);
-            session.setAttribute(DEMO_SESSION_KEY, demoSession);
-            session.setMaxInactiveInterval(30 * 60);
+            session.setAttribute(DemoSessionResolver.DEMO_SESSION_KEY, demoId);
         }
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new UsernamePasswordAuthenticationToken(user, null, List.of()));
+        SecurityContextHolder.setContext(context);
+        new HttpSessionSecurityContextRepository().saveContext(context, httpRequest, response);
 
         System.out.println("User " + user.getUsername() + " " + user.getId() + " logged in successfully.");
         return ResponseEntity.ok(

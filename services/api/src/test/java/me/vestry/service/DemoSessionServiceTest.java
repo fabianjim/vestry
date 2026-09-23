@@ -26,6 +26,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -171,6 +172,37 @@ public class DemoSessionServiceTest {
         demoUser.setId(5);
         demoUser.setUsername("demo");
         demoUser.setDemo(true);
+    }
+
+    @Test
+    void resumedDemoKeepsPurchaseAndUsesTheLatestStoredPrice() {
+        Clock clock = mock(Clock.class);
+        Instant boughtAt = Instant.parse("2026-09-23T14:50:00Z");
+        when(clock.instant()).thenReturn(boughtAt);
+        when(portfolioRepository.findByUserId(demoUser.getId()))
+                .thenReturn(Optional.of(new Portfolio(demoUser, new ArrayList<>())));
+        DemoSessionStore store = new DemoSessionStore(demoSessionService, clock);
+        String id = store.resume(null, demoUser);
+        DemoSession demo = store.findAndTouch(id, demoUser.getId());
+        demoSessionService.addHolding(demo, demoUser, "AAPL", 2, 100.0, boughtAt);
+
+        // The scheduled fetch writes shared prices while the visitor's tab is closed.
+        Stock updated = new Stock();
+        updated.setCurrentPrice(110);
+        updated.setTimestamp(Instant.parse("2026-09-23T15:00:00Z"));
+        when(stockService.getLatestStockData("AAPL")).thenReturn(Optional.of(updated));
+        when(clock.instant()).thenReturn(Instant.parse("2026-09-23T15:05:00Z"));
+        store.removeExpired();
+        assertEquals(id, store.resume(id, demoUser));
+        DemoSession resumed = store.findAndTouch(id, demoUser.getId());
+        assertSame(demo, resumed);
+        assertEquals(2, resumed.getRemainingTrades());
+        assertEquals(2, resumed.getPortfolio().getHoldings().get(0).getShares());
+        assertEquals(100, resumed.getTransactions().get(0).getPrice());
+        assertEquals(20, demoSessionService.getPnLSummary(resumed).getUnrealizedPnL());
+        assertTrue(resumed.getSessionTrackedTickers().contains("AAPL"));
+        verify(trackedStockRepository, times(1)).save(any(TrackedStock.class));
+        verify(trackedStockRepository, never()).delete(any(TrackedStock.class));
     }
 
     @Test
