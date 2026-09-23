@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import type { Transaction, PnLSummary } from '../types/transaction'
 import { portfolioApi } from '../services/api'
-import { formatDateTime } from '../utils/dateUtils'
+import { formatDateTime, isInMarketDateRange } from '../utils/dateUtils'
 import { exportToCSV } from '../utils/exportUtils'
 import { FunnelIcon, ArrowDownTrayIcon } from './icons'
 import { formatSignedCurrencyWithPercent } from '../utils/formatUtils'
@@ -167,21 +167,7 @@ export default function TransactionHistory() {
       if (selectedTickers.size > 0 && !selectedTickers.has(t.ticker)) return false
 
       // Date filter
-      if (dateFrom) {
-        const fromDate = new Date(dateFrom)
-        fromDate.setHours(0, 0, 0, 0)
-        const txDate = new Date(t.timestamp)
-        if (txDate < fromDate) return false
-      }
-
-      if (dateTo) {
-        const toDate = new Date(dateTo)
-        toDate.setHours(23, 59, 59, 999)
-        const txDate = new Date(t.timestamp)
-        if (txDate > toDate) return false
-      }
-
-      return true
+      return isInMarketDateRange(t.timestamp, dateFrom, dateTo)
     })
   }, [transactions, selectedTypes, selectedTickers, dateFrom, dateTo])
 

@@ -56,6 +56,15 @@ const getMarketParts = (date: Date): MarketParts => {
   }
 }
 
+/** Matches inclusive YYYY-MM-DD filters to the New York dates shown in the UI. */
+export const isInMarketDateRange = (timestamp: string, from: string, to: string): boolean => {
+  if (!from && !to) return true
+
+  const { year, month, day } = getMarketParts(new Date(timestamp))
+  const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  return (!from || date >= from) && (!to || date <= to)
+}
+
 /**
  * Builds a Date representing the given wall-clock time in America/New_York.
  * Corrects for the timezone offset so the returned instant displays as the
