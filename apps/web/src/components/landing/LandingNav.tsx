@@ -1,14 +1,16 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '../../services/api'
 import { redirectAfterLogin } from '../../utils/redirectAfterLogin'
 import { GithubIcon } from '../icons'
+import { preloadApplication } from '../../utils/loadApplication'
 
 export default function LandingNav() {
   const navigate = useNavigate()
   const [demoLoading, setDemoLoading] = useState(false)
 
   const handleDemo = async () => {
+    preloadApplication()
     setDemoLoading(true)
     try {
       await authApi.login('demo', 'demo')
@@ -35,15 +37,19 @@ export default function LandingNav() {
           >
             <GithubIcon className="w-4 h-4" />
           </a>
-          <a
-            href="/login"
+          <Link
+            to="/login"
+            onMouseEnter={preloadApplication}
+            onFocus={preloadApplication}
             className="px-3 py-1.5 text-sm text-foreground hover:text-primary transition-colors cursor-pointer"
           >
             Sign in
-          </a>
+          </Link>
           <button
             type="button"
             data-demo-button
+            onMouseEnter={preloadApplication}
+            onFocus={preloadApplication}
             onClick={handleDemo}
             disabled={demoLoading}
             className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed cursor-pointer"

@@ -1,3 +1,5 @@
+import { preloadApplication } from '../../utils/loadApplication'
+
 interface LandingCTAProps {
   onDemoClick: () => void
 }
@@ -13,6 +15,8 @@ export default function LandingCTA({ onDemoClick }: LandingCTAProps) {
       </p>
 
       <button
+        onMouseEnter={preloadApplication}
+        onFocus={preloadApplication}
         onClick={onDemoClick}
         className="px-8 py-3 bg-primary text-primary-foreground rounded-md text-base font-130 hover:bg-primary-hover active:bg-primary-active transition-colors cursor-pointer"
       >
