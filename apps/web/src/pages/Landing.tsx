@@ -31,29 +31,28 @@ function RevealSection({ children, className }: { children: React.ReactNode; cla
 
 export default function Landing() {
   const navigate = useNavigate()
-  const [checkingAuth, setCheckingAuth] = useState(true)
   const [activeSection, setActiveSection] = useState(0)
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
 
-  useLandingNavigation(!checkingAuth)
+  useLandingNavigation(true)
 
   useEffect(() => {
+    let active = true
     document.title = 'Vestry | Portfolio Journal'
 
     const checkAuth = async () => {
       try {
         const data = (await authApi.me()) as { username?: string | null } | null
-        if (data?.username) {
+        if (active && data?.username) {
           navigate('/dashboard', { replace: true })
         }
       } catch {
         // Not authenticated, stay on landing
-      } finally {
-        setCheckingAuth(false)
       }
     }
 
     checkAuth()
+    return () => { active = false }
   }, [navigate])
 
   useEffect(() => {
@@ -76,7 +75,7 @@ export default function Landing() {
     })
 
     return () => observers.forEach((o) => o.disconnect())
-  }, [checkingAuth])
+  }, [])
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id)
@@ -86,14 +85,6 @@ export default function Landing() {
         block: 'start',
       })
     }
-  }
-
-  if (checkingAuth) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <span className="text-muted">Loading…</span>
-      </div>
-    )
   }
 
   return (
