@@ -18,3 +18,10 @@ export type StockSnapshot = {
   type?: 'EOD' | 'INTRADAY' | 'INITIAL'
 }
 
+export type StockData = {
+  stock: StockSnapshot | null
+  stale: boolean
+  staleWarning: string | null
+  lastSuccessfulFetch: string | null
+  eod: boolean
+}

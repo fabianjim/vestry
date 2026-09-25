@@ -1,9 +1,32 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { portfolioApi } from './api'
+import { authApi, portfolioApi, stockApi } from './api'
 
 afterEach(() => vi.unstubAllGlobals())
 
 describe('portfolio API errors', () => {
+  it('retains the HTTP status for session-expiry handling', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ message: 'Not authenticated' }), { status: 401 },
+    )))
+    await expect(authApi.me()).rejects.toMatchObject({ status: 401, message: 'Not authenticated' })
+  })
+
+  it('passes cancellation through without changing a network error into an HTTP error', async () => {
+    const controller = new AbortController()
+    const aborted = new DOMException('Request aborted', 'AbortError')
+    const fetchMock = vi.fn().mockImplementation((_url, options: RequestInit) =>
+      new Promise((_resolve, reject) => options.signal?.addEventListener('abort', () => reject(aborted))),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const request = stockApi.getHistoricalData('AAPL', '2026-09-01T00:00:00Z', controller.signal)
+    controller.abort()
+    await expect(request).rejects.toBe(aborted)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/stock/history/AAPL?from=2026-09-01T00%3A00%3A00Z',
+      expect.objectContaining({ credentials: 'include', signal: controller.signal }),
+    )
+  })
+
   it.each([
     ['holding limit', JSON.stringify({ error: 'A portfolio can contain at most 8 holdings.' }), 'A portfolio can contain at most 8 holdings.'],
     ['demo limit', JSON.stringify({ error: 'Demo trade limit reached', demoTradeLimitReached: 'true' }), 'Demo trade limit reached'],

@@ -1,17 +1,34 @@
+import type { Holding, PortfolioHistoryPoint } from '../types/portfolio'
+import type { StockData, StockHistoryPoint } from '../types/stock'
+import type { PnLSummary, Transaction } from '../types/transaction'
+import type { WatchlistItem } from '../types/watchlist'
+
 const API_BASE = '/api';
 
 interface FetchOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   body?: unknown
   credentials?: RequestCredentials
+  signal?: AbortSignal
+}
+
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
 }
 
 async function apiClient(endpoint: string, options: FetchOptions = {}) {
-  const { method = 'GET', body, credentials = 'include' } = options
+  const { method = 'GET', body, credentials = 'include', signal } = options
 
   const config: RequestInit = {
     method,
     credentials,
+    signal,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -36,12 +53,15 @@ async function apiClient(endpoint: string, options: FetchOptions = {}) {
         typeof payload.error === 'string'
       ) {
         message = payload.error
+      } else if (typeof payload === 'object' && payload !== null &&
+        'message' in payload && typeof payload.message === 'string') {
+        message = payload.message
       }
     } catch {
       // Preserve the fallback for non-JSON error responses.
     }
 
-    throw new Error(message)
+    throw new ApiError(message, response.status)
   }
 
   // Handle empty responses
@@ -58,8 +78,8 @@ export const portfolioApi = {
   createPortfolio: (holdings: Array<{ ticker: string; shares: number }>) =>
     apiClient('/portfolio/create', { method: 'POST', body: { holdings } }),
 
-  getHoldings: () =>
-    apiClient('/portfolio/holdings'),
+  getHoldings: (signal?: AbortSignal): Promise<Holding[]> =>
+    apiClient('/portfolio/holdings', { signal }),
 
   addHolding: (ticker: string, shares: number, price?: number, timestamp?: string) =>
     apiClient('/portfolio/holdings/add', { method: 'POST', body: { ticker, shares, price, timestamp } }),
@@ -73,14 +93,14 @@ export const portfolioApi = {
   portfolioExists: () =>
     apiClient('/portfolio/exists'),
 
-  getPortfolioHistory: () =>
-    apiClient('/portfolio/history'),
+  getPortfolioHistory: (signal?: AbortSignal): Promise<PortfolioHistoryPoint[]> =>
+    apiClient('/portfolio/history', { signal }),
 
-  getTransactions: () =>
-    apiClient('/portfolio/transactions'),
+  getTransactions: (signal?: AbortSignal): Promise<Transaction[]> =>
+    apiClient('/portfolio/transactions', { signal }),
 
-  getPnLSummary: () =>
-    apiClient('/portfolio/pnl'),
+  getPnLSummary: (signal?: AbortSignal): Promise<PnLSummary> =>
+    apiClient('/portfolio/pnl', { signal }),
 }
 
 // Stock API
@@ -91,12 +111,12 @@ export const stockApi = {
   fetchInitial: () =>
     apiClient('/stock/fetch/initial'),
 
-  getStockData: (ticker: string) =>
-    apiClient(`/stock/data/${ticker}`),
+  getStockData: (ticker: string, signal?: AbortSignal): Promise<StockData> =>
+    apiClient(`/stock/data/${ticker}`, { signal }),
 
-  getHistoricalData: (ticker: string, from?: string) => {
+  getHistoricalData: (ticker: string, from?: string, signal?: AbortSignal): Promise<StockHistoryPoint[]> => {
     const queryParams = from ? `?from=${encodeURIComponent(from)}` : ''
-    return apiClient(`/stock/history/${ticker}${queryParams}`)
+    return apiClient(`/stock/history/${ticker}${queryParams}`, { signal })
   },
 }
 
@@ -160,8 +180,8 @@ export const watchlistApi = {
   addToWatchlist: (ticker: string) =>
     apiClient('/watchlist', { method: 'POST', body: { ticker } }),
 
-  getWatchlist: () =>
-    apiClient('/watchlist'),
+  getWatchlist: (signal?: AbortSignal): Promise<WatchlistItem[]> =>
+    apiClient('/watchlist', { signal }),
 
   removeFromWatchlist: (ticker: string) =>
     apiClient(`/watchlist/${encodeURIComponent(ticker)}`, { method: 'DELETE' }),
