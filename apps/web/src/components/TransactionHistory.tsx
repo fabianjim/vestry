@@ -1,11 +1,14 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import type { Transaction, PnLSummary } from '../types/transaction'
-import { portfolioApi } from '../services/api'
+import { useQuery } from '@tanstack/react-query'
+import { portfolioQueries } from '../services/queries'
+import type { Transaction } from '../types/transaction'
 import { formatDateTime, isInMarketDateRange } from '../utils/dateUtils'
 import { exportToCSV } from '../utils/exportUtils'
 import { FunnelIcon, ArrowDownTrayIcon } from './icons'
 import { formatSignedCurrencyWithPercent } from '../utils/formatUtils'
+
+const EMPTY_TRANSACTIONS: Transaction[] = []
 
 interface DropdownPosition {
   top: number
@@ -13,10 +16,12 @@ interface DropdownPosition {
 }
 
 export default function TransactionHistory() {
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string>('')
-  const [pnlSummary, setPnlSummary] = useState<PnLSummary | null>(null)
+  const transactionsQuery = useQuery(portfolioQueries.transactions())
+  const pnlQuery = useQuery(portfolioQueries.pnl())
+  const transactions = transactionsQuery.data ?? EMPTY_TRANSACTIONS
+  const pnlSummary = pnlQuery.data
+  const loading = transactionsQuery.isPending
+  const error = transactionsQuery.error?.message || pnlQuery.error?.message
 
   // Filter state
   const [dateFrom, setDateFrom] = useState<string>('')
@@ -33,34 +38,6 @@ export default function TransactionHistory() {
   const dateDropdownRef = useRef<HTMLDivElement>(null)
   const typeDropdownRef = useRef<HTMLDivElement>(null)
   const tickerDropdownRef = useRef<HTMLDivElement>(null)
-
-  const fetchTransactions = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const data = await portfolioApi.getTransactions() as Transaction[]
-      setTransactions(data)
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unexpected error'
-      setError(message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchPnLSummary = async () => {
-    try {
-      const data = await portfolioApi.getPnLSummary() as PnLSummary
-      setPnlSummary(data)
-    } catch (e) {
-      console.error('Failed to fetch P/L summary:', e)
-    }
-  }
-
-  useEffect(() => {
-    fetchTransactions()
-    fetchPnLSummary()
-  }, [])
 
   // Calculate dropdown position when opening
   const calculatePosition = useCallback((btnRef: React.RefObject<HTMLButtonElement | null>) => {
@@ -208,16 +185,20 @@ export default function TransactionHistory() {
     return <div className="text-muted">Loading transactions...</div>
   }
 
-  if (error) {
+  if (error && !transactionsQuery.data) {
     return <div className="text-error">Error: {error}</div>
   }
 
   if (transactions.length === 0) {
-    return <div className="text-muted italic">No transactions yet</div>
+    return <div>
+      {error && <p role="status" className="text-error mb-4">Unable to refresh: {error}</p>}
+      <div className="text-muted italic">No transactions yet</div>
+    </div>
   }
 
   return (
     <div>
+      {error && <p role="status" className="text-error mb-4">Unable to refresh: {error}</p>}
       {/* P/L Summary */}
       {pnlSummary && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">

@@ -22,7 +22,17 @@ export class ApiError extends Error {
   }
 }
 
+type AuthFailureListener = (error: ApiError, endpoint: string) => void
+const authFailureListeners = new Set<AuthFailureListener>()
+
+export function onAuthFailure(listener: AuthFailureListener) {
+  authFailureListeners.add(listener)
+  return () => { authFailureListeners.delete(listener) }
+}
+
 async function apiClient(endpoint: string, options: FetchOptions = {}) {
+  // Associate failures with the session that started the request, not a later login.
+  const listeners = [...authFailureListeners]
   const { method = 'GET', body, credentials = 'include', signal } = options
 
   const config: RequestInit = {
@@ -61,7 +71,11 @@ async function apiClient(endpoint: string, options: FetchOptions = {}) {
       // Preserve the fallback for non-JSON error responses.
     }
 
-    throw new ApiError(message, response.status)
+    const error = new ApiError(message, response.status)
+    if (error.status === 401 || error.status === 403) {
+      listeners.forEach(listener => listener(error, endpoint))
+    }
+    throw error
   }
 
   // Handle empty responses
@@ -198,8 +212,8 @@ export const authApi = {
   logout: () =>
     apiClient('/auth/logout', { method: 'POST' }),
 
-  me: () =>
-    apiClient('/auth/me'),
+  me: (signal?: AbortSignal): Promise<SessionUser> =>
+    apiClient('/auth/me', { signal }),
 }
 
 // Demo API
@@ -209,3 +223,5 @@ export const demoApi = {
 }
 
 export default apiClient
+
+export type SessionUser = { userId: number; username: string; isDemo: boolean }

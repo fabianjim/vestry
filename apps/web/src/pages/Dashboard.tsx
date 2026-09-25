@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { refreshAfterTrade } from '../services/queryUpdates'
 import PortfolioChart from '../components/PortfolioChart'
 import type { PortfolioChartHandle } from '../components/PortfolioChart'
 import JournalPrompt from '../components/JournalPrompt'
@@ -43,7 +45,8 @@ type Holding = {
 }
 
 export default function Dashboard() {
-  const { refreshDemoStatus } = useOutletContext<LayoutContext>()
+  const queryClient = useQueryClient()
+  const { refreshDemoStatus, priceRevision } = useOutletContext<LayoutContext>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
   const [results, setResults] = useState<Holding[]>([])
@@ -59,6 +62,7 @@ export default function Dashboard() {
   const [journalPromptTradeType, setJournalPromptTradeType] = useState<'BUY' | 'SELL'>('BUY')
   const [journalPromptEntryId, setJournalPromptEntryId] = useState<number | null>(null)
   const hasFetched = useRef(false)
+  const lastPriceRevision = useRef(priceRevision)
   const portfolioChartRef = useRef<PortfolioChartHandle>(null)
   const journalPanelRef = useRef<JournalPanelHandle>(null)
   const [activeJournalIds, setActiveJournalIds] = useState<number[] | null>(null)
@@ -102,7 +106,7 @@ export default function Dashboard() {
     document.title = 'Dashboard'
   }, [])
 
-  const fetchPortfolioInfo = async () => {
+  const fetchPortfolioInfo = useCallback(async () => {
     setError('')
     setLoading(true)
     try {
@@ -140,7 +144,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   const openBuyModal = (ticker?: string) => {
     setNewTicker(ticker ?? '')
@@ -212,6 +216,7 @@ export default function Dashboard() {
         manualValidation.isoTime || undefined
       )
 
+      void refreshAfterTrade(queryClient)
       const boughtTicker = newTicker.trim().toUpperCase()
       setShowAddModal(false)
       setNewTicker('')
@@ -272,6 +277,7 @@ export default function Dashboard() {
         manualValidation.isoTime || undefined
       )) as JournalEntry | null
 
+      void refreshAfterTrade(queryClient)
       const soldTicker = sellTicker
       setManualTradeTime(manualValidation.isoTime || null)
       setManualTradePrice(manualValidation.price > 0 ? manualValidation.price : null)
@@ -361,14 +367,14 @@ export default function Dashboard() {
     return totalPrevValue > 0 ? (totalChange / totalPrevValue) * 100 : 0
   }
 
-  const fetchPnLSummary = async () => {
+  const fetchPnLSummary = useCallback(async () => {
     try {
       const data = await portfolioApi.getPnLSummary() as PnLSummary
       setPnlSummary(data)
     } catch (e) {
       console.error('Failed to fetch P/L summary:', e)
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (!hasFetched.current) {
@@ -376,32 +382,17 @@ export default function Dashboard() {
       fetchPortfolioInfo()
       fetchPnLSummary()
     }
-  }, [])
+  }, [fetchPortfolioInfo, fetchPnLSummary])
 
-  // Subscribe to server-sent events for hourly price-fetch completion
+  // The shared application subscription survives navigation between pages.
   useEffect(() => {
-    const eventSource = new EventSource('/api/events', { withCredentials: true })
-
-    eventSource.addEventListener('priceFetchCompleted', () => {
-      setJournalRevision(value => value + 1)
-      fetchPortfolioInfo()
-      fetchPnLSummary()
-      portfolioChartRef.current?.refresh()
-    })
-
-    eventSource.addEventListener('error', () => {
-      // The browser will auto-reconnect; if the error is fatal we close after a delay.
-      setTimeout(() => {
-        if (eventSource.readyState === EventSource.CLOSED) {
-          eventSource.close()
-        }
-      }, 5000)
-    })
-
-    return () => {
-      eventSource.close()
-    }
-  }, [])
+    if (lastPriceRevision.current === priceRevision) return
+    lastPriceRevision.current = priceRevision
+    setJournalRevision(value => value + 1)
+    void fetchPortfolioInfo()
+    void fetchPnLSummary()
+    portfolioChartRef.current?.refresh()
+  }, [priceRevision, fetchPortfolioInfo, fetchPnLSummary])
 
   return (
     <div className="flex min-h-screen gap-6"> {/* if modifying sidebar gap also update Layout.tsx */}

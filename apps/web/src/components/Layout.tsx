@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
-import { authApi, demoApi } from '../services/api'
+import { authApi, demoApi, type SessionUser } from '../services/api'
 import {
   HomeIcon,
   ChartPieIcon,
@@ -46,12 +46,13 @@ export interface LayoutContext {
   isDemo: boolean
   remainingTrades: number
   refreshDemoStatus: () => Promise<void>
+  priceRevision: number
 }
 
-export default function Layout() {
+export default function Layout({ user, priceRevision }: { user: SessionUser; priceRevision: number }) {
   const [isOpen, setIsOpen] = useState(() => window.innerWidth >= 1280)
   const [userManuallyClosed, setUserManuallyClosed] = useState(false)
-  const [isDemo, setIsDemo] = useState(false)
+  const isDemo = user.isDemo
   const [remainingTrades, setRemainingTrades] = useState(3)
   const location = useLocation()
   const navigate = useNavigate()
@@ -77,27 +78,12 @@ export default function Layout() {
   }, [isDemo])
 
   useEffect(() => {
-    const loadAuth = async () => {
-      try {
-        const data = await authApi.me() as { isDemo?: boolean }
-        setIsDemo(data.isDemo ?? false)
-      } catch (e) {
-        console.error('Failed to fetch auth state:', e)
-      }
-    }
-    loadAuth()
-  }, [location.pathname])
-
-  useEffect(() => {
     refreshDemoStatus()
   }, [refreshDemoStatus])
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include'
-      })
+      await authApi.logout()
     } catch (error) {
       console.error('Logout error:', error)
     }
@@ -184,7 +170,7 @@ export default function Layout() {
         <div className="min-h-0 flex-1 flex">
           <div className="min-w-0 flex-1 overflow-auto pl-6 flex flex-col">
             <div className="flex-1">
-              <Outlet context={{ isDemo, remainingTrades, refreshDemoStatus } as LayoutContext} />
+              <Outlet context={{ isDemo, remainingTrades, refreshDemoStatus, priceRevision } as LayoutContext} />
             </div>
             <footer className="py-3 px-6 border-t border-border flex flex-col items-center gap-3 text-sm text-muted">
               <p className="font-90 text-secondary">

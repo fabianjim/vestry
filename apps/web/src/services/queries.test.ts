@@ -3,6 +3,7 @@ import { isCancelledError } from '@tanstack/react-query'
 import { createQueryClient } from './queryClient'
 import { portfolioQueries, stockQueries } from './queries'
 import { ApiError } from './api'
+import { refreshAfterTrade, refreshPrices } from './queryUpdates'
 
 let client: ReturnType<typeof createQueryClient>
 
@@ -14,6 +15,23 @@ afterEach(() => {
 })
 
 describe('shared application queries', () => {
+  it('refreshes valuation for price events and the ledger for trades', async () => {
+    const transactions = portfolioQueries.transactions().queryKey
+    const pnl = portfolioQueries.pnl().queryKey
+    client.setQueryData(transactions, [])
+    client.setQueryData(pnl, {
+      totalPnL: 10, totalPnLPercent: 1, unrealizedPnL: 10,
+      unrealizedPnLPercent: 1, realizedPnL: 0, realizedPnLPercent: 0,
+    })
+    client.setQueryData(['watchlist'], [])
+    await refreshPrices(client)
+    expect(client.getQueryState(pnl)?.isInvalidated).toBe(true)
+    expect(client.getQueryState(transactions)?.isInvalidated).toBe(false)
+    await refreshAfterTrade(client)
+    expect(client.getQueryState(transactions)?.isInvalidated).toBe(true)
+    expect(client.getQueryState(['watchlist'])?.isInvalidated).toBe(false)
+  })
+
   it('shares concurrent requests, reuses fresh data, and refetches after invalidation', async () => {
     const fetchMock = vi.fn().mockImplementation(async () => Response.json([]))
     vi.stubGlobal('fetch', fetchMock)
