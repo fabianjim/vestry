@@ -3,6 +3,24 @@ import { authApi, portfolioApi, stockApi } from './api'
 
 afterEach(() => vi.unstubAllGlobals())
 
+describe('public session status', () => {
+  it.each([false, true])('returns authenticated=%s through the same-origin session check', async authenticated => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ authenticated }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    ))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(authApi.sessionStatus()).resolves.toEqual({ authenticated })
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/session-status', expect.objectContaining({
+      credentials: 'include',
+      method: 'GET',
+    }))
+  })
+})
+
 describe('portfolio API errors', () => {
   it('retains the HTTP status for session-expiry handling', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(

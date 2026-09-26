@@ -90,6 +90,12 @@ public class LoginController {
         );
     }
 
+    @GetMapping("/session-status")
+    public ResponseEntity<SessionStatusResponse> sessionStatus() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return ResponseEntity.ok(new SessionStatusResponse(auth != null && auth.getPrincipal() instanceof User));
+    }
+
     @GetMapping("/me")
     public ResponseEntity<LoginResponse> me() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -121,6 +127,8 @@ public class LoginController {
     } 
 
     public record LoginResponse(String message, String username, Integer userId, boolean isDemo) {}
+
+    public record SessionStatusResponse(boolean authenticated) {}
 
     public record RegisterResponse(String message, String username) {}
 }

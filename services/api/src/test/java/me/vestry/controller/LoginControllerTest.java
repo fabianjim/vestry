@@ -149,6 +149,33 @@ class LoginControllerTest {
         assertNotEquals("expired-or-lost", fresh.getResponse().getCookie("VESTRY_DEMO").getValue());
     }
 
+    @Test
+    void anonymousSessionStatusIsSuccessfulWithoutCreatingASession() throws Exception {
+        MvcResult result = mvc.perform(get("/api/auth/session-status"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("{\"authenticated\":false}"))
+                .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")))
+                .andReturn();
+        assertNull(result.getRequest().getSession(false));
+        mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void sessionStatusRecognizesRegularAndDemoLoginsButNotADemoCookieAlone() throws Exception {
+        for (String username : java.util.List.of("regular", "demo")) {
+            MvcResult authenticated = login(username, null, null);
+            mvc.perform(get("/api/auth/session-status").session(session(authenticated)))
+                    .andExpect(status().isOk())
+                    .andExpect(content().json("{\"authenticated\":true}"));
+            Cookie demoCookie = authenticated.getResponse().getCookie("VESTRY_DEMO");
+            if (demoCookie != null) {
+                mvc.perform(get("/api/auth/session-status").cookie(demoCookie))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("authenticated").value(false));
+            }
+        }
+    }
+
     private MvcResult login(String username, MockHttpSession session, Cookie cookie) throws Exception {
         var request = post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"username\":\"" + username + "\",\"password\":\"password\"}");

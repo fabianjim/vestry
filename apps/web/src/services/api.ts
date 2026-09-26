@@ -214,6 +214,9 @@ export const authApi = {
 
   me: (signal?: AbortSignal): Promise<SessionUser> =>
     apiClient('/auth/me', { signal }),
+
+  sessionStatus: (signal?: AbortSignal): Promise<{ authenticated: boolean }> =>
+    apiClient('/auth/session-status', { signal }),
 }
 
 // Demo API

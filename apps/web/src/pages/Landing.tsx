@@ -42,12 +42,12 @@ export default function Landing() {
 
     const checkAuth = async () => {
       try {
-        const data = (await authApi.me()) as { username?: string | null } | null
-        if (active && data?.username) {
+        const data = await authApi.sessionStatus()
+        if (active && data.authenticated) {
           navigate('/dashboard', { replace: true })
         }
       } catch {
-        // Not authenticated, stay on landing
+        // If the session check fails, keep the public landing page available.
       }
     }
 
