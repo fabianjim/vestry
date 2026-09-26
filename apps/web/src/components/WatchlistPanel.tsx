@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { watchlistQueries } from '../services/queries'
 import type { WatchlistItem } from '../types/watchlist'
 import { watchlistApi } from '../services/api'
+
+const EMPTY_WATCHLIST: WatchlistItem[] = []
 
 interface WatchlistPanelProps {
   isOpen?: boolean
@@ -9,28 +13,12 @@ interface WatchlistPanelProps {
 }
 
 export default function WatchlistPanel({ isOpen = true, onCountChange, onBuyClick }: WatchlistPanelProps) {
-  const [items, setItems] = useState<WatchlistItem[]>([])
+  const client = useQueryClient()
+  const query = useQuery(watchlistQueries.list())
+  const items = query.data ?? EMPTY_WATCHLIST
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [newTicker, setNewTicker] = useState('')
-
-  const fetchWatchlist = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const data = await watchlistApi.getWatchlist() as WatchlistItem[]
-      setItems(data || [])
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unexpected error'
-      setError(message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchWatchlist()
-  }, [])
 
   useEffect(() => {
     onCountChange?.(items.length)
@@ -43,10 +31,11 @@ export default function WatchlistPanel({ isOpen = true, onCountChange, onBuyClic
       return
     }
     setLoading(true)
+    setError('')
     try {
       await watchlistApi.addToWatchlist(ticker)
       setNewTicker('')
-      await fetchWatchlist()
+      await client.invalidateQueries({ queryKey: watchlistQueries.all })
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
       setError(message)
@@ -57,9 +46,10 @@ export default function WatchlistPanel({ isOpen = true, onCountChange, onBuyClic
 
   const handleRemove = async (ticker: string) => {
     setLoading(true)
+    setError('')
     try {
       await watchlistApi.removeFromWatchlist(ticker)
-      await fetchWatchlist()
+      await client.invalidateQueries({ queryKey: watchlistQueries.all })
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
       setError(message)
@@ -94,12 +84,12 @@ export default function WatchlistPanel({ isOpen = true, onCountChange, onBuyClic
             </button>
           </div>
 
-          {error && <div className="text-error mb-4">{error}</div>}
+          {(error || query.error) && <div className="text-error mb-4">{error || query.error?.message}</div>}
         </>
       )}
 
       {items.length === 0 ? (
-        <div className={`text-muted ${isOpen ? 'p-4 text-sm' : 'p-2 text-xs'}`}>No watchlist items yet.</div>
+        <div className={`text-muted ${isOpen ? 'p-4 text-sm' : 'p-2 text-xs'}`}>{query.isPending ? 'Loading watchlist…' : query.isError ? 'Watchlist unavailable.' : 'No watchlist items yet.'}</div>
       ) : (
         <div className={isOpen ? 'flex flex-col gap-2' : 'p-1'}>
           {items.map((item) => {

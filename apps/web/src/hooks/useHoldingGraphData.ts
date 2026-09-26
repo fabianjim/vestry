@@ -1,6 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
-import { portfolioApi, watchlistApi, stockApi } from '../services/api'
-import type { StockMetadata } from '../types/watchlist'
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useHoldings } from './useHoldings'
+import { watchlistQueries } from '../services/queries'
+import type { WatchlistItem } from '../types/watchlist'
 import type { StockSnapshot } from '../types/stock'
 import { getNodeColor } from '../constants/colors'
 
@@ -40,57 +42,14 @@ export type HoldingValueItem = {
   sector: string
 }
 
-type Holding = {
-  ticker: string
-  shares: number
-  buyTimestamp?: string
-  metadata: StockMetadata | null
-  stockData?: {
-    stock?: StockSnapshot | null
-  } | null
-}
-
-type WatchlistItem = {
-  id: number
-  ticker: string
-  metadata: StockMetadata | null
-}
+const EMPTY_WATCHLIST: WatchlistItem[] = []
 
 export function useHoldingGraphData() {
-  const [holdings, setHoldings] = useState<Holding[]>([])
-  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([])
-  const [error, setError] = useState('')
-
-  const fetchData = async () => {
-    setError('')
-    try {
-      const [holdingsRes, watchlistRes] = await Promise.all([
-        portfolioApi.getHoldings() as Promise<Holding[]>,
-        watchlistApi.getWatchlist() as Promise<WatchlistItem[]>,
-      ])
-
-      const holdingsWithData = await Promise.all(
-        (holdingsRes || []).map(async (h) => {
-          try {
-            const data = (await stockApi.getStockData(h.ticker)) as { stock?: StockSnapshot | null }
-            return { ...h, stockData: data }
-          } catch {
-            return h
-          }
-        })
-      )
-
-      setHoldings(holdingsWithData)
-      setWatchlist(watchlistRes || [])
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unexpected error'
-      setError(message)
-    }
-  }
-
-  useEffect(() => {
-    fetchData()
-  }, [])
+  const holdingsQuery = useHoldings()
+  const watchlistQuery = useQuery(watchlistQueries.list())
+  const holdings = holdingsQuery.data
+  const watchlist = watchlistQuery.data ?? EMPTY_WATCHLIST
+  const error = (holdingsQuery.error ?? watchlistQuery.error)?.message ?? ''
 
   const { nodes, edges, sectorData, holdingsValueData, totalValue } = useMemo(() => {
     const allNodes: GraphNode[] = []
@@ -206,5 +165,5 @@ export function useHoldingGraphData() {
     return holding?.buyTimestamp ?? null
   }
 
-  return { nodes, edges, sectorData, holdingsValueData, totalValue, error, getMetadata, getTrackingStartDate, getStockSnapshot, refetch: fetchData }
+  return { nodes, edges, sectorData, holdingsValueData, totalValue, error, getMetadata, getTrackingStartDate, getStockSnapshot }
 }

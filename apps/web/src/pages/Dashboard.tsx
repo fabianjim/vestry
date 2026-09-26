@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { refreshAfterTrade } from '../services/queryUpdates'
 import PortfolioChart from '../components/PortfolioChart'
 import type { PortfolioChartHandle } from '../components/PortfolioChart'
@@ -12,44 +12,23 @@ import NextUpdateTimer from '../components/NextUpdateTimer'
 import InfoTooltip from '../components/InfoTooltip'
 import NodeDetailPanel from '../components/NodeDetailPanel'
 import JournalDetailPanel from '../components/JournalDetailPanel'
-import type { PnLSummary } from '../types/transaction'
-import type { StockMetadata } from '../types/watchlist'
+import { useHoldings } from '../hooks/useHoldings'
+import { portfolioQueries } from '../services/queries'
 import type { JournalEntry } from '../types/journal'
 import type { LayoutContext } from '../components/Layout'
 import { journalApi, portfolioApi } from '../services/api'
 import { formatCurrency, formatSignedCurrencyWithPercent } from '../utils/formatUtils'
-
-type StockData = {
-  stock: Stock | null
-  stale: boolean
-  staleWarning: string | null
-  lastSuccessfulFetch: string | null
-}
-
-type Stock = {
-  ticker: string
-  timestamp: string
-  currentPrice: number
-  open: number
-  prevClose: number
-  high: number
-  low: number
-}
-
-type Holding = {
-  ticker: string
-  shares: number
-  stockData?: StockData | null
-  metadata?: StockMetadata | null
-  buyTimestamp?: string
-}
 
 export default function Dashboard() {
   const queryClient = useQueryClient()
   const { refreshDemoStatus, priceRevision } = useOutletContext<LayoutContext>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
-  const [results, setResults] = useState<Holding[]>([])
+  const holdingsQuery = useHoldings()
+  const results = holdingsQuery.data
+  const pnlQuery = useQuery(portfolioQueries.pnl())
+  const pnlSummary = pnlQuery.data
+  const queryError = (holdingsQuery.error ?? pnlQuery.error)?.message
   const [showAddModal, setShowAddModal] = useState(false)
   const [newTicker, setNewTicker] = useState('')
   const [newShares, setNewShares] = useState('')
@@ -61,12 +40,10 @@ export default function Dashboard() {
   const [journalPromptTicker, setJournalPromptTicker] = useState('')
   const [journalPromptTradeType, setJournalPromptTradeType] = useState<'BUY' | 'SELL'>('BUY')
   const [journalPromptEntryId, setJournalPromptEntryId] = useState<number | null>(null)
-  const hasFetched = useRef(false)
   const lastPriceRevision = useRef(priceRevision)
   const portfolioChartRef = useRef<PortfolioChartHandle>(null)
   const journalPanelRef = useRef<JournalPanelHandle>(null)
   const [activeJournalIds, setActiveJournalIds] = useState<number[] | null>(null)
-  const [pnlSummary, setPnlSummary] = useState<PnLSummary | null>(null)
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
   const [selectedJournalEntry, setSelectedJournalEntry] = useState<JournalEntry | null>(null)
   const [journalRevision, setJournalRevision] = useState(0)
@@ -104,46 +81,6 @@ export default function Dashboard() {
 
   useEffect(() => {
     document.title = 'Dashboard'
-  }, [])
-
-  const fetchPortfolioInfo = useCallback(async () => {
-    setError('')
-    setLoading(true)
-    try {
-      // fetch holding data
-      const getRes = await fetch('/api/portfolio/holdings', {
-        method: 'GET',
-        credentials: 'include',
-      })
-      if (!getRes.ok) throw new Error('Failed to fetch holdings')
-      const holdingsData = (await getRes.json()) as Holding[]
-      
-      // For each holding, fetch detailed stock data with stale info
-      const holdingsWithData = await Promise.all(
-        holdingsData.map(async (holding) => {
-          try {
-            const stockRes = await fetch(`/api/stock/data/${holding.ticker}`, {
-              method: 'GET',
-              credentials: 'include',
-            })
-            if (stockRes.ok) {
-              const stockData: StockData = await stockRes.json()
-              return { ...holding, stockData }
-            }
-            return holding
-          } catch {
-            return holding
-          }
-        })
-      )
-      
-      setResults(holdingsWithData)
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unexpected error'
-      setError(message)
-    } finally {
-      setLoading(false)
-    }
   }, [])
 
   const openBuyModal = (ticker?: string) => {
@@ -216,7 +153,7 @@ export default function Dashboard() {
         manualValidation.isoTime || undefined
       )
 
-      void refreshAfterTrade(queryClient)
+      await refreshAfterTrade(queryClient)
       const boughtTicker = newTicker.trim().toUpperCase()
       setShowAddModal(false)
       setNewTicker('')
@@ -224,8 +161,6 @@ export default function Dashboard() {
       setManualTradeTime(manualValidation.isoTime || null)
       setManualTradePrice(manualValidation.price > 0 ? manualValidation.price : null)
       resetManualState()
-      await fetchPortfolioInfo()
-      await fetchPnLSummary()
       await refreshDemoStatus()
       setJournalPromptEntryId(null)
       setJournalPromptTicker(boughtTicker)
@@ -277,13 +212,11 @@ export default function Dashboard() {
         manualValidation.isoTime || undefined
       )) as JournalEntry | null
 
-      void refreshAfterTrade(queryClient)
+      await refreshAfterTrade(queryClient)
       const soldTicker = sellTicker
       setManualTradeTime(manualValidation.isoTime || null)
       setManualTradePrice(manualValidation.price > 0 ? manualValidation.price : null)
       closeSellModal()
-      await fetchPortfolioInfo()
-      await fetchPnLSummary()
       await refreshDemoStatus()
       setJournalPromptEntryId(sellEntry?.id ?? null)
       setJournalPromptTicker(soldTicker)
@@ -367,32 +300,13 @@ export default function Dashboard() {
     return totalPrevValue > 0 ? (totalChange / totalPrevValue) * 100 : 0
   }
 
-  const fetchPnLSummary = useCallback(async () => {
-    try {
-      const data = await portfolioApi.getPnLSummary() as PnLSummary
-      setPnlSummary(data)
-    } catch (e) {
-      console.error('Failed to fetch P/L summary:', e)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!hasFetched.current) {
-      hasFetched.current = true
-      fetchPortfolioInfo()
-      fetchPnLSummary()
-    }
-  }, [fetchPortfolioInfo, fetchPnLSummary])
-
   // The shared application subscription survives navigation between pages.
   useEffect(() => {
     if (lastPriceRevision.current === priceRevision) return
     lastPriceRevision.current = priceRevision
     setJournalRevision(value => value + 1)
-    void fetchPortfolioInfo()
-    void fetchPnLSummary()
     portfolioChartRef.current?.refresh()
-  }, [priceRevision, fetchPortfolioInfo, fetchPnLSummary])
+  }, [priceRevision])
 
   return (
     <div className="flex min-h-screen gap-6"> {/* if modifying sidebar gap also update Layout.tsx */}
@@ -425,7 +339,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {error && <div className="text-error mt-2 mb-4">{error}</div>}
+      {(error || queryError) && <div className="text-error mt-2 mb-4">{error || queryError}</div>}
 
       {/* Portfolio History Chart */}
       <div className="mb-8">
@@ -734,7 +648,7 @@ export default function Dashboard() {
       {/* Right Sidebar */}
       <RightSidebar
         holdings={results}
-        loading={loading}
+        loading={loading || holdingsQuery.isPending}
         onBuyClick={openBuyModal}
         onSellClick={() => setShowSellModal(true)}
         onHoldingClick={(ticker) => {
