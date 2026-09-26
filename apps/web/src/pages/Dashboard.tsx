@@ -21,7 +21,7 @@ import { formatCurrency, formatSignedCurrencyWithPercent } from '../utils/format
 
 export default function Dashboard() {
   const queryClient = useQueryClient()
-  const { refreshDemoStatus } = useOutletContext<LayoutContext>()
+  const { isDemo, refreshDemoStatus } = useOutletContext<LayoutContext>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
   const holdingsQuery = useHoldings()
@@ -634,6 +634,7 @@ export default function Dashboard() {
       <RightSidebar
         holdings={results}
         loading={loading || holdingsQuery.isPending}
+        isDemo={isDemo}
         onBuyClick={openBuyModal}
         onSellClick={() => setShowSellModal(true)}
         onHoldingClick={(ticker) => {

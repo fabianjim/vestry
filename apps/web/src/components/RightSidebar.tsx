@@ -51,12 +51,13 @@ type Holding = {
 interface RightSidebarProps {
   holdings: Holding[]
   loading: boolean
+  isDemo: boolean
   onBuyClick: (ticker?: string) => void
   onSellClick: () => void
   onHoldingClick?: (ticker: string) => void
 }
 
-export default function RightSidebar({ holdings, loading, onBuyClick, onSellClick, onHoldingClick }: RightSidebarProps) {
+export default function RightSidebar({ holdings, loading, isDemo, onBuyClick, onSellClick, onHoldingClick }: RightSidebarProps) {
   const [isOpen, setIsOpen] = useState(() => window.innerWidth >= 768)
   const [userManuallyClosed, setUserManuallyClosed] = useState(false)
   const [watchlistCount, setWatchlistCount] = useState(0)
@@ -73,7 +74,10 @@ export default function RightSidebar({ holdings, loading, onBuyClick, onSellClic
 
   return (
     <aside
-      className={`sticky top-0 self-start flex flex-col border-l border-border-subtle bg-background-sidebar rounded-b-lg transition-all duration-300 ${
+      // Demo banner: 1.25rem line height + 1rem vertical padding + 1px border.
+      className={`sticky top-0 self-start flex flex-col overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 border-l border-border-subtle bg-background-sidebar rounded-b-lg transition-all duration-300 ${
+          isDemo ? 'max-h-[calc(100dvh-2.25rem-1px)]' : 'max-h-dvh'
+        } ${
           isOpen ? 'w-80' : 'w-36'
         }`}
     >

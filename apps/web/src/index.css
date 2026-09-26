@@ -180,25 +180,6 @@ body {
   min-height: 100vh;
 }
 
-/* Custom scrollbar for dark theme */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--color-background);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-elevated);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-solid);
-}
-
 /* Focus styles */
 *:focus-visible {
   outline: 2px solid var(--color-primary);
