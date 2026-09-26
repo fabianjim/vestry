@@ -11,9 +11,10 @@ import {
 import type { JournalEntry } from '../types/journal'
 import type { StockMetadata } from '../types/watchlist'
 import type { StockHistoryPoint, StockSnapshot } from '../types/stock'
-import type { Transaction } from '../types/transaction'
+import { useQuery } from '@tanstack/react-query'
+import { portfolioQueries, stockQueries } from '../services/queries'
 import { getPositionStats } from '../utils/positionStats'
-import { stockApi, journalApi, portfolioApi } from '../services/api'
+import { journalApi } from '../services/api'
 import { formatDateTime, roundToMinute } from '../utils/dateUtils'
 import { getCurrentWeekRange } from '../utils/stockStats'
 import { getNodeColor } from '../constants/colors'
@@ -38,59 +39,41 @@ type ChartPoint = {
   fullTimestamp: string
 }
 
+const EMPTY_HISTORY: StockHistoryPoint[] = []
+
 type TabMode = 'performance' | 'metadata'
 
 export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist, trackingStartDate, snapshot = null, lastSuccessfulFetch = null, onEntryClick, defaultTab = 'performance' }: NodeDetailPanelProps) {
-  const [history, setHistory] = useState<StockHistoryPoint[]>([])
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
+  const historyQuery = useQuery({
+    ...stockQueries.history(ticker, trackingStartDate || undefined),
+    enabled: !isWatchlist,
+  })
+  const transactionsQuery = useQuery({
+    ...portfolioQueries.transactions(),
+    enabled: !isWatchlist,
+  })
+  const history = isWatchlist ? EMPTY_HISTORY : historyQuery.data ?? EMPTY_HISTORY
+  const [journalData, setJournalData] = useState<{ ticker: string; entries: JournalEntry[]; error: string } | null>(null)
+  const journalEntries = journalData?.ticker === ticker ? journalData.entries : []
   const [activeTab, setActiveTab] = useState<TabMode>(defaultTab)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [positionData, setPositionData] = useState<{
-    ticker: string; transactions: Transaction[] | null; error: string
-  } | null>(null)
-
-  useEffect(() => {
-    if (isWatchlist) return
-    let cancelled = false
-    setPositionData(null)
-    portfolioApi.getTransactions().then((data) => {
-      if (!cancelled) setPositionData({ ticker, transactions: (data || []) as Transaction[], error: '' })
-    }).catch(() => {
-      if (!cancelled) setPositionData({ ticker, transactions: null, error: 'Unable to load position.' })
-    })
-    return () => { cancelled = true }
-  }, [ticker, isWatchlist])
+  const loading = !isWatchlist && historyQuery.isPending
+  const error = (!isWatchlist && (historyQuery.error ?? transactionsQuery.error)?.message)
+    || (journalData?.ticker === ticker ? journalData.error : '')
 
   const position = useMemo(() => {
-    if (isWatchlist || positionData?.ticker !== ticker || !positionData.transactions) return null
-    return getPositionStats(positionData.transactions, ticker, snapshot?.currentPrice ?? null)
-  }, [positionData, ticker, isWatchlist, snapshot?.currentPrice])
+    if (isWatchlist || !transactionsQuery.data) return null
+    return getPositionStats(transactionsQuery.data, ticker, snapshot?.currentPrice ?? null)
+  }, [transactionsQuery.data, ticker, isWatchlist, snapshot?.currentPrice])
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const journalData = (await journalApi.getEntriesForTicker(ticker)) as JournalEntry[]
-        setJournalEntries(journalData || [])
-
-        if (!isWatchlist) {
-          const fromParam = trackingStartDate || undefined
-          const histData = (await stockApi.getHistoricalData(ticker, fromParam)) as StockHistoryPoint[]
-          setHistory(histData || [])
-        } else {
-          setHistory([])
-        }
-      } catch (e) {
-        const message = e instanceof Error ? e.message : 'Unexpected error'
-        setError(message)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [ticker, isWatchlist, trackingStartDate])
+    let cancelled = false
+    journalApi.getEntriesForTicker(ticker).then(entries => {
+      if (!cancelled) setJournalData({ ticker, entries, error: '' })
+    }).catch(() => {
+      if (!cancelled) setJournalData({ ticker, entries: [], error: 'Unable to load journal entries.' })
+    })
+    return () => { cancelled = true }
+  }, [ticker])
 
   const chartData: ChartPoint[] = useMemo(() => {
     if (!history || history.length === 0) return []
@@ -379,10 +362,10 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
     <>
       <div className="mb-5 pb-5 border-b border-border">
         <h4 className="text-lg font-130 mb-3">Your position</h4>
-        {positionData?.ticker !== ticker ? (
+        {transactionsQuery.isPending ? (
           <div className="text-sm text-muted">Loading position...</div>
-        ) : positionData.error ? (
-          <div className="text-sm text-error">{positionData.error}</div>
+        ) : transactionsQuery.isError && !transactionsQuery.data ? (
+          <div className="text-sm text-error">Unable to load position.</div>
         ) : !position ? (
           <div className="text-sm text-muted">No position data available.</div>
         ) : (

@@ -10,7 +10,9 @@ import {
   Customized,
 } from 'recharts'
 import { useXAxis, useYAxis } from 'recharts/es6/hooks'
-import { portfolioApi, journalApi } from '../services/api'
+import { useQuery } from '@tanstack/react-query'
+import { portfolioQueries } from '../services/queries'
+import { journalApi } from '../services/api'
 import type { JournalEntry } from '../types/journal'
 import type { Transaction } from '../types/transaction'
 import type { ChartDataPoint } from '../utils/chartData'
@@ -173,12 +175,19 @@ function TransactionOverlay({
   )
 }
 
+const EMPTY_HISTORY: HistoryData[] = []
+const EMPTY_TRANSACTIONS: Transaction[] = []
+
 const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function PortfolioChart({ onPinClick }, ref) {
-  const [data, setData] = useState<HistoryData[]>([])
-  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const historyQuery = useQuery(portfolioQueries.history())
+  const transactionsQuery = useQuery(portfolioQueries.transactions())
+  const data = historyQuery.data ?? EMPTY_HISTORY
+  const transactions = transactionsQuery.data ?? EMPTY_TRANSACTIONS
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [journalRevision, setJournalRevision] = useState(0)
+  const [journalError, setJournalError] = useState('')
+  const loading = historyQuery.isPending || transactionsQuery.isPending
+  const error = historyQuery.error?.message ?? transactionsQuery.error?.message ?? journalError
   const [viewMode, setViewMode] = useState<'hourly' | 'daily'>('hourly')
   const getInitialDate = () => {
     const today = new Date()
@@ -202,7 +211,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
 
   useImperativeHandle(ref, () => ({
     refresh: () => {
-      loadData()
+      setJournalRevision(value => value + 1)
     },
     setHourlyDate: (date: Date) => {
       setViewMode('hourly')
@@ -213,31 +222,24 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
     },
   }))
 
+  // Trades and price events invalidate the shared queries at the application boundary.
+  // The imperative refresh now reloads only the journal pins, which are not cached yet.
   useEffect(() => {
-    loadData()
-  }, [])
-
-  const loadData = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const [history, txList, entries] = await Promise.all([
-        portfolioApi.getPortfolioHistory(),
-        portfolioApi.getTransactions(),
-        journalApi.getEntries(),
-      ])
-      setData(history || [])
-      setTransactions(txList || [])
-      setJournalEntries(entries || [])
-      if (!hasAnimatedRef.current && history && history.length > 0) {
-        hasAnimatedRef.current = true
+    let cancelled = false
+    journalApi.getEntries().then(entries => {
+      if (!cancelled) {
+        setJournalEntries(entries)
+        setJournalError('')
       }
-    } catch {
-      setError('Failed to load chart data')
-    } finally {
-      setLoading(false)
-    }
-  }
+    }).catch(() => {
+      if (!cancelled) setJournalError('Unable to refresh journal pins.')
+    })
+    return () => { cancelled = true }
+  }, [journalRevision])
+
+  useEffect(() => {
+    if (data.length > 0) hasAnimatedRef.current = true
+  }, [data])
 
   const processedData: ChartDataPoint[] = useMemo(() => {
     if (!data || data.length === 0) return []
@@ -402,7 +404,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
     return processedData.map((p) => p.timestamp)
   }, [processedData])
 
-  if (loading) {
+  if (loading && !error) {
     return (
       <div className="h-72 flex items-center justify-center bg-surface rounded-lg border border-border">
         <span className="text-muted">Loading chart...</span>
@@ -410,7 +412,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
     )
   }
 
-  if (error) {
+  if (error && (!historyQuery.data || !transactionsQuery.data)) {
     return (
       <div className="h-72 flex items-center justify-center bg-surface rounded-lg border border-border text-error">
         {error}
@@ -421,7 +423,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
   if (data.length === 0) {
     return (
       <div className="h-72 flex items-center justify-center bg-surface rounded-lg border border-border text-muted">
-        No historical data available
+        {error || 'No historical data available'}
       </div>
     )
   }
@@ -431,6 +433,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
       ref={containerRef}
       className="bg-surface p-5 rounded-lg border border-border"
     >
+      {error && <div className="text-error mb-4">{error}</div>}
       <div className="flex justify-between items-center mb-5">
         <div>
           <button
