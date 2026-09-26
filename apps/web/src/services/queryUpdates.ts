@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { portfolioQueries, stockQueries } from './queries'
+import { journalQueries, portfolioQueries, stockQueries } from './queries'
 
 export function refreshPrices(client: QueryClient) {
   return Promise.all([
@@ -13,6 +13,12 @@ export function refreshPrices(client: QueryClient) {
 export function refreshAfterTrade(client: QueryClient) {
   return Promise.all([
     client.invalidateQueries({ queryKey: portfolioQueries.all }),
+    refreshJournal(client),
     client.invalidateQueries({ queryKey: stockQueries.all }),
   ])
+}
+
+// Lists, reflections, calendar counts, and tag suggestions all depend on journal mutations.
+export function refreshJournal(client: QueryClient) {
+  return client.invalidateQueries({ queryKey: journalQueries.all })
 }

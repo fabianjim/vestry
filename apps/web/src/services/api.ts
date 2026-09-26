@@ -134,26 +134,26 @@ export const stockApi = {
   },
 }
 
-import type { CalendarDay, CreateJournalEntryRequest, JournalEntry, JournalFilters, UpdateJournalEntryRequest } from '../types/journal'
+import type { CalendarDay, Tag, CreateJournalEntryRequest, JournalEntry, JournalFilters, UpdateJournalEntryRequest } from '../types/journal'
 
 // Journal API
 export const journalApi = {
   createEntry: (entry: CreateJournalEntryRequest) =>
     apiClient('/journal', { method: 'POST', body: entry }),
 
-  getEntries: () =>
-    apiClient('/journal'),
+  getEntries: (signal?: AbortSignal): Promise<JournalEntry[]> =>
+    apiClient('/journal', { signal }),
 
-  getEntry: (id: number): Promise<JournalEntry> =>
-    apiClient(`/journal/entries/${id}`),
+  getEntry: (id: number, signal?: AbortSignal): Promise<JournalEntry> =>
+    apiClient(`/journal/entries/${id}`, { signal }),
 
-  getEntriesForTicker: (ticker: string) =>
-    apiClient(`/journal/${ticker}`),
+  getEntriesForTicker: (ticker: string, signal?: AbortSignal): Promise<JournalEntry[]> =>
+    apiClient(`/journal/${encodeURIComponent(ticker)}`, { signal }),
 
-  getEntriesInRange: (from: string, to: string) =>
-    apiClient(`/journal/range?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  getEntriesInRange: (from: string, to: string, signal?: AbortSignal): Promise<JournalEntry[]> =>
+    apiClient(`/journal/range?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { signal }),
 
-  getFilteredEntries: (params: JournalFilters) => {
+  getFilteredEntries: (params: JournalFilters, signal?: AbortSignal): Promise<JournalEntry[]> => {
     const searchParams = new URLSearchParams()
     if (params.from) searchParams.set('from', params.from)
     if (params.to) searchParams.set('to', params.to)
@@ -161,10 +161,10 @@ export const journalApi = {
     params.types?.forEach((t) => searchParams.append('types', t))
     params.tagIds?.forEach((id) => searchParams.append('tagIds', id.toString()))
     const queryString = searchParams.toString()
-    return apiClient(`/journal/filtered${queryString ? '?' + queryString : ''}`)
+    return apiClient(`/journal/filtered${queryString ? '?' + queryString : ''}`, { signal })
   },
 
-  getCalendarEntries: (year: number, month: number, filters?: JournalFilters) => {
+  getCalendarEntries: (year: number, month: number, filters?: JournalFilters, signal?: AbortSignal): Promise<CalendarDay[]> => {
     const params = new URLSearchParams()
     params.set('year', year.toString())
     params.set('month', month.toString())
@@ -173,7 +173,7 @@ export const journalApi = {
     if (filters?.query) params.set('query', filters.query)
     filters?.types?.forEach((t) => params.append('types', t))
     filters?.tagIds?.forEach((id) => params.append('tagIds', id.toString()))
-    return apiClient(`/journal/calendar?${params.toString()}`) as Promise<CalendarDay[]>
+    return apiClient(`/journal/calendar?${params.toString()}`, { signal })
   },
 
   deleteEntry: (id: number) =>
@@ -182,8 +182,8 @@ export const journalApi = {
   updateEntry: (id: number, body: UpdateJournalEntryRequest) =>
     apiClient(`/journal/${id}`, { method: 'PUT', body }),
 
-  getPopularTags: (query: string) =>
-    apiClient(`/journal/tags/popular?query=${encodeURIComponent(query)}`),
+  getPopularTags: (query: string, signal?: AbortSignal): Promise<Tag[]> =>
+    apiClient(`/journal/tags/popular?query=${encodeURIComponent(query)}`, { signal }),
 
   deleteTag: (id: number) =>
     apiClient(`/journal/tags/${id}`, { method: 'DELETE' }),
