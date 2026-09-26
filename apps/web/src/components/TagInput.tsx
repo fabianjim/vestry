@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { journalApi } from '../services/api'
+import { useQuery } from '@tanstack/react-query'
+import { journalQueries } from '../services/queries'
 import { getActiveTagQuery } from '../utils/tagUtils'
 import type { Tag } from '../types/journal'
 
@@ -18,7 +19,9 @@ export default function TagInput({
   rows = 3,
   className = '',
 }: TagInputProps) {
-  const [suggestions, setSuggestions] = useState<Tag[]>([])
+  const [tagQuery, setTagQuery] = useState<string | null>(null)
+  const suggestionsQuery = useQuery({ ...journalQueries.tags(tagQuery ?? ''), enabled: tagQuery !== null })
+  const suggestions = suggestionsQuery.data ?? []
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 })
@@ -27,17 +30,12 @@ export default function TagInput({
 
   const fetchSuggestions = useCallback((query: string) => {
     if (debounceRef.current) window.clearTimeout(debounceRef.current)
-    debounceRef.current = window.setTimeout(async () => {
-      try {
-        const data = (await journalApi.getPopularTags(query)) as Tag[]
-        setSuggestions(data || [])
-        setSelectedIndex(0)
-        setShowSuggestions(true)
-      } catch (e) {
-        console.error('Failed to fetch tag suggestions:', e)
-        setSuggestions([])
-        setShowSuggestions(false)
-      }
+    setTagQuery(null)
+    setShowSuggestions(false)
+    debounceRef.current = window.setTimeout(() => {
+      setTagQuery(query)
+      setSelectedIndex(0)
+      setShowSuggestions(true)
     }, 150)
   }, [])
 
@@ -90,6 +88,8 @@ export default function TagInput({
       setPopupPosition(getCursorCoordinates(textarea, startIndex))
       fetchSuggestions(query)
     } else {
+      if (debounceRef.current) window.clearTimeout(debounceRef.current)
+      setTagQuery(null)
       setShowSuggestions(false)
     }
   }, [fetchSuggestions])
@@ -168,7 +168,7 @@ export default function TagInput({
         rows={rows}
         className={`w-full px-2 py-2 bg-background border border-border-control rounded-md text-foreground placeholder-muted resize-y focus:outline-none focus:ring-2 focus:ring-primary ${className}`}
       />
-      {showSuggestions && suggestions.length > 0 && (
+      {showSuggestions && tagQuery !== null && suggestions.length > 0 && (
         <div
           className="absolute z-50 bg-elevated border border-border rounded-md shadow-floating py-1 min-w-32"
           style={{

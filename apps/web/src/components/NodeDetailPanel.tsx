@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import {
   ComposedChart,
   Line,
@@ -12,9 +12,8 @@ import type { JournalEntry } from '../types/journal'
 import type { StockMetadata } from '../types/watchlist'
 import type { StockHistoryPoint, StockSnapshot } from '../types/stock'
 import { useQuery } from '@tanstack/react-query'
-import { portfolioQueries, stockQueries } from '../services/queries'
+import { journalQueries, portfolioQueries, stockQueries } from '../services/queries'
 import { getPositionStats } from '../utils/positionStats'
-import { journalApi } from '../services/api'
 import { formatDateTime, roundToMinute } from '../utils/dateUtils'
 import { getCurrentWeekRange } from '../utils/stockStats'
 import { getNodeColor } from '../constants/colors'
@@ -39,6 +38,7 @@ type ChartPoint = {
   fullTimestamp: string
 }
 
+const EMPTY_ENTRIES: JournalEntry[] = []
 const EMPTY_HISTORY: StockHistoryPoint[] = []
 
 type TabMode = 'performance' | 'metadata'
@@ -53,27 +53,17 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
     enabled: !isWatchlist,
   })
   const history = isWatchlist ? EMPTY_HISTORY : historyQuery.data ?? EMPTY_HISTORY
-  const [journalData, setJournalData] = useState<{ ticker: string; entries: JournalEntry[]; error: string } | null>(null)
-  const journalEntries = journalData?.ticker === ticker ? journalData.entries : []
+  const journalQuery = useQuery(journalQueries.ticker(ticker))
+  const journalEntries = journalQuery.data ?? EMPTY_ENTRIES
   const [activeTab, setActiveTab] = useState<TabMode>(defaultTab)
   const loading = !isWatchlist && historyQuery.isPending
   const error = (!isWatchlist && (historyQuery.error ?? transactionsQuery.error)?.message)
-    || (journalData?.ticker === ticker ? journalData.error : '')
+    || journalQuery.error?.message
 
   const position = useMemo(() => {
     if (isWatchlist || !transactionsQuery.data) return null
     return getPositionStats(transactionsQuery.data, ticker, snapshot?.currentPrice ?? null)
   }, [transactionsQuery.data, ticker, isWatchlist, snapshot?.currentPrice])
-
-  useEffect(() => {
-    let cancelled = false
-    journalApi.getEntriesForTicker(ticker).then(entries => {
-      if (!cancelled) setJournalData({ ticker, entries, error: '' })
-    }).catch(() => {
-      if (!cancelled) setJournalData({ ticker, entries: [], error: 'Unable to load journal entries.' })
-    })
-    return () => { cancelled = true }
-  }, [ticker])
 
   const chartData: ChartPoint[] = useMemo(() => {
     if (!history || history.length === 0) return []
@@ -510,7 +500,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
 
       <div>
         <h4 className="text-lg font-130 mb-3">Journal Entries</h4>
-        {journalEntries.length === 0 ? (
+        {journalQuery.isPending ? <div className="text-muted">Loading entries…</div> : journalEntries.length === 0 ? (
           <div className="text-muted italic">No journal entries for {ticker}.</div>
         ) : (
           <div className="flex flex-col gap-3">

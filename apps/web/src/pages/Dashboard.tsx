@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { refreshAfterTrade } from '../services/queryUpdates'
+import { refreshAfterTrade, refreshJournal } from '../services/queryUpdates'
 import PortfolioChart from '../components/PortfolioChart'
 import type { PortfolioChartHandle } from '../components/PortfolioChart'
 import JournalPrompt from '../components/JournalPrompt'
@@ -21,7 +21,7 @@ import { formatCurrency, formatSignedCurrencyWithPercent } from '../utils/format
 
 export default function Dashboard() {
   const queryClient = useQueryClient()
-  const { refreshDemoStatus, priceRevision } = useOutletContext<LayoutContext>()
+  const { refreshDemoStatus } = useOutletContext<LayoutContext>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
   const holdingsQuery = useHoldings()
@@ -40,13 +40,11 @@ export default function Dashboard() {
   const [journalPromptTicker, setJournalPromptTicker] = useState('')
   const [journalPromptTradeType, setJournalPromptTradeType] = useState<'BUY' | 'SELL'>('BUY')
   const [journalPromptEntryId, setJournalPromptEntryId] = useState<number | null>(null)
-  const lastPriceRevision = useRef(priceRevision)
   const portfolioChartRef = useRef<PortfolioChartHandle>(null)
   const journalPanelRef = useRef<JournalPanelHandle>(null)
   const [activeJournalIds, setActiveJournalIds] = useState<number[] | null>(null)
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
   const [selectedJournalEntry, setSelectedJournalEntry] = useState<JournalEntry | null>(null)
-  const [journalRevision, setJournalRevision] = useState(0)
   const handleJournalEntriesChange = useCallback((entries: JournalEntry[]) => {
     setSelectedJournalEntry(current => current ? entries.find(entry => entry.id === current.id) ?? null : null)
   }, [])
@@ -240,8 +238,6 @@ export default function Dashboard() {
       setJournalPromptEntryId(null)
       setManualTradeTime(null)
       setManualTradePrice(null)
-      portfolioChartRef.current?.refresh()
-      journalPanelRef.current?.refreshEntries()
       return
     }
     try {
@@ -256,6 +252,7 @@ export default function Dashboard() {
           priceSnapshot: manualTradePrice || undefined,
         })
       }
+      await refreshJournal(queryClient)
     } catch (e) {
       console.error('Failed to save journal entry:', e)
     } finally {
@@ -264,8 +261,6 @@ export default function Dashboard() {
       setJournalPromptEntryId(null)
       setManualTradeTime(null)
       setManualTradePrice(null)
-      portfolioChartRef.current?.refresh()
-      journalPanelRef.current?.refreshEntries()
     }
   }
 
@@ -299,14 +294,6 @@ export default function Dashboard() {
     })
     return totalPrevValue > 0 ? (totalChange / totalPrevValue) * 100 : 0
   }
-
-  // The shared application subscription survives navigation between pages.
-  useEffect(() => {
-    if (lastPriceRevision.current === priceRevision) return
-    lastPriceRevision.current = priceRevision
-    setJournalRevision(value => value + 1)
-    portfolioChartRef.current?.refresh()
-  }, [priceRevision])
 
   return (
     <div className="flex min-h-screen gap-6"> {/* if modifying sidebar gap also update Layout.tsx */}
@@ -636,8 +623,6 @@ export default function Dashboard() {
         onClose={() => {
           setShowJournalPrompt(false)
           setJournalPromptEntryId(null)
-          portfolioChartRef.current?.refresh()
-          journalPanelRef.current?.refreshEntries()
         }}
         onSubmit={submitJournalPrompt}
         ticker={journalPromptTicker}
@@ -680,10 +665,8 @@ export default function Dashboard() {
         <JournalDetailPanel
           key={selectedJournalEntry.id}
           entry={selectedJournalEntry}
-          refreshKey={journalRevision}
           onEntryCreated={(entry) => {
             setSelectedJournalEntry(entry)
-            journalPanelRef.current?.refreshEntries()
           }}
           onClose={() => setSelectedJournalEntry(null)}
           onEntryClick={(entry) => setSelectedJournalEntry(entry)}

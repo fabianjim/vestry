@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { isCancelledError } from '@tanstack/react-query'
+import { isCancelledError, QueryObserver } from '@tanstack/react-query'
 import { createQueryClient } from './queryClient'
 import { journalQueries, portfolioQueries } from './queries'
 import { refreshAfterTrade, refreshJournal, refreshPrices } from './queryUpdates'
@@ -50,6 +50,27 @@ describe('journal cache', () => {
     seed()
     await refreshAfterTrade(client)
     expect(keys.every(key => client.getQueryState(key)?.isInvalidated)).toBe(true)
+  })
+
+  it('refetches a shared list once for multiple active views after a journal mutation', async () => {
+    let body = 'Original thesis'
+    const fetchMock = vi.fn().mockImplementation(async () => Response.json([{ id: 1, body }]))
+    vi.stubGlobal('fetch', fetchMock)
+    await client.fetchQuery(journalQueries.entries())
+    const dashboard = new QueryObserver(client, journalQueries.entries())
+    const journal = new QueryObserver(client, journalQueries.entries())
+    const unsubscribeDashboard = dashboard.subscribe(() => {})
+    const unsubscribeJournal = journal.subscribe(() => {})
+    try {
+      body = 'Revised thesis'
+      await refreshJournal(client)
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(dashboard.getCurrentResult().data?.[0].body).toBe(body)
+      expect(journal.getCurrentResult().data?.[0].body).toBe(body)
+    } finally {
+      unsubscribeDashboard()
+      unsubscribeJournal()
+    }
   })
 
   it('aborts in-flight journal requests when the session cache is cleared', async () => {

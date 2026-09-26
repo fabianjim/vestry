@@ -13,7 +13,10 @@ import {
 import type { JournalEntry } from '../types/journal'
 import type { Transaction } from '../types/transaction'
 import type { StockHistoryPoint } from '../types/stock'
-import { stockApi, journalApi, portfolioApi } from '../services/api'
+import { journalApi } from '../services/api'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { journalQueries, portfolioQueries, stockQueries } from '../services/queries'
+import { refreshJournal } from '../services/queryUpdates'
 import { formatDateTime } from '../utils/dateUtils'
 import {
   getPriceChange,
@@ -29,7 +32,6 @@ import { useJournalSources } from '../hooks/useJournalSources'
 type Props = {
   entry: JournalEntry
   onEntryCreated: (entry: JournalEntry) => void
-  refreshKey?: number
   onClose: () => void
   onEntryClick: (entry: JournalEntry) => void
 }
@@ -40,19 +42,32 @@ type ChartPoint = {
   fullTimestamp: string
 }
 
-type StockDataResponse = {
-  stock: {
-    currentPrice: number
-  } | null
-}
+const EMPTY_HISTORY: StockHistoryPoint[] = []
+const EMPTY_ENTRIES: JournalEntry[] = []
+const EMPTY_TRANSACTIONS: Transaction[] = []
 
-export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEntryCreated, refreshKey = 0 }: Props) {
-  const [history, setHistory] = useState<StockHistoryPoint[]>([])
-  const [relatedEntries, setRelatedEntries] = useState<JournalEntry[]>([])
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [currentStock, setCurrentStock] = useState<{ currentPrice: number } | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEntryCreated }: Props) {
+  const client = useQueryClient()
+  const ticker = entry.ticker ?? ''
+  const transactionsQuery = useQuery({ ...portfolioQueries.transactions(), enabled: !!ticker })
+  const transactions = ticker ? transactionsQuery.data ?? EMPTY_TRANSACTIONS : EMPTY_TRANSACTIONS
+  const firstTrackingDate = useMemo(() => transactions
+    .filter(tx => tx.ticker === ticker)
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())[0]?.timestamp,
+  [transactions, ticker])
+  const historyQuery = useQuery({
+    ...stockQueries.history(ticker, firstTrackingDate),
+    enabled: !!ticker && !!transactionsQuery.data,
+  })
+  const journalQuery = useQuery({ ...journalQueries.ticker(ticker), enabled: !!ticker })
+  const stockQuery = useQuery({ ...stockQueries.snapshot(ticker), enabled: !!ticker })
+  const history = ticker ? historyQuery.data ?? EMPTY_HISTORY : EMPTY_HISTORY
+  const relatedEntries = useMemo(() => ticker
+    ? (journalQuery.data ?? EMPTY_ENTRIES).filter(item => item.id !== entry.id) : EMPTY_ENTRIES,
+  [journalQuery.data, entry.id, ticker])
+  const currentStock = ticker ? stockQuery.data?.stock ?? null : null
+  const loading = !!ticker && (transactionsQuery.isPending || historyQuery.isLoading)
+  const error = ticker ? (transactionsQuery.error ?? historyQuery.error ?? journalQuery.error ?? stockQuery.error)?.message : undefined
   const containerRef = useRef<HTMLDivElement>(null)
   const [reflecting, setReflecting] = useState(false)
   const [reflectionBody, setReflectionBody] = useState('')
@@ -85,6 +100,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
     setSaveError('')
     try {
       const saved = await journalApi.createEntry({ entryType: 'REFLECTION', sourceEntryId: entry.id, body, tags }) as JournalEntry
+      await refreshJournal(client)
       setReflectionBody('')
       setReflecting(false)
       onEntryCreated(saved)
@@ -99,61 +115,6 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
   useEffect(() => {
     containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [entry.id])
-
-  useEffect(() => {
-    let cancelled = false
-    const load = async () => {
-      setError('')
-      if (!entry.ticker) {
-        setHistory([])
-        setRelatedEntries([])
-        setTransactions([])
-        setCurrentStock(null)
-        setLoading(false)
-        return
-      }
-
-      setLoading(true)
-      setHistory([])
-      setTransactions([])
-      setCurrentStock(null)
-      setError('')
-      try {
-        // Fetch transactions first to determine tracking start date
-        const txData = (await portfolioApi.getTransactions()) as Transaction[]
-        if (cancelled) return
-        setTransactions(txData || [])
-
-        const firstTrackingDate = txData
-          ?.filter((tx) => tx.ticker === entry.ticker)
-          .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())[0]
-          ?.timestamp || undefined
-
-        const [histData, journalData, stockData] = await Promise.all([
-          stockApi.getHistoricalData(entry.ticker, firstTrackingDate),
-          journalApi.getEntriesForTicker(entry.ticker),
-          stockApi.getStockData(entry.ticker).catch(() => null),
-        ])
-
-        if (cancelled) return
-        setHistory(histData || [])
-        setRelatedEntries((journalData || []).filter((e: JournalEntry) => e.id !== entry.id))
-
-        const typedStockData = stockData as StockDataResponse | null
-        if (typedStockData?.stock) {
-          setCurrentStock({ currentPrice: typedStockData.stock.currentPrice })
-        } else {
-          setCurrentStock(null)
-        }
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Unexpected error')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    return () => { cancelled = true }
-  }, [entry, refreshKey])
 
   const matchedTransaction = useMemo(
     () => matchJournalTransaction(entry, transactions),
@@ -421,7 +382,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
       )}
 
       {/* Performance Section */}
-      {entry.ticker && !loading && !error && (
+      {entry.ticker && !loading && (
         <div className="mb-6 p-4 bg-surface-hover rounded-lg border border-border">
           <h4 className="text-lg font-130 mb-3">{entry.entryType === 'REFLECTION' ? 'Since reflection' : 'Performance'}</h4>
 

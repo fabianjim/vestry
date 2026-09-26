@@ -1,5 +1,8 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { journalQueries } from '../services/queries'
+import { refreshJournal } from '../services/queryUpdates'
 import { JOURNAL_STYLES, journalBadge } from '../constants/journalStyles'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { JournalEntry, JournalEntryType, JournalFilters, Tag } from '../types/journal'
 import { journalApi } from '../services/api'
@@ -12,6 +15,9 @@ import TagPills from '../components/TagPills'
 import JournalDetailPanel from '../components/JournalDetailPanel'
 import JournalSourceQuote from '../components/JournalSourceQuote'
 import { useJournalSources } from '../hooks/useJournalSources'
+
+const EMPTY_ENTRIES: JournalEntry[] = []
+const EMPTY_TAGS: Tag[] = []
 
 export default function JournalPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -31,11 +37,14 @@ export default function JournalPage() {
     }
   })
 
-  const [entries, setEntries] = useState<JournalEntry[]>([])
+  const client = useQueryClient()
+  const entriesQuery = useQuery(journalQueries.entries(filters))
+  const entries = entriesQuery.data ?? EMPTY_ENTRIES
   const sources = useJournalSources(entries)
-  const [journalRevision, setJournalRevision] = useState(0)
-  const [allTags, setAllTags] = useState<Tag[]>([])
-  const [loading, setLoading] = useState(false)
+  const tagsQuery = useQuery(journalQueries.tags())
+  const allTags = tagsQuery.data ?? EMPTY_TAGS
+  const [saving, setSaving] = useState(false)
+  const loading = saving || entriesQuery.isPending
   const [error, setError] = useState('')
   const [entryType, setEntryType] = useState<JournalEntryType>('INSIGHT')
   const [ticker, setTicker] = useState('')
@@ -67,46 +76,6 @@ export default function JournalPage() {
     })
   }, [searchParams])
 
-  const fetchEntries = useCallback(async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const hasFilters =
-        filters.from ||
-        filters.to ||
-        filters.types?.length ||
-        filters.tagIds?.length ||
-        filters.query
-
-      const data = hasFilters
-        ? ((await journalApi.getFilteredEntries(filters)) as JournalEntry[])
-        : ((await journalApi.getEntries()) as JournalEntry[])
-      setEntries(data || [])
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unexpected error'
-      setError(message)
-    } finally {
-      setLoading(false)
-    }
-  }, [filters])
-
-  const fetchTags = useCallback(async () => {
-    try {
-      const data = (await journalApi.getPopularTags('')) as Tag[]
-      setAllTags(data || [])
-    } catch (e) {
-      console.error('Failed to fetch tags:', e)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchEntries()
-  }, [fetchEntries])
-
-  useEffect(() => {
-    fetchTags()
-  }, [fetchTags])
-
   const updateFilters = (newFilters: JournalFilters) => {
     const params = new URLSearchParams()
     if (newFilters.from) params.set('from', newFilters.from)
@@ -137,7 +106,8 @@ export default function JournalPage() {
     }
     const { body: finalBody, tags } = parseTagsFromBody(body)
 
-    setLoading(true)
+    setSaving(true)
+    setError('')
     try {
       await journalApi.createEntry({
         entryType,
@@ -150,13 +120,12 @@ export default function JournalPage() {
       setEntryType('INSIGHT')
       setShowNewEntry(false)
       updateFilters({})
-      await fetchEntries()
-      await fetchTags()
+      await refreshJournal(client)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
       setError(message)
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
@@ -173,21 +142,20 @@ export default function JournalPage() {
     }
     const { body: finalBody, tags } = parseTagsFromBody(editBody)
 
-    setLoading(true)
+    setSaving(true)
+    setError('')
     try {
       const updated = await journalApi.updateEntry(entryId, { body: finalBody, tags }) as JournalEntry
       setSelectedEntry(current => current?.id === entryId ? updated : current)
-      setJournalRevision(value => value + 1)
       setEditingEntryId(null)
       setEditBody('')
       setEditError('')
-      await fetchEntries()
-      await fetchTags()
+      await refreshJournal(client)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
       setEditError(message)
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
@@ -199,18 +167,17 @@ export default function JournalPage() {
 
   const handleDelete = async (entryId: number) => {
     if (!confirm('Delete this entry? Any linked reflections will become insights and lose their comparison with this entry.')) return
-    setLoading(true)
+    setSaving(true)
+    setError('')
     try {
       await journalApi.deleteEntry(entryId)
       setSelectedEntry(null)
-      setJournalRevision(value => value + 1)
-      await fetchEntries()
-      await fetchTags()
+      await refreshJournal(client)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
       setError(message)
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
@@ -229,7 +196,6 @@ export default function JournalPage() {
 
         <div className="lg:row-span-2 lg:self-start p-4 bg-surface rounded-lg border border-border">
           <CalendarView
-            refreshKey={journalRevision}
             onDayClick={handleDayClick}
             activeDate={activeDate}
             filters={filters}
@@ -291,11 +257,12 @@ export default function JournalPage() {
           )}
 
           <div ref={listRef} className="space-y-3">
+            {(entriesQuery.error || tagsQuery.error) && <div className="text-error">{(entriesQuery.error ?? tagsQuery.error)?.message}</div>}
             {loading && entries.length === 0 && (
               <div className="text-muted">Loading entries...</div>
             )}
 
-            {entries.length === 0 && !loading && (
+            {entries.length === 0 && !loading && !entriesQuery.error && (
               <div className="text-muted italic">No journal entries match your filters.</div>
             )}
 
@@ -395,13 +362,7 @@ export default function JournalPage() {
         <JournalDetailPanel
           key={selectedEntry.id}
           entry={selectedEntry}
-          refreshKey={journalRevision}
-          onEntryCreated={(entry) => {
-            setSelectedEntry(entry)
-            setJournalRevision(value => value + 1)
-            fetchEntries()
-            fetchTags()
-          }}
+          onEntryCreated={setSelectedEntry}
           onClose={() => setSelectedEntry(null)}
           onEntryClick={(entry) => setSelectedEntry(entry)}
         />

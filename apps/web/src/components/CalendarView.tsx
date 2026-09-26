@@ -1,55 +1,25 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
-import { journalApi } from '../services/api'
-import type { CalendarDay, JournalFilters } from '../types/journal'
+import { useQuery } from '@tanstack/react-query'
+import { journalQueries } from '../services/queries'
+import type { JournalFilters } from '../types/journal'
 
 interface CalendarViewProps {
   onDayClick: (date: Date) => void
   activeDate?: Date | null
   filters?: JournalFilters
   className?: string
-  refreshKey?: number
 }
 
 const WEEK_DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
-export default function CalendarView({ onDayClick, activeDate, filters, className = '', refreshKey = 0 }: CalendarViewProps) {
+export default function CalendarView({ onDayClick, activeDate, filters, className = '' }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(() => new Date())
-  const [dayCounts, setDayCounts] = useState<Record<string, number>>({})
-  const [loading, setLoading] = useState(false)
-
-  const countFiltersKey = JSON.stringify([filters?.types, filters?.tagIds, filters?.query])
-  const countFilters = useMemo<JournalFilters | undefined>(
-    () =>
-      filters && {
-        types: filters.types,
-        tagIds: filters.tagIds,
-        query: filters.query,
-      },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [countFiltersKey]
-  )
-
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      try {
-        const data = (await journalApi.getCalendarEntries(
-          currentDate.getFullYear(),
-          currentDate.getMonth() + 1,
-          countFilters
-        )) as CalendarDay[]
-        const counts: Record<string, number> = {}
-        data.forEach((d) => (counts[d.date] = d.count))
-        setDayCounts(counts)
-      } catch (e) {
-        console.error('Failed to load calendar:', e)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [currentDate, countFilters, refreshKey])
+  const query = useQuery(journalQueries.calendar(currentDate.getFullYear(), currentDate.getMonth() + 1, filters))
+  const loading = query.isPending
+  const dayCounts = useMemo(() => Object.fromEntries(
+    (query.data ?? []).map(day => [day.date, day.count]),
+  ), [query.data])
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -102,6 +72,7 @@ export default function CalendarView({ onDayClick, activeDate, filters, classNam
         </button>
       </div>
 
+      {query.error && <div className="text-error text-sm">{query.error.message}</div>}
       {loading && Object.keys(dayCounts).length === 0 && (
         <div className="text-sm text-muted">Loading calendar...</div>
       )}

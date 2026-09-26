@@ -1,5 +1,8 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { journalQueries } from '../services/queries'
+import { refreshJournal } from '../services/queryUpdates'
 import { JOURNAL_STYLES, journalBadge } from '../constants/journalStyles'
-import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import type { JournalEntry, JournalEntryType } from '../types/journal'
 import { journalApi } from '../services/api'
 import { formatDateTime, isTradingHours } from '../utils/dateUtils'
@@ -11,7 +14,6 @@ import { useJournalSources } from '../hooks/useJournalSources'
 
 export interface JournalPanelHandle {
   scrollToEntry: (id: number) => void
-  refreshEntries: () => void
 }
 
 interface JournalPanelProps {
@@ -22,13 +24,18 @@ interface JournalPanelProps {
   onEntriesChange?: (entries: JournalEntry[]) => void
 }
 
+const EMPTY_ENTRIES: JournalEntry[] = []
+
 const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function JournalPanel(
   { activeJournalIds, onClearActive, onEntryClick, onViewOnChart, onEntriesChange },
   ref
 ) {
-  const [entries, setEntries] = useState<JournalEntry[]>([])
+  const client = useQueryClient()
+  const entriesQuery = useQuery(journalQueries.entries())
+  const entries = entriesQuery.data ?? EMPTY_ENTRIES
   const sources = useJournalSources(entries)
-  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const loading = saving || entriesQuery.isPending
   const [error, setError] = useState('')
   const [entryType, setEntryType] = useState<JournalEntryType>('INSIGHT')
   const [body, setBody] = useState('')
@@ -47,9 +54,6 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
-    },
-    refreshEntries: () => {
-      fetchEntries()
     }
   }))
 
@@ -74,24 +78,9 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
     }
   }, [activeJournalIds, onClearActive])
 
-  const fetchEntries = useCallback(async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const data = await journalApi.getEntries() as JournalEntry[]
-      setEntries(data || [])
-      onEntriesChange?.(data || [])
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unexpected error'
-      setError(message)
-    } finally {
-      setLoading(false)
-    }
-  }, [onEntriesChange])
-
   useEffect(() => {
-    fetchEntries()
-  }, [fetchEntries])
+    if (entriesQuery.data) onEntriesChange?.(entriesQuery.data)
+  }, [entriesQuery.data, onEntriesChange])
 
   const handleSubmit = async () => {
     if (!body.trim()) {
@@ -101,7 +90,8 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
 
     const { body: finalBody, tags } = parseTagsFromBody(body)
 
-    setLoading(true)
+    setSaving(true)
+    setError('')
     try {
       await journalApi.createEntry({
         entryType,
@@ -112,12 +102,12 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
       setBody('')
       setTicker('')
       setEntryType('INSIGHT')
-      await fetchEntries()
+      await refreshJournal(client)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
       setError(message)
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
@@ -134,17 +124,18 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
     }
     const { body: finalBody, tags } = parseTagsFromBody(editBody)
 
-    setLoading(true)
+    setSaving(true)
+    setError('')
     try {
       await journalApi.updateEntry(entryId, { body: finalBody, tags })
       setEditingEntryId(null)
       setEditBody('')
-      await fetchEntries()
+      await refreshJournal(client)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
       setEntryError(message)
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
@@ -160,16 +151,17 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
   }
 
   const handleConfirmDelete = async (entryId: number) => {
-    setLoading(true)
+    setSaving(true)
+    setError('')
     try {
       await journalApi.deleteEntry(entryId)
       setDeleteConfirmEntryId(null)
-      await fetchEntries()
+      await refreshJournal(client)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
       setEntryError(message)
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
@@ -219,7 +211,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
         </button>
       </div>
 
-      {error && <div className="text-error mb-4">{error}</div>}
+      {(error || entriesQuery.error) && <div className="text-error mb-4">{error || entriesQuery.error?.message}</div>}
 
       {entries.length === 0 ? (
         <div className="text-muted italic">No journal entries yet.</div>

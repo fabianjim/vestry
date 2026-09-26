@@ -11,8 +11,7 @@ import {
 } from 'recharts'
 import { useXAxis, useYAxis } from 'recharts/es6/hooks'
 import { useQuery } from '@tanstack/react-query'
-import { portfolioQueries } from '../services/queries'
-import { journalApi } from '../services/api'
+import { journalQueries, portfolioQueries } from '../services/queries'
 import type { JournalEntry } from '../types/journal'
 import type { Transaction } from '../types/transaction'
 import type { ChartDataPoint } from '../utils/chartData'
@@ -26,7 +25,6 @@ interface HistoryData {
 }
 
 export interface PortfolioChartHandle {
-  refresh: () => void
   setHourlyDate: (date: Date) => void
   scrollIntoView: () => void
 }
@@ -175,6 +173,7 @@ function TransactionOverlay({
   )
 }
 
+const EMPTY_ENTRIES: JournalEntry[] = []
 const EMPTY_HISTORY: HistoryData[] = []
 const EMPTY_TRANSACTIONS: Transaction[] = []
 
@@ -183,11 +182,10 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
   const transactionsQuery = useQuery(portfolioQueries.transactions())
   const data = historyQuery.data ?? EMPTY_HISTORY
   const transactions = transactionsQuery.data ?? EMPTY_TRANSACTIONS
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
-  const [journalRevision, setJournalRevision] = useState(0)
-  const [journalError, setJournalError] = useState('')
+  const journalQuery = useQuery(journalQueries.entries())
+  const journalEntries = journalQuery.data ?? EMPTY_ENTRIES
   const loading = historyQuery.isPending || transactionsQuery.isPending
-  const error = historyQuery.error?.message ?? transactionsQuery.error?.message ?? journalError
+  const error = historyQuery.error?.message ?? transactionsQuery.error?.message ?? journalQuery.error?.message
   const [viewMode, setViewMode] = useState<'hourly' | 'daily'>('hourly')
   const getInitialDate = () => {
     const today = new Date()
@@ -210,9 +208,6 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
   const containerRef = useRef<HTMLDivElement>(null)
 
   useImperativeHandle(ref, () => ({
-    refresh: () => {
-      setJournalRevision(value => value + 1)
-    },
     setHourlyDate: (date: Date) => {
       setViewMode('hourly')
       setCurrentDate(date)
@@ -221,21 +216,6 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
       containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     },
   }))
-
-  // Trades and price events invalidate the shared queries at the application boundary.
-  // The imperative refresh now reloads only the journal pins, which are not cached yet.
-  useEffect(() => {
-    let cancelled = false
-    journalApi.getEntries().then(entries => {
-      if (!cancelled) {
-        setJournalEntries(entries)
-        setJournalError('')
-      }
-    }).catch(() => {
-      if (!cancelled) setJournalError('Unable to refresh journal pins.')
-    })
-    return () => { cancelled = true }
-  }, [journalRevision])
 
   useEffect(() => {
     if (data.length > 0) hasAnimatedRef.current = true
