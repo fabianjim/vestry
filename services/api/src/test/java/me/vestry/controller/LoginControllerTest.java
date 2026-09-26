@@ -52,6 +52,30 @@ class LoginControllerTest {
     @MockitoBean private NasdaqMetadataService metadata;
     private User demoUser;
 
+    @Test
+    void creationDiscardsClientIdentitiesForRegularAndDemoUsers() throws Exception {
+        for (String username : java.util.List.of("regular", "demo")) {
+            mvc.perform(post("/api/portfolio/create").session(session(login(username, null, null)))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"id":999,"user":{"id":999},"holdings":[
+                          {"id":888,"ticker":"AAPL","shares":2,"buyTimestamp":"2000-01-01T00:00:00Z"}
+                        ]}
+                        """))
+                    .andExpect(status().isOk());
+            var captor = org.mockito.ArgumentCaptor.forClass(Portfolio.class);
+            if (username.equals("demo")) verify(demos).createPortfolio(any(), eq(demoUser), captor.capture());
+            else verify(portfolios).createPortfolio(captor.capture());
+            Portfolio input = captor.getValue();
+            assertEquals(0, input.getId());
+            assertNull(input.getUser());
+            assertEquals(0, input.getHoldings().get(0).getId());
+            assertEquals("AAPL", input.getHoldings().get(0).getTicker());
+            assertEquals(2, input.getHoldings().get(0).getShares());
+            assertNotEquals(java.time.Instant.parse("2000-01-01T00:00:00Z"), input.getHoldings().get(0).getBuyTimestamp());
+        }
+    }
+
     @BeforeEach
     void setUp() {
         demoUser = new User("demo", encoder.encode("password"));

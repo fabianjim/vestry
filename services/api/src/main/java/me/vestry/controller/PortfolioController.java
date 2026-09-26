@@ -1,6 +1,7 @@
 package me.vestry.controller;
 
 import me.vestry.dto.PnLSummaryDTO;
+import me.vestry.dto.CreatePortfolioRequest;
 import me.vestry.dto.PortfolioHistoryDTO;
 import me.vestry.model.DemoSession;
 import me.vestry.model.Holding;
@@ -43,7 +44,12 @@ public class PortfolioController {
     }
 
     @PostMapping("/create")
-    public void createPortfolio(@RequestBody Portfolio portfolio, HttpServletRequest request) {
+    public void createPortfolio(@RequestBody CreatePortfolioRequest input, HttpServletRequest request) {
+        Portfolio portfolio = new Portfolio();
+        if (input.holdings() != null) {
+            portfolio.setHoldings(input.holdings().stream()
+                .map(holding -> new Holding(holding.ticker(), holding.shares())).toList());
+        }
         if (demoSessionResolver.isDemoUser()) {
             DemoSession session = demoSessionResolver.resolveSession(request);
             User user = demoSessionResolver.getCurrentUser();

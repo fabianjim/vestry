@@ -79,6 +79,17 @@ public class PortfolioServiceCreatePortfolioTest {
     }
 
     @Test
+    void rejectsRepeatCreationBeforeFetchingOrWriting() {
+        when(portfolioRepository.existsByUserId(1)).thenReturn(true);
+
+        assertThrows(IllegalArgumentException.class,
+            () -> portfolioService.createPortfolio(portfolioWithHoldings(1)));
+
+        verifyNoInteractions(stockService, trackedStockRepository, transactionService, journalEntryService, userRepository);
+        verify(portfolioRepository, never()).save(any());
+    }
+
+    @Test
     void createPortfolioRecordsBuyTransactionsForInitialHoldings() {
         String ticker1 = "AAPL";
         String ticker2 = "GOOGL";
@@ -187,8 +198,8 @@ public class PortfolioServiceCreatePortfolioTest {
 
         assertThrows(IllegalArgumentException.class, () -> portfolioService.createPortfolio(portfolio));
 
-        verifyNoInteractions(stockService, trackedStockRepository, transactionService, journalEntryService,
-            portfolioRepository);
+        verifyNoInteractions(stockService, trackedStockRepository, transactionService, journalEntryService);
+        verify(portfolioRepository, never()).save(any());
     }
 
     @Test
@@ -201,9 +212,10 @@ public class PortfolioServiceCreatePortfolioTest {
 
         portfolioService.createPortfolio(portfolio);
 
-        assertEquals(8, portfolio.getHoldings().size());
-        assertEquals(3, portfolio.getHoldings().get(0).getShares());
-        verify(portfolioRepository).save(portfolio);
+        ArgumentCaptor<Portfolio> saved = ArgumentCaptor.forClass(Portfolio.class);
+        verify(portfolioRepository).save(saved.capture());
+        assertEquals(8, saved.getValue().getHoldings().size());
+        assertEquals(3, saved.getValue().getHoldings().get(0).getShares());
         verify(transactionService, times(8)).recordBuyTransaction(anyString(), anyDouble(), eq(100.0), any(Instant.class));
     }
 

@@ -80,14 +80,18 @@ public class PortfolioService {
         return (User) auth.getPrincipal();
     }
 
-    public void createPortfolio(Portfolio portfolio) {
+    public void createPortfolio(Portfolio input) {
         Integer userId = getCurrentUserId();
+        if (portfolioRepository.existsByUserId(userId)) {
+            throw new IllegalArgumentException("A portfolio already exists for this user.");
+        }
 
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
-        portfolio.setUser(user);
+        // Creation must never merge a caller-supplied persistent identity.
+        Portfolio portfolio = new Portfolio(user, input.getHoldings());
 
-        if (portfolio != null && portfolio.getHoldings() != null) {
+        if (portfolio.getHoldings() != null) {
             // Aggregate any duplicate tickers in initial holdings
             List<Holding> aggregatedHoldings = new ArrayList<>();
             Map<String, Holding> holdingsByTicker = new HashMap<>();
