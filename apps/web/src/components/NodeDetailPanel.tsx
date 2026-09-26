@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useViewState, type PanelScope } from '../contexts/ViewState'
+import { useMemo } from 'react'
 import {
   ComposedChart,
   Line,
@@ -29,7 +30,7 @@ type NodeDetailPanelProps = {
   snapshot?: StockSnapshot | null
   lastSuccessfulFetch?: string | null
   onEntryClick?: (entry: JournalEntry) => void
-  defaultTab?: TabMode
+  scope?: PanelScope
 }
 
 type ChartPoint = {
@@ -41,9 +42,7 @@ type ChartPoint = {
 const EMPTY_ENTRIES: JournalEntry[] = []
 const EMPTY_HISTORY: StockHistoryPoint[] = []
 
-type TabMode = 'performance' | 'metadata'
-
-export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist, trackingStartDate, snapshot = null, lastSuccessfulFetch = null, onEntryClick, defaultTab = 'performance' }: NodeDetailPanelProps) {
+export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist, trackingStartDate, snapshot = null, lastSuccessfulFetch = null, onEntryClick, scope = 'dashboard' }: NodeDetailPanelProps) {
   const historyQuery = useQuery({
     ...stockQueries.history(ticker, trackingStartDate || undefined),
     enabled: !isWatchlist,
@@ -55,7 +54,8 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
   const history = isWatchlist ? EMPTY_HISTORY : historyQuery.data ?? EMPTY_HISTORY
   const journalQuery = useQuery(journalQueries.ticker(ticker))
   const journalEntries = journalQuery.data ?? EMPTY_ENTRIES
-  const [activeTab, setActiveTab] = useState<TabMode>(defaultTab)
+  const { panelTabs: [panelTabs, setPanelTabs] } = useViewState()
+  const activeTab = panelTabs[scope]
   const loading = !isWatchlist && historyQuery.isPending
   const error = (!isWatchlist && (historyQuery.error ?? transactionsQuery.error)?.message)
     || journalQuery.error?.message
@@ -412,7 +412,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
             <>
               <div className="flex justify-center gap-6 mb-5 border-b border-border pb-0">
                 <button
-                  onClick={() => setActiveTab('performance')}
+                  onClick={() => setPanelTabs(tabs => ({ ...tabs, [scope]: 'performance' }))}
                   className={`pb-2 text-sm font-130 transition-colors relative ${
                     activeTab === 'performance'
                       ? 'text-foreground'
@@ -425,7 +425,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                   )}
                 </button>
                 <button
-                  onClick={() => setActiveTab('metadata')}
+                  onClick={() => setPanelTabs(tabs => ({ ...tabs, [scope]: 'metadata' }))}
                   className={`pb-2 text-sm font-130 transition-colors relative ${
                     activeTab === 'metadata'
                       ? 'text-foreground'

@@ -652,7 +652,7 @@ export default function Dashboard() {
           trackingStartDate={selectedHolding.buyTimestamp ?? null}
           snapshot={selectedHolding.stockData?.stock ?? null}
           lastSuccessfulFetch={selectedHolding.stockData?.lastSuccessfulFetch ?? null}
-          defaultTab="performance"
+          scope="dashboard"
           onEntryClick={(entry) => {
             setSelectedJournalEntry(entry)
             setSelectedTicker(null)

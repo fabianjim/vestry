@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
+import { useViewState } from '../contexts/ViewState'
+import { useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
 import {
   LineChart,
   Line,
@@ -186,24 +187,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
   const journalEntries = journalQuery.data ?? EMPTY_ENTRIES
   const loading = historyQuery.isPending || transactionsQuery.isPending
   const error = historyQuery.error?.message ?? transactionsQuery.error?.message ?? journalQuery.error?.message
-  const [viewMode, setViewMode] = useState<'hourly' | 'daily'>('hourly')
-  const getInitialDate = () => {
-    const today = new Date()
-    const day = today.getDay()
-    if (day === 6) {
-      const friday = new Date(today)
-      friday.setDate(today.getDate() - 1)
-      return friday
-    }
-    if (day === 0) {
-      const friday = new Date(today)
-      friday.setDate(today.getDate() - 2)
-      return friday
-    }
-    return today
-  }
-
-  const [currentDate, setCurrentDate] = useState<Date>(getInitialDate())
+  const { chartMode: [viewMode, setViewMode], chartDate: [currentDate, setCurrentDate] } = useViewState()
   const hasAnimatedRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
 

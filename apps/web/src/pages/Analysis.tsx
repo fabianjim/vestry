@@ -1,21 +1,10 @@
+import { useViewState, type GraphSettings } from '../contexts/ViewState'
 import { useMemo, useState } from 'react'
 import HoldingGraph from '../components/HoldingGraph'
 import NodeDetailPanel from '../components/NodeDetailPanel'
 import SectorBreakdown from '../components/SectorBreakdown'
 import HoldingsValueChart from '../components/HoldingsValueChart'
 import { useHoldingGraphData } from '../hooks/useHoldingGraphData'
-
-type GraphSettings = {
-  groupBySector: boolean
-  displayWatchlist: boolean
-  displayETFs: boolean
-}
-
-const DEFAULT_SETTINGS: GraphSettings = {
-  groupBySector: true,
-  displayWatchlist: true,
-  displayETFs: true,
-}
 
 const TOGGLES: { key: keyof GraphSettings; label: string }[] = [
   { key: 'groupBySector', label: 'Group by Sector' },
@@ -28,8 +17,7 @@ export default function Analysis() {
     useHoldingGraphData()
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
 
-  const [pendingSettings, setPendingSettings] = useState<GraphSettings>(DEFAULT_SETTINGS)
-  const [appliedSettings, setAppliedSettings] = useState<GraphSettings>(DEFAULT_SETTINGS)
+  const { pendingSettings: [pendingSettings, setPendingSettings], appliedSettings: [appliedSettings, setAppliedSettings] } = useViewState()
 
   const { filteredNodes, filteredEdges } = useMemo(() => {
     const filteredNodes = nodes.filter((n) => {
@@ -112,7 +100,7 @@ export default function Analysis() {
           isWatchlist={isWatchlist}
           trackingStartDate={trackingStartDate}
           snapshot={selectedSnapshot}
-          defaultTab="metadata"
+          scope="analysis"
         />
       )}
     </div>

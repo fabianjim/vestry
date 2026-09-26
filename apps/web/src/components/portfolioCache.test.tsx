@@ -1,3 +1,4 @@
+import { ViewStateProvider } from '../contexts/ViewState'
 import { afterEach, describe, expect, it } from 'vitest'
 import { renderToString } from 'react-dom/server'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -9,7 +10,7 @@ import NodeDetailPanel from './NodeDetailPanel'
 
 const client = createQueryClient()
 const render = (element: ReactNode) => renderToString(
-  <QueryClientProvider client={client}>{element}</QueryClientProvider>,
+  <QueryClientProvider client={client}><ViewStateProvider>{element}</ViewStateProvider></QueryClientProvider>,
 )
 const panel = (ticker: string, isWatchlist = false) => (
   <NodeDetailPanel ticker={ticker} isWatchlist={isWatchlist} metadata={null}

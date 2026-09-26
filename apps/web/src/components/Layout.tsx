@@ -1,3 +1,4 @@
+import { ViewStateProvider } from '../contexts/ViewState'
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
 import { authApi, demoApi, type SessionUser } from '../services/api'
@@ -170,7 +171,9 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
         <div className="min-h-0 flex-1 flex">
           <div className="min-w-0 flex-1 overflow-auto pl-6 flex flex-col">
             <div className="flex-1">
-              <Outlet context={{ isDemo, remainingTrades, refreshDemoStatus, priceRevision } as LayoutContext} />
+              <ViewStateProvider>
+                <Outlet context={{ isDemo, remainingTrades, refreshDemoStatus, priceRevision } as LayoutContext} />
+              </ViewStateProvider>
             </div>
             <footer className="py-3 px-6 border-t border-border flex flex-col items-center gap-3 text-sm text-muted">
               <p className="font-90 text-secondary">
