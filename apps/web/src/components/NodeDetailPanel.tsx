@@ -228,7 +228,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                     {/* day range line vertical positioning */ }
                     <div className="absolute top-[0.3125rem] left-0 right-0 h-1">
                       <div
-                        className="absolute top-0 bottom-0 bg-elevated"
+                        className="absolute top-0 bottom-0 bg-muted"
                         style={{
                           left: `${rangeMetrics.day.left}%`,
                           width: `${rangeMetrics.day.right - rangeMetrics.day.left}%`,
@@ -245,7 +245,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                     </div>
                     { /* week range line vertical positioning */}
                     <div className="absolute bottom-[2.25rem] left-0 right-0 h-1">
-                      <div className="absolute inset-0 bg-elevated" />
+                      <div className="absolute inset-0 bg-muted" />
                       <div
                         className="absolute top-1/2 -translate-y-1/2 w-px h-3 bg-muted"
                         style={{ left: '0%' }}
