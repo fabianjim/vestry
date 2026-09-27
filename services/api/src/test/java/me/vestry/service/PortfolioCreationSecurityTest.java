@@ -46,6 +46,7 @@ class PortfolioCreationSecurityTest {
         Portfolio original = portfolios.saveAndFlush(new Portfolio(owner,
             new ArrayList<>(List.of(new Holding("AAPL", 10)))));
         int originalId = original.getId();
+        SecurityContextHolder.setContext(SecurityContextHolder.createEmptyContext());
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(caller, null, List.of()));
 
