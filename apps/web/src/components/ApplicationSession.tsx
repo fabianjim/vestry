@@ -5,6 +5,7 @@ import { createQueryClient } from '../services/queryClient'
 import type { SessionUser } from '../services/api'
 import { useApplicationSession } from '../hooks/useApplicationSession'
 import { usePriceUpdates } from '../hooks/usePriceUpdates'
+import LoadingScreen from './LoadingScreen'
 
 export default function ApplicationSession({ children }: {
   children: (user: SessionUser, priceRevision: number) => ReactNode
@@ -15,11 +16,12 @@ export default function ApplicationSession({ children }: {
   const revision = usePriceUpdates(client, sessionKey)
 
   if (expired) return <Navigate to="/login" replace />
+  if (!user && !error) return <LoadingScreen message="Checking your session…" />
 
   if (!user) return (
-    <div className="p-6 text-muted" role={error ? 'alert' : 'status'}>
-      {error || 'Checking your session…'}
-      {error && <button className="ml-3 text-primary hover:underline" onClick={() => window.location.reload()}>Retry</button>}
+    <div className="p-6 text-muted" role="alert">
+      {error}
+      <button className="ml-3 text-primary hover:underline" onClick={() => window.location.reload()}>Retry</button>
     </div>
   )
 

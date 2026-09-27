@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Analytics } from '@vercel/analytics/react'
 import './App.css'
 import ApplicationBoundary from './components/ApplicationBoundary'
+import LoadingScreen from './components/LoadingScreen'
 import { loadApplication } from './utils/loadApplication'
 import Portfolio from './pages/Portfolio'
 import Login from './pages/Login'
@@ -20,7 +21,7 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/*" element={
             <ApplicationBoundary>
-              <Suspense fallback={<div role="status" className="p-6 text-muted">Opening your workspace…</div>}>
+              <Suspense fallback={<LoadingScreen message="Opening your workspace…" />}>
                 <ApplicationRoutes />
               </Suspense>
             </ApplicationBoundary>
