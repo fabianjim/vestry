@@ -101,7 +101,12 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
       >
         {/* Toggle Button */}
         <div className="flex items-center justify-between p-4 border-b border-border">
-          {isOpen && <span className="text-lg font-130">Vestry</span>}
+          {isOpen && (
+            <span className="flex items-center gap-2 text-lg font-130">
+              <img src="/logo.svg" alt="" width={28} height={28} className="shrink-0" />
+              Vestry
+            </span>
+          )}
           <button
             onClick={() => {
               const next = !isOpen

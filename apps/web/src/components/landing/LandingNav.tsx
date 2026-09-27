@@ -25,7 +25,10 @@ export default function LandingNav() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-        <span className="text-lg font-130 text-foreground">Vestry</span>
+        <span className="flex items-center gap-2 text-lg font-130 text-foreground">
+          <img src="/logo.svg" alt="" width={28} height={28} className="shrink-0" />
+          Vestry
+        </span>
 
         <nav className="flex items-center gap-1 sm:gap-3">
           <a
