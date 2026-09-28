@@ -1,3 +1,5 @@
+import { buildPriceHistory, formatPriceHistoryDate } from '../utils/priceHistory'
+import { marketDateKey } from '../utils/calendarSelection'
 import { useViewState, type PanelScope } from '../contexts/ViewState'
 import { useMemo } from 'react'
 import {
@@ -33,12 +35,6 @@ type NodeDetailPanelProps = {
   scope?: PanelScope
 }
 
-type ChartPoint = {
-  time: string
-  price: number
-  fullTimestamp: string
-}
-
 const EMPTY_ENTRIES: JournalEntry[] = []
 const EMPTY_HISTORY: StockHistoryPoint[] = []
 
@@ -65,30 +61,9 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
     return getPositionStats(transactionsQuery.data, ticker, snapshot?.currentPrice ?? null)
   }, [transactionsQuery.data, ticker, isWatchlist, snapshot?.currentPrice])
 
-  const chartData: ChartPoint[] = useMemo(() => {
-    if (!history || history.length === 0) return []
-
-    // Sort by timestamp ascending
-    const sorted = history
-      .slice()
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-
-    // Deduplicate by day, keeping the last (most recent) entry per day
-    const byDay = new Map<string, StockHistoryPoint>()
-    sorted.forEach((item) => {
-      const day = new Date(item.timestamp).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      })
-      byDay.set(day, item)
-    })
-
-    return Array.from(byDay.entries()).map(([time, item]) => ({
-      time,
-      price: item.currentPrice,
-      fullTimestamp: item.timestamp,
-    }))
-  }, [history])
+  const chartData = useMemo(() => buildPriceHistory(history), [history])
+  const isSingleDayChart = chartData.length > 0 &&
+    marketDateKey(new Date(chartData[0].time)) === marketDateKey(new Date(chartData[chartData.length - 1].time))
 
   const weekRange = useMemo(() => getCurrentWeekRange(history), [history])
 
@@ -458,7 +433,11 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
-                  <XAxis dataKey="time" stroke="var(--color-muted)" fontSize={12} tickLine={false} />
+                  <XAxis
+                    dataKey="time" type="number" domain={['dataMin', 'dataMax']} tickCount={3}
+                    tickFormatter={value => formatPriceHistoryDate(value, isSingleDayChart)}
+                    stroke="var(--color-muted)" fontSize={12} tickLine={false}
+                  />
                   <YAxis
                     stroke="var(--color-muted)"
                     fontSize={12}
@@ -466,18 +445,11 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                     tickFormatter={(value) => `$${value.toFixed(2)}`}
                     domain={[(dataMin: number) => dataMin * 0.99, (dataMax: number) => dataMax * 1.01]}
                   />
-                  <Tooltip
-                    formatter={(value: number) => {
-                      return [formatCurrency(value), 'Price']
-                    }}
-                    labelFormatter={(label) => `Date: ${label}`}
-                    contentStyle={{
-                      backgroundColor: 'var(--color-elevated)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '6px',
-                      color: 'var(--color-foreground)',
-                    }}
-                  />
+                  <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
+                    <div className="rounded-md border border-border bg-elevated px-3 py-2 text-sm text-foreground">
+                      {formatPriceHistoryDate(Number(label))}: {formatCurrency(Number(payload[0].value))}
+                    </div>
+                  ) : null} />
                   <Line
                     type="monotone"
                     dataKey="price"

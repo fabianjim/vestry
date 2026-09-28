@@ -24,7 +24,9 @@ import {
   getRealizedPnLForSell,
   matchJournalTransaction,
 } from '../utils/stockStats'
-import { formatSignedCurrencyWithPercent } from '../utils/formatUtils'
+import { buildPriceHistory, formatPriceHistoryDate } from '../utils/priceHistory'
+import { marketDateKey } from '../utils/calendarSelection'
+import { formatCurrency, formatSignedCurrencyWithPercent } from '../utils/formatUtils'
 import { getDisplayBody, parseTagsFromBody } from '../utils/tagUtils'
 import JournalSourceQuote from './JournalSourceQuote'
 import { useJournalSources } from '../hooks/useJournalSources'
@@ -34,12 +36,6 @@ type Props = {
   onEntryCreated: (entry: JournalEntry) => void
   onClose: () => void
   onEntryClick: (entry: JournalEntry) => void
-}
-
-type ChartPoint = {
-  time: string | number
-  price: number
-  fullTimestamp: string
 }
 
 const EMPTY_HISTORY: StockHistoryPoint[] = []
@@ -121,64 +117,10 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
     [entry, transactions]
   )
 
-  const chartData = useMemo(() => {
-    if (!history.length) return []
-
-    const sorted = [...history].sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    )
-
-    if (entry.entryType === 'REFLECTION') {
-      // Keep daily history, but place both snapshots at their exact times so
-      // same-day entries and snapshots outside recorded days remain visible.
-      const daily = new Map<string, StockHistoryPoint>()
-      sorted.forEach(point => daily.set(new Date(point.timestamp).toDateString(), point))
-      const points = new Map<number, ChartPoint>()
-      daily.forEach(point => {
-        const time = new Date(point.timestamp).getTime()
-        points.set(time, { time, price: point.currentPrice, fullTimestamp: point.timestamp })
-      })
-      for (const snapshot of [sourceEntry, entry]) {
-        if (snapshot?.priceSnapshot != null && Number.isFinite(snapshot.priceSnapshot) && snapshot.priceSnapshot > 0) {
-          const time = new Date(snapshot.timestamp).getTime()
-          points.set(time, { time, price: snapshot.priceSnapshot, fullTimestamp: snapshot.timestamp })
-        }
-      }
-      return [...points.values()].sort((a, b) => Number(a.time) - Number(b.time))
-    }
-
-    const byDay = new Map<string, StockHistoryPoint>()
-    sorted.forEach((item) => {
-      const day = new Date(item.timestamp).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      })
-      byDay.set(day, item)
-    })
-
-    const points: ChartPoint[] = Array.from(byDay.entries()).map(([time, item]) => ({
-      time,
-      price: item.currentPrice,
-      fullTimestamp: item.timestamp,
-    }))
-
-    if (entry.priceSnapshot != null) {
-      const entryDay = new Date(entry.timestamp).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      })
-      const snapshotPoint = points.find((p) => p.time === entryDay)
-      if (snapshotPoint) {
-        snapshotPoint.price = entry.priceSnapshot
-      }
-    }
-
-    return points
-  }, [history, entry, sourceEntry])
-
-  const isSingleDayChart = chartData.length > 0 && chartData.every(point =>
-    new Date(point.fullTimestamp).toDateString() === new Date(chartData[0].fullTimestamp).toDateString()
-  )
+  const chartData = useMemo(() => buildPriceHistory(history,
+    entry.entryType === 'REFLECTION' ? [sourceEntry, entry] : [entry]), [history, entry, sourceEntry])
+  const isSingleDayChart = chartData.length > 0 &&
+    marketDateKey(new Date(chartData[0].time)) === marketDateKey(new Date(chartData[chartData.length - 1].time))
 
   const latestPrice = currentStock && Number.isFinite(currentStock.currentPrice) && currentStock.currentPrice > 0
     ? currentStock.currentPrice : null
@@ -199,18 +141,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
   const valueColor = (value: number | null | undefined) =>
     value == null || value === 0 ? 'text-foreground' : value > 0 ? 'text-gain' : 'text-loss'
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
-  }
-
   const lineColor = JOURNAL_STYLES[entry.entryType].color
-
-  const entryDay = useMemo(() => {
-    return new Date(entry.timestamp).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    })
-  }, [entry.timestamp])
 
   return (
     <div
@@ -290,14 +221,10 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
                   <XAxis
                     dataKey="time"
-                    type={entry.entryType === 'REFLECTION' ? 'number' : 'category'}
-                    domain={entry.entryType === 'REFLECTION' ? ['dataMin', 'dataMax'] : undefined}
-                    tickCount={entry.entryType === 'REFLECTION' ? 3 : undefined}
-                    tickFormatter={entry.entryType === 'REFLECTION'
-                      ? value => isSingleDayChart
-                        ? new Date(value).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-                        : new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                      : undefined}
+                    type="number"
+                    domain={['dataMin', 'dataMax']}
+                    tickCount={3}
+                    tickFormatter={value => formatPriceHistoryDate(value, isSingleDayChart)}
                     stroke="var(--color-muted)" fontSize={12} tickLine={false}
                   />
                   <YAxis
@@ -307,17 +234,11 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
                     tickFormatter={(value) => `$${value.toFixed(2)}`}
                     domain={[(dataMin: number) => dataMin * 0.99, (dataMax: number) => dataMax * 1.01]}
                   />
-                  <Tooltip
-                    formatter={(value: number) => [formatCurrency(value), 'Price']}
-                    labelFormatter={(label) => entry.entryType === 'REFLECTION'
-                      ? formatDateTime(new Date(Number(label)).toISOString()) : `Date: ${label}`}
-                    contentStyle={{
-                      backgroundColor: 'var(--color-elevated)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '6px',
-                      color: 'var(--color-foreground)',
-                    }}
-                  />
+                  <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
+                    <div className="rounded-md border border-border bg-elevated px-3 py-2 text-sm text-foreground">
+                      {formatPriceHistoryDate(Number(label))}: {formatCurrency(Number(payload[0].value))}
+                    </div>
+                  ) : null} />
                   <Line
                     type="monotone"
                     dataKey="price"
@@ -342,7 +263,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
                   )}
                   {entry.priceSnapshot != null && Number.isFinite(entry.priceSnapshot) && entry.priceSnapshot > 0 && (
                     <ReferenceDot
-                      x={entry.entryType === 'REFLECTION' ? new Date(entry.timestamp).getTime() : entryDay}
+                      x={new Date(entry.timestamp).getTime()}
                       y={entry.priceSnapshot}
                       r={6}
                       fill={lineColor}
