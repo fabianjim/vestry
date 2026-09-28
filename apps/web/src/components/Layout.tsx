@@ -17,7 +17,7 @@ import {
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: HomeIcon },
-  { path: '/analysis', label: 'Holding Analysis', icon: ChartPieIcon },
+  { path: '/analysis', label: 'Holdings', icon: ChartPieIcon },
   { path: '/transactions', label: 'Transactions', icon: DocumentCurrencyDollarIcon },
   { path: '/journal', label: 'Journal', icon: BookOpenIcon },
 ]
@@ -96,15 +96,15 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
       {/* Sidebar */}
       <aside
         className={`shrink-0 overflow-y-auto flex flex-col border-r border-border-subtle bg-background-sidebar transition-all duration-300 ${
-          isOpen ? 'w-54' : 'w-16'
+          isOpen ? 'w-44' : 'w-16'
         }`}
       >
         {/* Toggle Button */}
         <div className="flex items-center justify-between p-4 border-b border-border">
           {isOpen && (
             <span className="flex items-center gap-2 text-lg font-130">
-              <img src="/logo.svg" alt="" width={28} height={28} className="shrink-0" />
-              Vestry
+              <img src="/logo.svg" alt="" width={36} height={36} className="shrink-0" />
+              
             </span>
           )}
           <button

@@ -83,20 +83,14 @@ export default function RightSidebar({ holdings, loading, isDemo, onBuyClick, on
         }`}
     >
       {/* Toggle */}
-      <div className="flex items-center justify-between p-3 border-b border-border">
-        {isOpen && (
-          <div className="flex flex-1 items-center justify-between gap-2 mr-2">
-            <span className="text-md font-130">Portfolio</span>
-            <NextUpdateTimer />
-          </div>
-        )}
+      <div className="flex items-center gap-2 p-3 border-b border-border">
         <button
           onClick={() => {
             const next = !isOpen
             setIsOpen(next)
             setUserManuallyClosed(!next)
           }}
-          className="p-1.5 rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
           aria-label={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
         >
           {isOpen ? (
@@ -105,6 +99,12 @@ export default function RightSidebar({ holdings, loading, isDemo, onBuyClick, on
             <ChevronDoubleLeftIcon className="w-4 h-4" />
           )}
         </button>
+        {isOpen && (
+          <>
+            <span className="flex h-7 flex-1 items-center justify-center text-md leading-none font-130">Portfolio</span>
+            <NextUpdateTimer />
+          </>
+        )}
       </div>
 
       {/* Buy/Sell */}
