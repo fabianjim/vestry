@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { portfolioQueries } from '../services/queries'
 import type { Transaction } from '../types/transaction'
-import { formatDateTime, isInMarketDateRange } from '../utils/dateUtils'
+import { formatDateTime, isInMarketDateRange, roundToMinute } from '../utils/dateUtils'
 import { exportToCSV } from '../utils/exportUtils'
 import { FunnelIcon, ArrowDownTrayIcon } from './icons'
 import { formatSignedCurrencyWithPercent } from '../utils/formatUtils'
@@ -150,7 +150,13 @@ export default function TransactionHistory() {
 
   const handleExport = () => {
     const rows = filteredTransactions.map((t) => ({
-      Date: formatDateTime(t.timestamp),
+      Date: t.timestamp ? new Date(t.timestamp).toLocaleDateString('en-US', {
+        timeZone: 'America/New_York',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }) : '',
+      Time: roundToMinute(t.timestamp),
       Type: t.type,
       Ticker: t.ticker,
       Shares: t.shares,
