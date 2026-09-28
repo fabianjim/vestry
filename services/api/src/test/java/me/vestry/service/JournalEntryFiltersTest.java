@@ -9,12 +9,27 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class JournalEntryFiltersTest {
+    @Test
+    void selectedDatesUseNewYorkDaysAndExcludeGapsAcrossDst() {
+        var matches = JournalEntryFilters.onDates(List.of(LocalDate.parse("2026-03-08"), LocalDate.parse("2026-03-10")));
+        JournalEntry entry = new JournalEntry();
+        for (String timestamp : List.of("2026-03-08T05:00:00Z", "2026-03-09T03:59:59.999999Z", "2026-03-10T04:00:00Z")) {
+            entry.setTimestamp(Instant.parse(timestamp));
+            assertTrue(matches.test(entry), timestamp);
+        }
+        for (String timestamp : List.of("2026-03-08T04:59:59Z", "2026-03-09T04:00:00Z", "2026-03-11T04:00:00Z")) {
+            entry.setTimestamp(Instant.parse(timestamp));
+            assertFalse(matches.test(entry), timestamp);
+        }
+    }
+
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {" ", "\t"})

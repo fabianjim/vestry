@@ -19,6 +19,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -34,6 +35,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(JournalEntryController.class)
 public class JournalEntryControllerTest {
+
+    @Test
+    @WithMockUser
+    void selectedDatesAreParsedAndRoutedForRealAndDemoUsers() throws Exception {
+        var dates = List.of(LocalDate.parse("2026-03-08"), LocalDate.parse("2026-03-10"));
+        mockMvc.perform(get("/api/journal/filtered").param("dates", "2026-03-08", "2026-03-10"))
+            .andExpect(status().isOk());
+        org.mockito.Mockito.verify(journalEntryService).getFilteredEntries(null, null, null, null, null, null, dates);
+        var session = new me.vestry.model.DemoSession();
+        when(demoSessionResolver.isDemoUser()).thenReturn(true);
+        when(demoSessionResolver.resolveSession(any())).thenReturn(session);
+        mockMvc.perform(get("/api/journal/filtered").param("dates", "2026-03-08", "2026-03-10"))
+            .andExpect(status().isOk());
+        org.mockito.Mockito.verify(demoSessionService).getFilteredJournalEntries(session, null, null, null, null, null, null, dates);
+        mockMvc.perform(get("/api/journal/filtered").param("dates", "not-a-date"))
+            .andExpect(status().isBadRequest());
+    }
 
     @Test
     @WithMockUser

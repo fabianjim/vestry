@@ -21,6 +21,23 @@ describe('journal cache', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
+  it('canonicalizes separate dates, sends NY bounds, and leaves calendar counts independent', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => Response.json([]))
+    vi.stubGlobal('fetch', fetchMock)
+    await client.fetchQuery(journalQueries.entries({ dates: ['2026-03-10', '2026-03-08', '2026-03-08'] }))
+    await client.fetchQuery(journalQueries.entries({ dates: ['2026-03-08', '2026-03-10'] }))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(new URL(fetchMock.mock.calls[0][0], 'http://localhost').searchParams.getAll('dates')).toEqual(['2026-03-08', '2026-03-10'])
+    await client.fetchQuery(journalQueries.entries({ from: '2026-03-08', to: '2026-03-08' }))
+    const params = new URL(fetchMock.mock.calls[1][0], 'http://localhost').searchParams
+    expect(params.get('from')).toBe('2026-03-08T05:00:00.000Z')
+    expect(params.get('to')).toBe('2026-03-09T03:59:59.999Z')
+    await client.fetchQuery(journalQueries.calendar(2026, 3, { dates: ['2026-03-08'] }))
+    await client.fetchQuery(journalQueries.calendar(2026, 3, { dates: ['2026-03-10'] }))
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock.mock.calls[2][0]).not.toContain('dates=')
+  })
+
   it('shares calendar counts across date selections but separates months and tag filters', async () => {
     const fetchMock = vi.fn().mockImplementation(async () => Response.json([]))
     vi.stubGlobal('fetch', fetchMock)

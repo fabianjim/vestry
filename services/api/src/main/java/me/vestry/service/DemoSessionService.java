@@ -24,7 +24,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -627,24 +626,27 @@ public class DemoSessionService {
             .toList();
     }
 
-    public List<JournalEntry> getFilteredJournalEntries(DemoSession session, Instant from, Instant to, List<String> types, String ticker, List<Integer> tagIds, String query) {
+    public List<JournalEntry> getFilteredJournalEntries(DemoSession session, Instant from, Instant to, List<String> types, String ticker, List<Integer> tagIds, String query, List<LocalDate> dates) {
         return getJournalEntries(session).stream()
             .filter(JournalEntryFilters.matching(from, to, types, ticker, tagIds, query))
+            .filter(JournalEntryFilters.onDates(dates))
             .collect(Collectors.toList());
     }
 
     public List<CalendarDayDTO> getJournalCalendarEntries(DemoSession session, int year, int month, Instant from, Instant to, List<String> types, String ticker, List<Integer> tagIds, String query) {
         YearMonth yearMonth = YearMonth.of(year, month);
-        Instant start = yearMonth.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
-        Instant end = yearMonth.atEndOfMonth().atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant();
-        List<JournalEntry> entries = getJournalEntriesInRange(session, start, end);
+        Instant start = yearMonth.atDay(1).atStartOfDay(JournalEntryFilters.MARKET_ZONE).toInstant();
+        Instant end = yearMonth.plusMonths(1).atDay(1).atStartOfDay(JournalEntryFilters.MARKET_ZONE).toInstant();
+        List<JournalEntry> entries = getJournalEntriesInRange(session, start, end).stream()
+            .filter(entry -> entry.getTimestamp().isBefore(end))
+            .collect(Collectors.toList());
 
         Map<LocalDate, Integer> counts = new HashMap<>();
         var matches = JournalEntryFilters.matching(from, to, types, ticker, tagIds, query);
         for (JournalEntry entry : entries) {
             if (!matches.test(entry)) continue;
 
-            LocalDate date = entry.getTimestamp().atZone(ZoneId.systemDefault()).toLocalDate();
+            LocalDate date = entry.getTimestamp().atZone(JournalEntryFilters.MARKET_ZONE).toLocalDate();
             counts.merge(date, 1, Integer::sum);
         }
 

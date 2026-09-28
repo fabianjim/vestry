@@ -23,6 +23,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -62,6 +63,25 @@ public class JournalEntryServiceTest {
     private User mockUser;
 
     @Test
+    void calendarAndSelectedDatesUseNewYorkTimeAcrossDst() {
+        JournalEntry first = new JournalEntry();
+        first.setTimestamp(Instant.parse("2026-03-01T05:00:00Z"));
+        JournalEntry dstEve = new JournalEntry();
+        dstEve.setTimestamp(Instant.parse("2026-03-08T04:30:00Z"));
+        JournalEntry last = new JournalEntry();
+        last.setTimestamp(Instant.parse("2026-04-01T03:59:59.999999Z"));
+        var entries = List.of(last, dstEve, first);
+        when(journalEntryRepository.findByUserIdAndTimestampGreaterThanEqualAndTimestampLessThan(
+            mockUser.getId(), Instant.parse("2026-03-01T05:00:00Z"), Instant.parse("2026-04-01T04:00:00Z"))).thenReturn(entries);
+        when(journalEntryRepository.findByUserIdOrderByTimestampDesc(mockUser.getId())).thenReturn(entries);
+        var days = journalEntryService.getCalendarEntries(2026, 3, null, null, null, null, null, null);
+        assertEquals(Set.of("2026-03-01", "2026-03-07", "2026-03-31"),
+            days.stream().map(day -> day.getDate()).collect(java.util.stream.Collectors.toSet()));
+        assertEquals(List.of(last, first), journalEntryService.getFilteredEntries(null, null, null, null, null, null,
+            List.of(LocalDate.parse("2026-03-01"), LocalDate.parse("2026-03-31"))));
+    }
+
+    @Test
     void unifiedSearchMatchesBodyOrTickerInListAndCalendar() {
         JournalEntry tickerMatch = new JournalEntry();
         tickerMatch.setTicker("AAPL");
@@ -76,9 +96,9 @@ public class JournalEntryServiceTest {
         }
         when(journalEntryRepository.findByUserIdOrderByTimestampDesc(mockUser.getId()))
             .thenReturn(List.of(tickerMatch, bodyMatch, unrelated));
-        when(journalEntryRepository.findByUserIdAndTimestampBetween(eq(mockUser.getId()), any(), any()))
+        when(journalEntryRepository.findByUserIdAndTimestampGreaterThanEqualAndTimestampLessThan(eq(mockUser.getId()), any(), any()))
             .thenReturn(List.of(tickerMatch, bodyMatch, unrelated));
-        assertEquals(List.of(tickerMatch, bodyMatch), journalEntryService.getFilteredEntries(null, null, null, null, null, "aapl"));
+        assertEquals(List.of(tickerMatch, bodyMatch), journalEntryService.getFilteredEntries(null, null, null, null, null, "aapl", null));
         var days = journalEntryService.getCalendarEntries(2026, 9, null, null, null, null, null, "aapl");
         assertEquals(1, days.size());
         assertEquals("2026-09-10", days.get(0).getDate());

@@ -1,3 +1,4 @@
+import { marketDayBoundary } from '../utils/calendarSelection'
 import type { Holding, PortfolioHistoryPoint } from '../types/portfolio'
 import type { StockData, StockHistoryPoint } from '../types/stock'
 import type { PnLSummary, Transaction } from '../types/transaction'
@@ -155,8 +156,9 @@ export const journalApi = {
 
   getFilteredEntries: (params: JournalFilters, signal?: AbortSignal): Promise<JournalEntry[]> => {
     const searchParams = new URLSearchParams()
-    if (params.from) searchParams.set('from', params.from)
-    if (params.to) searchParams.set('to', params.to)
+    if (params.from) searchParams.set('from', marketDayBoundary(params.from))
+    if (params.to) searchParams.set('to', marketDayBoundary(params.to, true))
+    params.dates?.forEach(date => searchParams.append('dates', date))
     if (params.query) searchParams.set('query', params.query)
     params.types?.forEach((t) => searchParams.append('types', t))
     params.tagIds?.forEach((id) => searchParams.append('tagIds', id.toString()))

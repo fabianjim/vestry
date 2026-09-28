@@ -3,12 +3,17 @@ package me.vestry.service;
 import me.vestry.model.JournalEntry;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Set;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Predicate;
 
 /** Shared matching rules for journal lists and calendars, including demo sessions. */
 final class JournalEntryFilters {
+    static final ZoneId MARKET_ZONE = ZoneId.of("America/New_York");
+
     private JournalEntryFilters() {}
 
     static Predicate<JournalEntry> matching(Instant from, Instant to, List<String> types,
@@ -23,6 +28,12 @@ final class JournalEntryFilters {
             && (tagIds == null || tagIds.isEmpty()
                 || entry.getTags().stream().anyMatch(tag -> tagIds.contains(tag.getId())))
             && (search == null || contains(entry.getBody(), search) || contains(entry.getTicker(), search));
+    }
+
+    static Predicate<JournalEntry> onDates(List<LocalDate> dates) {
+        Set<LocalDate> selected = dates == null ? Set.of() : Set.copyOf(dates);
+        return entry -> selected.isEmpty()
+            || selected.contains(entry.getTimestamp().atZone(MARKET_ZONE).toLocalDate());
     }
 
     private static boolean contains(String value, String search) {

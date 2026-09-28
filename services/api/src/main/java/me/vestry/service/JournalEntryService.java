@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -159,25 +158,26 @@ public class JournalEntryService {
         return journalEntryRepository.findByUserIdAndTimestampBetween(getCurrentUserId(), from, to);
     }
 
-    public List<JournalEntry> getFilteredEntries(Instant from, Instant to, List<String> types, String ticker, List<Integer> tagIds, String query) {
+    public List<JournalEntry> getFilteredEntries(Instant from, Instant to, List<String> types, String ticker, List<Integer> tagIds, String query, List<LocalDate> dates) {
         List<JournalEntry> entries = journalEntryRepository.findByUserIdOrderByTimestampDesc(getCurrentUserId());
         return entries.stream()
             .filter(JournalEntryFilters.matching(from, to, types, ticker, tagIds, query))
+            .filter(JournalEntryFilters.onDates(dates))
             .collect(Collectors.toList());
     }
 
     public List<CalendarDayDTO> getCalendarEntries(int year, int month, Instant from, Instant to, List<String> types, String ticker, List<Integer> tagIds, String query) {
         YearMonth yearMonth = YearMonth.of(year, month);
-        Instant start = yearMonth.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
-        Instant end = yearMonth.atEndOfMonth().atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant();
-        List<JournalEntry> entries = journalEntryRepository.findByUserIdAndTimestampBetween(getCurrentUserId(), start, end);
+        Instant start = yearMonth.atDay(1).atStartOfDay(JournalEntryFilters.MARKET_ZONE).toInstant();
+        Instant end = yearMonth.plusMonths(1).atDay(1).atStartOfDay(JournalEntryFilters.MARKET_ZONE).toInstant();
+        List<JournalEntry> entries = journalEntryRepository.findByUserIdAndTimestampGreaterThanEqualAndTimestampLessThan(getCurrentUserId(), start, end);
 
         Map<LocalDate, Integer> counts = new HashMap<>();
         var matches = JournalEntryFilters.matching(from, to, types, ticker, tagIds, query);
         for (JournalEntry entry : entries) {
             if (!matches.test(entry)) continue;
 
-            LocalDate date = entry.getTimestamp().atZone(ZoneId.systemDefault()).toLocalDate();
+            LocalDate date = entry.getTimestamp().atZone(JournalEntryFilters.MARKET_ZONE).toLocalDate();
             counts.merge(date, 1, Integer::sum);
         }
 

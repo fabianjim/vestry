@@ -1,3 +1,4 @@
+import { filterDateKey } from '../utils/calendarSelection'
 import { JOURNAL_STYLES } from '../constants/journalStyles'
 import type { Tag, JournalEntryType, JournalFilters } from '../types/journal'
 
@@ -40,6 +41,7 @@ export default function JournalFilterBar({ filters, availableTags, onChange, cla
   }
 
   const hasActiveFilters =
+    filters.dates?.length ||
     filters.from ||
     filters.to ||
     (filters.types && filters.types.length > 0) ||
@@ -58,25 +60,31 @@ export default function JournalFilterBar({ filters, availableTags, onChange, cla
         />
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-muted whitespace-nowrap">From:</label>
-          <input
-            type="date"
-            value={filters.from ? filters.from.substring(0, 10) : ''}
-            onChange={(e) => update({ from: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
-            className="px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-          />
+      <div className="space-y-1.5">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-muted whitespace-nowrap">From:</label>
+            <input
+              type="date"
+              value={filterDateKey(filters.from)}
+              onChange={(e) => update({ dates: undefined, from: e.target.value || undefined })}
+              className="px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-muted whitespace-nowrap">To:</label>
+            <input
+              type="date"
+              value={filterDateKey(filters.to)}
+              onChange={(e) => update({ dates: undefined, to: e.target.value || undefined })}
+              className="px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+            />
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-muted whitespace-nowrap">To:</label>
-          <input
-            type="date"
-            value={filters.to ? filters.to.substring(0, 10) : ''}
-            onChange={(e) => update({ to: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
-            className="px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-          />
-        </div>
+
+        {filters.dates?.length ? (
+          <p className="text-xs text-muted">{filters.dates.length} individual dates selected. Editing From or To replaces this selection.</p>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-2">

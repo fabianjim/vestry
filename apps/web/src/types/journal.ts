@@ -38,6 +38,7 @@ export type CalendarDay = {
 }
 
 export type JournalFilters = {
+  dates?: string[]
   from?: string
   to?: string
   types?: JournalEntryType[]

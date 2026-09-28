@@ -2,10 +2,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { journalQueries } from '../services/queries'
 import { refreshJournal } from '../services/queryUpdates'
 import { JOURNAL_STYLES, journalBadge } from '../constants/journalStyles'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { JournalEntry, JournalEntryType, JournalFilters, Tag } from '../types/journal'
 import { journalApi } from '../services/api'
+import { dateSelectionFilters, validDateKey } from '../utils/calendarSelection'
 import { formatDateTime } from '../utils/dateUtils'
 import { getDisplayBody, parseTagsFromBody } from '../utils/tagUtils'
 import CalendarView from '../components/CalendarView'
@@ -22,20 +23,22 @@ const EMPTY_TAGS: Tag[] = []
 export default function JournalPage() {
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const [filters, setFilters] = useState<JournalFilters>(() => {
+  const filters = useMemo<JournalFilters>(() => {
+    const dates = searchParams.getAll('dates').filter(validDateKey)
     const from = searchParams.get('from') || undefined
     const to = searchParams.get('to') || undefined
     const types = searchParams.getAll('types') as JournalEntryType[]
     const tagIds = searchParams.getAll('tagIds').map((id) => parseInt(id, 10))
     const query = searchParams.get('query') || searchParams.get('ticker') || undefined
     return {
+      dates: dates.length ? dates : undefined,
       from,
       to,
       types: types.length > 0 ? types : undefined,
       tagIds: tagIds.length > 0 ? tagIds : undefined,
       query,
     }
-  })
+  }, [searchParams])
 
   const client = useQueryClient()
   const entriesQuery = useQuery(journalQueries.entries(filters))
@@ -51,7 +54,6 @@ export default function JournalPage() {
   const [body, setBody] = useState('')
   const [showNewEntry, setShowNewEntry] = useState(false)
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null)
-  const [activeDate, setActiveDate] = useState<Date | null>(null)
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null)
   const [editBody, setEditBody] = useState('')
   const [editError, setEditError] = useState('')
@@ -61,23 +63,9 @@ export default function JournalPage() {
     document.title = 'Journal'
   }, [])
 
-  useEffect(() => {
-    const from = searchParams.get('from') || undefined
-    const to = searchParams.get('to') || undefined
-    const types = searchParams.getAll('types') as JournalEntryType[]
-    const tagIds = searchParams.getAll('tagIds').map((id) => parseInt(id, 10))
-    const query = searchParams.get('query') || searchParams.get('ticker') || undefined
-    setFilters({
-      from,
-      to,
-      types: types.length > 0 ? types : undefined,
-      tagIds: tagIds.length > 0 ? tagIds : undefined,
-      query,
-    })
-  }, [searchParams])
-
   const updateFilters = (newFilters: JournalFilters) => {
     const params = new URLSearchParams()
+    newFilters.dates?.forEach(date => params.append('dates', date))
     if (newFilters.from) params.set('from', newFilters.from)
     if (newFilters.to) params.set('to', newFilters.to)
     newFilters.types?.forEach((t) => params.append('types', t))
@@ -86,17 +74,8 @@ export default function JournalPage() {
     setSearchParams(params, { replace: true })
   }
 
-  const handleDayClick = (date: Date) => {
-    const start = new Date(date)
-    start.setHours(0, 0, 0, 0)
-    const end = new Date(date)
-    end.setHours(23, 59, 59, 999)
-    setActiveDate(date)
-    updateFilters({
-      ...filters,
-      from: start.toISOString(),
-      to: end.toISOString(),
-    })
+  const handleDateSelection = (dates: string[]) => {
+    updateFilters({ ...filters, ...dateSelectionFilters(dates) })
   }
 
   const handleSubmit = async () => {
@@ -195,8 +174,7 @@ export default function JournalPage() {
 
         <div className="lg:row-span-2 lg:self-start p-4 bg-surface rounded-lg border border-border">
           <CalendarView
-            onDayClick={handleDayClick}
-            activeDate={activeDate}
+            onSelectionChange={handleDateSelection}
             filters={filters}
             className="border-0 p-0"
           />

@@ -26,6 +26,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
@@ -60,6 +61,25 @@ public class DemoSessionServiceTest {
     private User demoUser;
 
     @Test
+    void calendarAndSelectedDatesUseNewYorkTimeWithoutMutatingDemoEntries() {
+        DemoSession session = new DemoSession();
+        for (String timestamp : List.of("2026-03-01T04:59:59Z", "2026-03-01T05:00:00Z",
+                "2026-03-08T04:30:00Z", "2026-04-01T03:59:59.999999Z", "2026-04-01T04:00:00Z")) {
+            JournalEntry entry = new JournalEntry();
+            entry.setTimestamp(Instant.parse(timestamp));
+            session.getJournalEntries().add(entry);
+        }
+        var original = List.copyOf(session.getJournalEntries());
+        var days = demoSessionService.getJournalCalendarEntries(session, 2026, 3, null, null, null, null, null, null);
+        assertEquals(java.util.Set.of("2026-03-01", "2026-03-07", "2026-03-31"),
+            days.stream().map(day -> day.getDate()).collect(java.util.stream.Collectors.toSet()));
+        var selected = demoSessionService.getFilteredJournalEntries(session, null, null, null, null, null, null,
+            List.of(LocalDate.parse("2026-03-01"), LocalDate.parse("2026-03-31")));
+        assertEquals(List.of(original.get(3), original.get(1)), selected);
+        assertEquals(original, session.getJournalEntries());
+    }
+
+    @Test
     void unifiedSearchMatchesBodyOrTickerInListAndCalendar() {
         JournalEntry tickerMatch = new JournalEntry();
         tickerMatch.setTicker("AAPL");
@@ -74,7 +94,7 @@ public class DemoSessionServiceTest {
         }
         DemoSession session = new DemoSession();
         session.getJournalEntries().addAll(List.of(tickerMatch, bodyMatch, unrelated));
-        assertEquals(List.of(tickerMatch, bodyMatch), demoSessionService.getFilteredJournalEntries(session, null, null, null, null, null, "aapl"));
+        assertEquals(List.of(tickerMatch, bodyMatch), demoSessionService.getFilteredJournalEntries(session, null, null, null, null, null, "aapl", null));
         var days = demoSessionService.getJournalCalendarEntries(session, 2026, 9, null, null, null, null, null, "aapl");
         assertEquals(1, days.size());
         assertEquals("2026-09-10", days.get(0).getDate());

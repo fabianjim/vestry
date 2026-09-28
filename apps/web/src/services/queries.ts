@@ -46,6 +46,7 @@ export const watchlistQueries = {
 // Filter order has no meaning to the API; canonicalize it to share equivalent searches.
 function journalFilters(filters: JournalFilters = {}): JournalFilters {
   return {
+    dates: filters.dates?.length ? [...new Set(filters.dates)].sort() : undefined,
     from: filters.from || undefined,
     to: filters.to || undefined,
     query: filters.query || undefined,

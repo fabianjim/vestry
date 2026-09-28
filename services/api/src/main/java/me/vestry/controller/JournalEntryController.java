@@ -14,6 +14,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import org.springframework.format.annotation.DateTimeFormat;
 import java.util.List;
 
 @RestController
@@ -97,11 +99,12 @@ public class JournalEntryController {
             @RequestParam(required = false) String ticker,
             @RequestParam(required = false) List<Integer> tagIds,
             @RequestParam(required = false) String query,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) List<LocalDate> dates,
             HttpServletRequest request) {
         if (demoSessionResolver.isDemoUser()) {
-            return demoSessionService.getFilteredJournalEntries(demoSessionResolver.resolveSession(request), from, to, types, ticker, tagIds, query);
+            return demoSessionService.getFilteredJournalEntries(demoSessionResolver.resolveSession(request), from, to, types, ticker, tagIds, query, dates);
         }
-        return journalEntryService.getFilteredEntries(from, to, types, ticker, tagIds, query);
+        return journalEntryService.getFilteredEntries(from, to, types, ticker, tagIds, query, dates);
     }
 
     @GetMapping("/calendar")
