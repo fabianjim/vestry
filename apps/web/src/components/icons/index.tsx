@@ -1,3 +1,8 @@
+/*
+Icons are sourced from heroicons:
+https://heroicons.com
+*/
+
 export interface IconProps {
   className?: string
 }
@@ -141,8 +146,8 @@ export function CalendarIcon({ className = 'w-5 h-5' }: IconProps) {
 
 export function BookOpenIcon({ className = 'w-5 h-5' }: IconProps) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A9.902 9.902 0 016 18.75c1.052 0 2.062-.18 3-.512v-14.25c.938.332 1.948.512 3 .512s2.062-.18 3-.512V18.75c.938.332 1.948.512 3 .512.96 0 1.888-.156 2.75-.47V4.262c-.938.332-1.948.512-3 .512-2.186 0-4.236-.584-6-1.608z" />
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
     </svg>
   )
 }
