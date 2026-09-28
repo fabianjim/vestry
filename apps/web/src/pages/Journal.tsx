@@ -183,7 +183,6 @@ export default function JournalPage() {
 
   return (
     <div className="max-w-6xl mx-auto mt-6 px-3 mb-8">
-      <h2 className="text-2xl font-90 tracking-tight mb-6">Journal</h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-y-6 mb-6">
         <div className="lg:col-span-2 p-4">

@@ -1,5 +1,5 @@
 import { useViewState, type GraphSettings } from '../contexts/ViewState'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import HoldingGraph from '../components/HoldingGraph'
 import NodeDetailPanel from '../components/NodeDetailPanel'
 import SectorBreakdown from '../components/SectorBreakdown'
@@ -13,6 +13,10 @@ const TOGGLES: { key: keyof GraphSettings; label: string }[] = [
 ]
 
 export default function Analysis() {
+  useEffect(() => {
+    document.title = 'Holdings'
+  }, [])
+
   const { nodes, edges, sectorData, holdingsValueData, error, getMetadata, getTrackingStartDate, getStockSnapshot } =
     useHoldingGraphData()
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
@@ -41,7 +45,6 @@ export default function Analysis() {
 
   return (
     <div className="max-w-6xl mx-auto mt-6 px-3 mb-8">
-      <h2 className="text-2xl font-90 tracking-tight mb-6">Holding Analysis</h2>
 
       {error && <div className="text-error mb-4">{error}</div>}
 

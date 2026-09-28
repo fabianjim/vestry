@@ -66,19 +66,6 @@ export const isInMarketDateRange = (timestamp: string, from: string, to: string)
 }
 
 /**
- * Builds a Date representing the given wall-clock time in America/New_York.
- * Corrects for the timezone offset so the returned instant displays as the
- * requested year/month/day hour:minute in MARKET_TZ.
- */
-const buildMarketDate = (year: number, month: number, day: number, hour: number, minute: number): Date => {
-  const target = new Date(Date.UTC(year, month - 1, day, hour, minute))
-  const { year: y, month: m, day: d, hour: h, minute: min } = getMarketParts(target)
-  const actual = new Date(Date.UTC(y, m - 1, d, h, min))
-  const diff = target.getTime() - actual.getTime()
-  return new Date(target.getTime() + diff)
-}
-
-/**
  * Checks whether the given instant falls on a US market weekday (Mon–Fri)
  * between 10:00 and 16:00 Eastern Time.
  */
@@ -102,8 +89,7 @@ export const isSameMarketDay = (timestamp: string | number | Date, date: Date): 
 /**
  * Formats the next update time for display:
  *   - Within one hour: "in Xm"
- *   - More than one hour and tomorrow: "Tomorrow 10 AM"
- *   - Otherwise: "Mon 10 AM"
+ *   - Otherwise: abbreviated weekday and compact time, e.g. "Mon 10am"
  */
 export const formatNextUpdate = (next: Date, now = new Date()): string => {
   const diffMs = next.getTime() - now.getTime()
@@ -113,26 +99,13 @@ export const formatNextUpdate = (next: Date, now = new Date()): string => {
     return `in ${diffMinutes}m`
   }
 
-  const nowParts = getMarketParts(now)
-  const tomorrow = buildMarketDate(nowParts.year, nowParts.month, nowParts.day + 1, 12, 0)
-  const tomorrowParts = getMarketParts(tomorrow)
-
   const nextParts = getMarketParts(next)
-  const isTomorrow =
-    nextParts.year === tomorrowParts.year &&
-    nextParts.month === tomorrowParts.month &&
-    nextParts.day === tomorrowParts.day
-
   const timeLabel = next.toLocaleTimeString('en-US', {
     timeZone: MARKET_TZ,
     hour: 'numeric',
     minute: nextParts.minute !== 0 ? '2-digit' : undefined,
     hour12: true,
-  })
-
-  if (isTomorrow) {
-    return `Tomorrow ${timeLabel}`
-  }
+  }).replace(/\s/g, '').toLowerCase()
 
   const dayLabel = next.toLocaleDateString('en-US', {
     timeZone: MARKET_TZ,

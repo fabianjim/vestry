@@ -8,7 +8,6 @@ import JournalPrompt from '../components/JournalPrompt'
 import JournalPanel from '../components/JournalPanel'
 import type { JournalPanelHandle } from '../components/JournalPanel'
 import RightSidebar from '../components/RightSidebar'
-import NextUpdateTimer from '../components/NextUpdateTimer'
 import InfoTooltip from '../components/InfoTooltip'
 import NodeDetailPanel from '../components/NodeDetailPanel'
 import JournalDetailPanel from '../components/JournalDetailPanel'
@@ -299,10 +298,6 @@ export default function Dashboard() {
     <div className="flex min-h-screen gap-6"> {/* if modifying sidebar gap also update Layout.tsx */}
       {/* Main Content */}
       <div className="flex-1 max-w-6xl mx-auto mt-6 px-3">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-90 tracking-tight">Dashboard</h2>
-          <NextUpdateTimer />
-        </div>
 
       {/* Portfolio Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">

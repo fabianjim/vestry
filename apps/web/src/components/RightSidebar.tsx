@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { roundToMinute } from '../utils/dateUtils'
 import WatchlistPanel from './WatchlistPanel'
+import NextUpdateTimer from './NextUpdateTimer'
 import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from './icons'
 import { formatCurrency, formatSignedCurrencyWithPercent } from '../utils/formatUtils'
 
@@ -83,7 +84,12 @@ export default function RightSidebar({ holdings, loading, isDemo, onBuyClick, on
     >
       {/* Toggle */}
       <div className="flex items-center justify-between p-3 border-b border-border">
-        {isOpen && <span className="text-md font-130">Portfolio</span>}
+        {isOpen && (
+          <div className="flex flex-1 items-center justify-between gap-2 mr-2">
+            <span className="text-md font-130">Portfolio</span>
+            <NextUpdateTimer />
+          </div>
+        )}
         <button
           onClick={() => {
             const next = !isOpen

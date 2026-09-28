@@ -1,9 +1,13 @@
+import { useEffect } from 'react'
 import TransactionHistory from '../components/TransactionHistory'
 
 export default function Transactions() {
+  useEffect(() => {
+    document.title = 'Transactions'
+  }, [])
+
   return (
     <div className="max-w-6xl mx-auto mt-6 px-3 mb-8">
-      <h2 className="text-2xl font-90 tracking-tight mb-6">Transactions</h2>
       <TransactionHistory />
     </div>
   )
