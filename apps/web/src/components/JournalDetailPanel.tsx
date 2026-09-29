@@ -228,7 +228,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
                     dataKey="time"
                     type="number"
                     domain={['dataMin', 'dataMax']}
-                    tickCount={3}
+                    ticks={chartData.map(point => point.time)}
                     tickFormatter={value => formatPriceHistoryDate(value, isSingleDayChart)}
                     stroke="var(--color-muted)" fontSize={12} tickLine={false}
                   />

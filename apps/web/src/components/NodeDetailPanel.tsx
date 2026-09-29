@@ -438,7 +438,8 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                 <ComposedChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
                   <XAxis
-                    dataKey="time" type="number" domain={['dataMin', 'dataMax']} tickCount={3}
+                    dataKey="time" type="number" domain={['dataMin', 'dataMax']}
+                    ticks={chartData.map(point => point.time)}
                     tickFormatter={value => formatPriceHistoryDate(value, isSingleDayChart)}
                     stroke="var(--color-muted)" fontSize={12} tickLine={false}
                   />

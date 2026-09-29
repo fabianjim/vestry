@@ -539,20 +539,14 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
                 tickFormatter={(value) => formatCurrency(value)}
                 tickCount={3}
               />
-              <Tooltip
-                formatter={(value: number) => [formatCurrency(value), 'Portfolio Value']}
-                labelFormatter={(label) =>
-                  viewMode === 'hourly'
-                    ? `Time: ${new Date(label).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`
-                    : `Date: ${new Date(label).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`
-                }
-                contentStyle={{
-                  backgroundColor: 'var(--color-elevated)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '6px',
-                  color: 'var(--color-foreground)',
-                }}
-              />
+              <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
+                <div className="rounded-md border border-border bg-elevated px-3 py-2 text-sm text-foreground">
+                  {viewMode === 'hourly'
+                    ? new Date(Number(label)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                    : new Date(Number(label)).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                  }: {formatCurrency(Number(payload[0].value))}
+                </div>
+              ) : null} />
               <Line
                 type="monotone"
                 dataKey="value"
