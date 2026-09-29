@@ -1,7 +1,8 @@
-import { buildPriceHistory, formatPriceHistoryDate } from '../utils/priceHistory'
+import { buildPriceHistory, formatPriceHistoryDate, getPriceHistoryColor, type PriceHistoryRange } from '../utils/priceHistory'
+import PriceHistoryRangeSelector from './PriceHistoryRangeSelector'
 import { marketDateKey } from '../utils/calendarSelection'
 import { useViewState, type PanelScope } from '../contexts/ViewState'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ComposedChart,
   Line,
@@ -19,7 +20,6 @@ import { journalQueries, portfolioQueries, stockQueries } from '../services/quer
 import { getPositionStats } from '../utils/positionStats'
 import { formatDateTime, roundToMinute } from '../utils/dateUtils'
 import { getCurrentWeekRange } from '../utils/stockStats'
-import { getNodeColor } from '../constants/colors'
 import { JOURNAL_STYLES, journalBadge } from '../constants/journalStyles'
 import { formatCurrency, formatSignedCurrencyWithPercent } from '../utils/formatUtils'
 
@@ -61,7 +61,8 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
     return getPositionStats(transactionsQuery.data, ticker, snapshot?.currentPrice ?? null)
   }, [transactionsQuery.data, ticker, isWatchlist, snapshot?.currentPrice])
 
-  const chartData = useMemo(() => buildPriceHistory(history), [history])
+  const [historyRange, setHistoryRange] = useState<PriceHistoryRange>('all')
+  const chartData = useMemo(() => buildPriceHistory(history, [], historyRange), [history, historyRange])
   const isSingleDayChart = chartData.length > 0 &&
     marketDateKey(new Date(chartData[0].time)) === marketDateKey(new Date(chartData[chartData.length - 1].time))
 
@@ -92,7 +93,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
     }
   }, [snapshot, weekRange])
 
-  const lineColor = getNodeColor(metadata?.sector)
+  const lineColor = getPriceHistoryColor(chartData)
 
   const trackingChange = useMemo(() => {
     if (!history.length || !snapshot) return null
@@ -423,11 +424,14 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
 
       {!isWatchlist && (
         <div className="mb-6">
-          <h4 className="text-lg font-130 mb-3">Price History</h4>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h4 className="text-lg font-130">Price History</h4>
+            <PriceHistoryRangeSelector value={historyRange} onChange={setHistoryRange} />
+          </div>
           {loading && chartData.length === 0 ? (
             <div className="text-muted">Loading chart...</div>
           ) : chartData.length === 0 ? (
-            <div className="text-muted">No price history available.</div>
+            <div className="text-muted">{historyRange === 'all' ? 'No price history available.' : 'No price history available for this period.'}</div>
           ) : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -442,12 +446,12 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                     stroke="var(--color-muted)"
                     fontSize={12}
                     tickLine={false}
-                    tickFormatter={(value) => `$${value.toFixed(2)}`}
+                    tickFormatter={(value) => `$${value.toFixed(0)}`}
                     domain={[(dataMin: number) => dataMin * 0.99, (dataMax: number) => dataMax * 1.01]}
                   />
                   <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
                     <div className="rounded-md border border-border bg-elevated px-3 py-2 text-sm text-foreground">
-                      {formatPriceHistoryDate(Number(label))}: {formatCurrency(Number(payload[0].value))}
+                      {formatPriceHistoryDate(Number(label))}{historyRange !== 'all' && ` · ${formatPriceHistoryDate(Number(label), true)}` }: {formatCurrency(Number(payload[0].value))}
                     </div>
                   ) : null} />
                   <Line
@@ -455,7 +459,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                     dataKey="price"
                     stroke={lineColor}
                     strokeWidth={2}
-                    dot={false}
+                    dot={chartData.length === 1 ? { r: 3 } : false}
                     activeDot={{ r: 5 }}
                   />
                 </ComposedChart>

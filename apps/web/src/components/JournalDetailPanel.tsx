@@ -24,7 +24,8 @@ import {
   getRealizedPnLForSell,
   matchJournalTransaction,
 } from '../utils/stockStats'
-import { buildPriceHistory, formatPriceHistoryDate } from '../utils/priceHistory'
+import { buildPriceHistory, formatPriceHistoryDate, getPriceHistoryColor, type PriceHistoryRange } from '../utils/priceHistory'
+import PriceHistoryRangeSelector from './PriceHistoryRangeSelector'
 import { marketDateKey } from '../utils/calendarSelection'
 import { formatCurrency, formatSignedCurrencyWithPercent } from '../utils/formatUtils'
 import { getDisplayBody, parseTagsFromBody } from '../utils/tagUtils'
@@ -117,8 +118,9 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
     [entry, transactions]
   )
 
+  const [historyRange, setHistoryRange] = useState<PriceHistoryRange>('all')
   const chartData = useMemo(() => buildPriceHistory(history,
-    entry.entryType === 'REFLECTION' ? [sourceEntry, entry] : [entry]), [history, entry, sourceEntry])
+    entry.entryType === 'REFLECTION' ? [sourceEntry, entry] : [entry], historyRange), [history, entry, sourceEntry, historyRange])
   const isSingleDayChart = chartData.length > 0 &&
     marketDateKey(new Date(chartData[0].time)) === marketDateKey(new Date(chartData[chartData.length - 1].time))
 
@@ -141,7 +143,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
   const valueColor = (value: number | null | undefined) =>
     value == null || value === 0 ? 'text-foreground' : value > 0 ? 'text-gain' : 'text-loss'
 
-  const lineColor = JOURNAL_STYLES[entry.entryType].color
+  const lineColor = getPriceHistoryColor(chartData)
 
   return (
     <div
@@ -209,11 +211,14 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
       {/* Price History Chart */}
       {entry.ticker && (
         <div className="mb-6">
-          <h4 className="text-lg font-130 mb-3">Price History</h4>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h4 className="text-lg font-130">Price History</h4>
+            <PriceHistoryRangeSelector value={historyRange} onChange={setHistoryRange} />
+          </div>
           {loading && chartData.length === 0 ? (
             <div className="text-muted">Loading chart...</div>
           ) : chartData.length === 0 ? (
-            <div className="text-muted">No price history available.</div>
+            <div className="text-muted">{historyRange === 'all' ? 'No price history available.' : 'No price history available for this period.'}</div>
           ) : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -231,12 +236,12 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
                     stroke="var(--color-muted)"
                     fontSize={12}
                     tickLine={false}
-                    tickFormatter={(value) => `$${value.toFixed(2)}`}
+                    tickFormatter={(value) => `$${value.toFixed(0)}`}
                     domain={[(dataMin: number) => dataMin * 0.99, (dataMax: number) => dataMax * 1.01]}
                   />
                   <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
                     <div className="rounded-md border border-border bg-elevated px-3 py-2 text-sm text-foreground">
-                      {formatPriceHistoryDate(Number(label))}: {formatCurrency(Number(payload[0].value))}
+                      {formatPriceHistoryDate(Number(label))}{historyRange !== 'all' && ` · ${formatPriceHistoryDate(Number(label), true)}` }: {formatCurrency(Number(payload[0].value))}
                     </div>
                   ) : null} />
                   <Line
@@ -244,11 +249,12 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
                     dataKey="price"
                     stroke={lineColor}
                     strokeWidth={2}
-                    dot={false}
+                    dot={chartData.length === 1 ? { r: 3 } : false}
                     activeDot={{ r: 5 }}
                   />
                   {entry.entryType === 'REFLECTION' && sourceEntry?.priceSnapshot != null
-                    && Number.isFinite(sourceEntry.priceSnapshot) && sourceEntry.priceSnapshot > 0 && (
+                    && Number.isFinite(sourceEntry.priceSnapshot) && sourceEntry.priceSnapshot > 0
+                    && chartData.some(point => point.time === Date.parse(sourceEntry.timestamp)) && (
                     <ReferenceDot
                       x={new Date(sourceEntry.timestamp).getTime()}
                       y={sourceEntry.priceSnapshot}
@@ -261,12 +267,13 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
                       aria-label="Original entry snapshot"
                     />
                   )}
-                  {entry.priceSnapshot != null && Number.isFinite(entry.priceSnapshot) && entry.priceSnapshot > 0 && (
+                  {entry.priceSnapshot != null && Number.isFinite(entry.priceSnapshot) && entry.priceSnapshot > 0
+                    && chartData.some(point => point.time === Date.parse(entry.timestamp)) && (
                     <ReferenceDot
                       x={new Date(entry.timestamp).getTime()}
                       y={entry.priceSnapshot}
                       r={6}
-                      fill={lineColor}
+                      fill={JOURNAL_STYLES[entry.entryType].color}
                       stroke="var(--color-foreground)"
                       strokeWidth={2}
                       ifOverflow="extendDomain"
