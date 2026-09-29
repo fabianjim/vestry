@@ -4,7 +4,7 @@ import { useHoldings } from './useHoldings'
 import { watchlistQueries } from '../services/queries'
 import type { WatchlistItem } from '../types/watchlist'
 import type { StockSnapshot } from '../types/stock'
-import { getNodeColor } from '../constants/colors'
+import { getHoldingColors, getNodeColor } from '../constants/colors'
 
 export type GraphNode = {
   id: string
@@ -135,12 +135,13 @@ export function useHoldingGraphData() {
       .sort((a, b) => b.value - a.value)
 
     // Holdings sorted by value descending
+    const holdingColors = getHoldingColors(breakdownHoldings.map(h => h.ticker))
     const holdingsValueData: HoldingValueItem[] = breakdownHoldings
       .map((h) => ({
         ticker: h.ticker,
         value: h.value,
         percentage: totalValue > 0 ? (h.value / totalValue) * 100 : 0,
-        color: getNodeColor(h.sector),
+        color: holdingColors.get(h.ticker)!,
         sector: h.sector,
       }))
       .sort((a, b) => b.value - a.value)

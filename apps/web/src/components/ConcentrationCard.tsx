@@ -16,20 +16,20 @@ export default function ConcentrationCard({ holdings, controls, large, topN, onT
     <HoldingsCardHeader title="Concentration Summary" controls={controls} />
     {!holdings.length ? <p className="text-sm text-muted">No holdings to display.</p> : !rows.length ?
       <p className="text-sm text-muted">Prices are unavailable. Concentration cannot be calculated.</p> : <>
-      <div className="flex items-end justify-between gap-3 mb-3">
-        <div>
-          <label className="flex items-center gap-1.5 text-sm text-secondary">
-            Top
-            <select aria-label="Number of top holdings" value={summary.topN} disabled={disabled}
-              className="rounded border border-border-control bg-surface px-2 py-1 text-foreground focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
-              onChange={event => onTopNChange(Number(event.target.value))}>
-              {rows.map(row => <option key={row.rank} value={row.rank}>{row.rank}</option>)}
-            </select>
-            {summary.topN === 1 ? 'holding' : 'holdings'}
-          </label>
-          <p className="mt-2 text-3xl font-130 text-primary tabular-nums" aria-live="polite">{percent(summary.topWeight)}</p>
-        </div>
-        <p className="text-sm text-secondary tabular-nums">{formatCompactCurrency(summary.topValue!)}</p>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 mb-3">
+        <label className="flex items-center gap-1.5 text-sm text-secondary whitespace-nowrap">
+          Top
+          <select aria-label="Number of top holdings" value={summary.topN} disabled={disabled}
+            className="rounded border border-border-control bg-surface px-2 py-1 text-foreground focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
+            onChange={event => onTopNChange(Number(event.target.value))}>
+            {rows.map(row => <option key={row.rank} value={row.rank}>{row.rank}</option>)}
+          </select>
+          {summary.topN === 1 ? 'holding' : 'holdings'}
+        </label>
+        <p className="text-xl font-130 text-primary tabular-nums text-center" aria-live="polite">{percent(summary.topWeight)}</p>
+        <p className="text-sm text-secondary tabular-nums text-right">
+          {formatCompactCurrency(summary.topValue!)} of {formatCompactCurrency(rows[rows.length - 1].cumulativeValue)}
+        </p>
       </div>
       <div className="h-44" aria-label="Cumulative portfolio weight, ranked by holding size">
         <ResponsiveContainer width="100%" height="100%">
@@ -59,7 +59,7 @@ export default function ConcentrationCard({ holdings, controls, large, topN, onT
           </AreaChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-center text-xs text-muted mb-4">Holdings, largest first</p>
+      <p className="text-center text-xs text-muted mb-4">Holdings</p>
       <div className="grid grid-cols-2 gap-3 border-y border-border py-3 mb-3">
         <div>
           <p className="text-xs text-muted mb-1">Largest position</p>
@@ -71,7 +71,6 @@ export default function ConcentrationCard({ holdings, controls, large, topN, onT
           <p className="text-lg font-130 tabular-nums">{effectiveHoldings!.toFixed(1)}</p>
         </div>
       </div>
-      <p className="text-xs text-muted mb-3">The same weight concentration as {effectiveHoldings!.toFixed(1)} equally sized positions. Does not measure correlations or holdings inside funds.</p>
       <div className={`${large ? 'max-h-56' : 'max-h-36'} overflow-y-auto divide-y divide-border`}>
         {(large ? rows : rows.slice(0, summary.topN)).map(row => <button key={row.ticker}
           className="flex w-full items-center gap-3 rounded px-1 py-2 text-sm text-left hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"

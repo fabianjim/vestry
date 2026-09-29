@@ -2,11 +2,12 @@ import type { JournalFilters } from '../types/journal'
 
 const MARKET_ZONE = 'America/New_York'
 const DAY_MS = 86_400_000
+const marketDateFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: MARKET_ZONE, year: 'numeric', month: '2-digit', day: '2-digit',
+})
 
 export function marketDateKey(date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: MARKET_ZONE, year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(date)
+  const parts = marketDateFormatter.formatToParts(date)
   const part = (type: string) => parts.find(p => p.type === type)!.value
   return `${part('year')}-${part('month')}-${part('day')}`
 }

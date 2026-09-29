@@ -40,6 +40,8 @@ describe('shared holdings views', () => {
     expect(dashboard.isPending).toBe(false)
     expect(dashboard.data.map(h => h.stockData?.stock?.ticker)).toEqual(['AAPL', 'MSFT'])
     expect(analysis.totalValue).toBe(800)
+    expect(new Set(analysis.holdingsValueData.map(holding => holding.color)).size).toBe(2)
+    expect(new Set(analysis.nodes.map(node => node.color)).size).toBe(1)
     expect(client.getQueryData(portfolioQueries.holdings().queryKey)).toEqual(holdings)
     expect(fetchMock).not.toHaveBeenCalled()
 

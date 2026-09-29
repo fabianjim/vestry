@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { createQueryClient } from '../services/queryClient'
 import { portfolioQueries } from '../services/queries'
 import HoldingsGrid from './HoldingsGrid'
+import { DEFAULT_HOLDINGS_LAYOUT } from '../utils/holdingsLayout'
 
 const client = createQueryClient()
 const render = () => renderToString(
@@ -14,6 +15,15 @@ const render = () => renderToString(
 afterEach(() => client.clear())
 
 describe('saved holdings layout', () => {
+  it('renders five default cards with relationships last and full width', () => {
+    client.setQueryData(portfolioQueries.layout().queryKey, DEFAULT_HOLDINGS_LAYOUT)
+    const html = render()
+    expect(html.match(/content:[\w-]+/g)).toEqual([
+      'content:sector', 'content:value', 'content:size-return', 'content:concentration', 'content:relationships',
+    ])
+    expect(html.match(/lg:col-span-2/g)).toHaveLength(1)
+  })
+
   it('restores the selected cards, order, and full-row sizes from the session cache', () => {
     client.setQueryData(portfolioQueries.layout().queryKey, {
       v: 1, cards: [['reflection', 2], ['unrealized', 1], ['realized', 1], ['size-return', 1]], topN: 5,
@@ -38,6 +48,6 @@ describe('saved holdings layout', () => {
 
   it('uses the default Top N for layouts saved before concentration preferences existed', () => {
     client.setQueryData(portfolioQueries.layout().queryKey, { v: 1, cards: [['concentration', 1]] })
-    expect(render()).toContain('topN:3')
+    expect(render()).toContain('topN:2')
   })
 })

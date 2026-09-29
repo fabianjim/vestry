@@ -46,6 +46,8 @@ public class HoldingsLayoutService {
         var cards = layout.putArray("cards");
         cards.addArray().add("sector").add(1);
         cards.addArray().add("value").add(1);
+        cards.addArray().add("size-return").add(1);
+        cards.addArray().add("concentration").add(1);
         cards.addArray().add("relationships").add(2);
         return layout;
     }

@@ -16,7 +16,6 @@ export function ReflectionCard({ holdings, controls }: { holdings: ValuedHolding
   return (
     <div className="p-4">
       <HoldingsCardHeader title="Reflection Overview" controls={controls} />
-      <p className="text-xs text-muted mb-4">Latest insight or reflection for each holding. Trade entries are excluded.</p>
       {query.error && <p role="alert" className="text-error text-sm">{query.error.message}</p>}
       {query.isPending ? <p className="text-sm text-muted">Loading reflections…</p> : query.data && (
         rows.length ? <ul className="max-h-80 overflow-y-auto divide-y divide-border">
@@ -55,9 +54,6 @@ export function HoldingPnlCard({ holdings, realized = false, controls }: { holdi
           {showPercent ? '%' : '$'}
         </button>
       </HoldingsCardHeader>
-      <p className="text-xs text-muted mb-3">{realized
-        ? 'All recorded sales, including closed positions. Average-cost basis.'
-        : 'Current holdings against remaining average cost. Recorded prices.'}</p>
       {query.error && <p role="alert" className="text-error text-sm">{query.error.message}</p>}
       {query.isPending ? <p className="text-sm text-muted">Loading gain/loss…</p> : query.data && <>
         {known.length > 0 && <>

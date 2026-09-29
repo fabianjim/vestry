@@ -1,4 +1,4 @@
-import { buildPriceHistory, formatPriceHistoryDate, getPriceHistoryColor, type PriceHistoryRange } from '../utils/priceHistory'
+import { buildPriceHistory, formatPriceHistoryDate, getPriceHistoryColor, getPriceHistoryTicks, type PriceHistoryRange } from '../utils/priceHistory'
 import PriceHistoryRangeSelector from './PriceHistoryRangeSelector'
 import { marketDateKey } from '../utils/calendarSelection'
 import { useViewState, type PanelScope } from '../contexts/ViewState'
@@ -63,6 +63,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
 
   const [historyRange, setHistoryRange] = useState<PriceHistoryRange>('all')
   const chartData = useMemo(() => buildPriceHistory(history, [], historyRange), [history, historyRange])
+  const chartTicks = useMemo(() => getPriceHistoryTicks(chartData), [chartData])
   const isSingleDayChart = chartData.length > 0 &&
     marketDateKey(new Date(chartData[0].time)) === marketDateKey(new Date(chartData[chartData.length - 1].time))
 
@@ -245,7 +246,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                     <div className="absolute top-[.9125rem] left-0 right-0 h-4">
                       {Math.abs(rangeMetrics.day.left) > 2 && (
                         <span
-                          className="absolute -translate-x-1/2 text-[9px] text-muted bg-surface px-0.5 z-20"
+                          className="absolute -translate-x-1/2 text-[9px] text-muted bg-elevated px-0.5 z-20"
                           style={{ left: `${rangeMetrics.day.left}%` }}
                         >
                           {formatCurrency(rangeMetrics.day.low)}
@@ -253,7 +254,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                       )}
                       {Math.abs(rangeMetrics.day.right - 100) > 2 && (
                         <span
-                          className="absolute -translate-x-1/2 text-[9px] text-muted bg-surface px-0.5 z-20"
+                          className="absolute -translate-x-1/2 text-[9px] text-muted bg-elevated px-0.5 z-20"
                           style={{ left: `${rangeMetrics.day.right}%` }}
                         >
                           {formatCurrency(rangeMetrics.day.high)}
@@ -263,13 +264,13 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                     {/* week range high/low vertical positioning */}
                     <div className="absolute bottom-[.875rem] left-0 right-0 h-4">
                       <span
-                        className="absolute -translate-x-1/2 text-[9px] text-muted bg-surface px-0.5 z-20"
+                        className="absolute -translate-x-1/2 text-[9px] text-muted bg-elevated px-0.5 z-20"
                         style={{ left: '0%' }}
                       >
                         {formatCurrency(rangeMetrics.week.low)}
                       </span>
                       <span
-                        className="absolute -translate-x-1/2 text-[9px] text-muted bg-surface px-0.5 z-20"
+                        className="absolute -translate-x-1/2 text-[9px] text-muted bg-elevated px-0.5 z-20"
                         style={{ left: '100%' }}
                       >
                         {formatCurrency(rangeMetrics.week.high)}
@@ -279,7 +280,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                     {Math.abs(rangeMetrics.currentPercent) > 3 &&
                       Math.abs(rangeMetrics.currentPercent - 100) > 3 && (
                         <span
-                          className="absolute bottom-0 -translate-x-1/2 text-xs text-foreground font-90 whitespace-nowrap bg-surface px-0.5 z-30"
+                          className="absolute bottom-0 -translate-x-1/2 text-xs text-foreground font-90 whitespace-nowrap bg-elevated px-0.5 z-30"
                           style={{ left: `${rangeMetrics.currentPercent}%` }}
                         >
                           {formatCurrency(rangeMetrics.currentPrice)}
@@ -369,7 +370,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
   )
 
   return (
-    <div className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-elevated border-l border-border shadow-floating z-[1200] p-6 overflow-y-auto">
+    <div className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-elevated border-l border-border shadow-floating z-[1200] p-6 overflow-y-auto [scrollbar-gutter:stable]">
       <div className="flex justify-between items-center mb-5">
         <h2 className="text-2xl font-130 m-0">{ticker}</h2>
         <button
@@ -439,7 +440,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
                   <XAxis
                     dataKey="time" type="number" domain={['dataMin', 'dataMax']}
-                    ticks={chartData.map(point => point.time)}
+                    ticks={chartTicks}
                     tickFormatter={value => formatPriceHistoryDate(value, isSingleDayChart)}
                     stroke="var(--color-muted)" fontSize={12} tickLine={false}
                   />

@@ -15,7 +15,7 @@ export type HoldingsLayout = { v: 1; cards: HoldingsCard[]; topN?: number }
 
 export const DEFAULT_HOLDINGS_LAYOUT: HoldingsLayout = {
   v: 1,
-  cards: [['sector', 1], ['value', 1], ['relationships', 2]],
+  cards: [['sector', 1], ['value', 1], ['size-return', 1], ['concentration', 1], ['relationships', 2]],
 }
 
 export function moveHoldingsCard(layout: HoldingsLayout, from: HoldingsCardId, to: HoldingsCardId): HoldingsLayout {

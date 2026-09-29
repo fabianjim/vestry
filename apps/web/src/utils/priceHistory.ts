@@ -5,6 +5,13 @@ import { marketDateKey, marketDayBoundary } from './calendarSelection'
 export type PriceHistoryRange = 'day' | 'week' | 'all'
 type PriceHistoryPoint = { time: number; price: number }
 
+/** Bound axis label work while retaining actual observation times and both endpoints. */
+export function getPriceHistoryTicks(points: PriceHistoryPoint[]): number[] {
+  const count = Math.min(5, points.length)
+  return Array.from({ length: count }, (_, index) =>
+    points[count === 1 ? 0 : Math.round(index * (points.length - 1) / (count - 1))].time)
+}
+
 const dateLabel = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' })
 const timeLabel = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' })
 export const formatPriceHistoryDate = (time: number, intraday = false) => (intraday ? timeLabel : dateLabel).format(time)

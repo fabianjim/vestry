@@ -105,12 +105,12 @@ export default function HoldingsGrid({ children }: {
             <fieldset disabled={disabled}>
               <legend className="sr-only">Analysis cards</legend>
               {(Object.keys(HOLDINGS_CARDS) as HoldingsCardId[]).map(id => (
-                <label key={id} className="flex gap-2 items-start p-2 rounded text-sm cursor-pointer hover:bg-surface-hover">
-                  <input type="checkbox" className="mt-1 accent-primary" checked={layout.cards.some(([card]) => card === id)}
+                <label key={id} className="flex gap-2 items-center p-2 rounded text-sm cursor-pointer hover:bg-surface-hover">
+                  <input type="checkbox" className="accent-primary" checked={layout.cards.some(([card]) => card === id)}
                     onChange={event => setDraft({ ...layout, cards: event.target.checked
                       ? [...layout.cards, [id, id === 'relationships' ? 2 : 1]]
                       : layout.cards.filter(([card]) => card !== id) })} />
-                  <span>{HOLDINGS_CARDS[id].title}<span className="block text-xs text-secondary">{HOLDINGS_CARDS[id].description}</span></span>
+                  <span>{HOLDINGS_CARDS[id].title}</span>
                 </label>
               ))}
             </fieldset>
@@ -180,7 +180,7 @@ export default function HoldingsGrid({ children }: {
               onMove={offset => move(card[0], layout.cards[index + offset][0])}
               onRemove={() => setDraft({ ...layout, cards: layout.cards.filter(([id]) => id !== card[0]) })}>
               <CardContent id={card[0]} size={card[1]} render={children}
-                topN={layout.topN ?? 3} onTopNChange={onTopNChange} disabled={disabled || !query.data} />
+                topN={layout.topN ?? 2} onTopNChange={onTopNChange} disabled={disabled || !query.data} />
             </Card>)}
           </div>
           </div>

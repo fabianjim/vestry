@@ -28,3 +28,13 @@ export function getNodeColor(sector: string | null | undefined): string {
   if (!sector) return '#a0a3aa'
   return SECTOR_COLORS[sector] || '#a0a3aa'
 }
+
+const HOLDING_COLORS = [...new Set(Object.values(SECTOR_COLORS))]
+
+/** Keep ticker colors independent of sector and value ranking. */
+export function getHoldingColors(tickers: string[]): Map<string, string> {
+  return new Map([...new Set(tickers)].sort().map((ticker, index) => [
+    ticker,
+    HOLDING_COLORS[index] ?? `hsl(${((index - HOLDING_COLORS.length) * 137.508) % 360} 60% 65%)`,
+  ]))
+}

@@ -82,8 +82,8 @@ describe('holdings layout order', () => {
   it('moves cards in either direction while retaining widths and the saved layout', () => {
     const layout: HoldingsLayout = structuredClone(DEFAULT_HOLDINGS_LAYOUT)
     const moved = moveHoldingsCard(layout, 'relationships', 'sector')
-    expect(moved.cards).toEqual([['relationships', 2], ['sector', 1], ['value', 1]])
-    expect(moveHoldingsCard(moved, 'relationships', 'value')).toEqual(layout)
+    expect(moved.cards).toEqual([['relationships', 2], ['sector', 1], ['value', 1], ['size-return', 1], ['concentration', 1]])
+    expect(moveHoldingsCard(moved, 'relationships', 'concentration')).toEqual(layout)
     expect(layout).toEqual(DEFAULT_HOLDINGS_LAYOUT)
     expect(moveHoldingsCard(layout, 'realized', 'sector')).toBe(layout)
   })

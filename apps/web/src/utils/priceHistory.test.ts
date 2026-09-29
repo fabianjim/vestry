@@ -1,13 +1,33 @@
 import { describe, expect, it } from 'vitest'
 import type { JournalEntry, JournalEntryType } from '../types/journal'
 import type { StockHistoryPoint } from '../types/stock'
-import { formatPriceHistoryDate, buildPriceHistory, getPriceHistoryColor } from './priceHistory'
+import { formatPriceHistoryDate, buildPriceHistory, getPriceHistoryColor, getPriceHistoryTicks } from './priceHistory'
 
 const quote = (timestamp: string, currentPrice: number): StockHistoryPoint => ({
   timestamp, currentPrice, open: currentPrice, high: currentPrice, low: currentPrice, prevClose: currentPrice,
 })
 const entry = (timestamp: string, priceSnapshot: number, entryType: JournalEntryType = 'INSIGHT'): JournalEntry => ({
   id: 1, timestamp, priceSnapshot, entryType, ticker: 'AAPL', body: '', tags: [],
+})
+
+describe('price history ticks', () => {
+  it('bounds long histories to five observation ticks including the endpoints without changing data', () => {
+    const points = Array.from({ length: 1000 }, (_, index) => ({ time: index * 3600000, price: 100 }))
+    const ticks = getPriceHistoryTicks(points)
+    expect(ticks).toHaveLength(5)
+    expect(ticks[0]).toBe(points[0].time)
+    expect(ticks.at(-1)).toBe(points.at(-1)!.time)
+    expect(new Set(ticks).size).toBe(5)
+    expect(ticks.every(time => points.some(point => point.time === time))).toBe(true)
+    expect(points).toHaveLength(1000)
+  })
+
+  it('retains every tick for short or empty histories', () => {
+    for (const length of [0, 1, 2, 5]) {
+      const points = Array.from({ length }, (_, time) => ({ time, price: 100 }))
+      expect(getPriceHistoryTicks(points)).toEqual(points.map(point => point.time))
+    }
+  })
 })
 
 describe('price history periods', () => {

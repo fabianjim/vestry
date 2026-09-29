@@ -30,6 +30,7 @@ class HoldingsLayoutServiceTest {
         User first = users.save(new User("layout-first", "encoded"));
         User second = users.save(new User("layout-second", "encoded"));
         JsonNode defaults = layouts.get(first, null);
+        assertEquals(mapper.readTree("{\"v\":1,\"cards\":[[\"sector\",1],[\"value\",1],[\"size-return\",1],[\"concentration\",1],[\"relationships\",2]]}"), defaults);
         JsonNode custom = mapper.readTree("{\"v\":1,\"cards\":[[\"size-return\",1],[\"relationships\",2]],\"topN\":5}");
         layouts.save(first, null, custom);
         entities.flush();
@@ -53,6 +54,7 @@ class HoldingsLayoutServiceTest {
         DemoSession first = new DemoSession();
         DemoSession second = new DemoSession();
         JsonNode defaults = layouts.get(demo, second);
+        assertEquals(mapper.readTree("{\"v\":1,\"cards\":[[\"sector\",1],[\"value\",1],[\"size-return\",1],[\"concentration\",1],[\"relationships\",2]]}"), defaults);
         JsonNode custom = mapper.readTree("{\"v\":1,\"cards\":[[\"reflection\",2]],\"topN\":2}");
         layouts.save(demo, first, custom);
         entities.flush();

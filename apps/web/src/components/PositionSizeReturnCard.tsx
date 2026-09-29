@@ -12,7 +12,6 @@ export default function PositionSizeReturnCard({ holdings, controls, onHoldingCl
   const { points, missingPrices, missingReturns } = positionSizeReturn(holdings, query.data ?? [])
   return <div className="p-4">
     <HoldingsCardHeader title="Position Size vs. Return" controls={controls} />
-    <p className="text-xs text-muted mb-4">Current portfolio weight against unrealized return on remaining average cost.</p>
     {query.error && <p role="alert" className="text-sm text-error">{query.error.message}</p>}
     {query.isPending ? <p className="text-sm text-muted">Loading position returns…</p> : query.data && <>
       {points.length ? <>
