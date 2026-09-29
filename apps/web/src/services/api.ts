@@ -3,6 +3,7 @@ import type { Holding, PortfolioHistoryPoint } from '../types/portfolio'
 import type { StockData, StockHistoryPoint } from '../types/stock'
 import type { PnLSummary, Transaction } from '../types/transaction'
 import type { WatchlistItem } from '../types/watchlist'
+import type { HoldingsLayout } from '../utils/holdingsLayout'
 
 const API_BASE = '/api';
 
@@ -90,6 +91,12 @@ async function apiClient(endpoint: string, options: FetchOptions = {}) {
 
 // Portfolio API
 export const portfolioApi = {
+  getHoldingsLayout: (signal?: AbortSignal): Promise<HoldingsLayout> =>
+    apiClient('/portfolio/holdings-layout', { signal }),
+
+  saveHoldingsLayout: (layout: HoldingsLayout): Promise<HoldingsLayout> =>
+    apiClient('/portfolio/holdings-layout', { method: 'PUT', body: layout }),
+
   createPortfolio: (holdings: Array<{ ticker: string; shares: number }>) =>
     apiClient('/portfolio/create', { method: 'POST', body: { holdings } }),
 

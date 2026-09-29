@@ -22,6 +22,17 @@ describe('public session status', () => {
 })
 
 describe('portfolio API errors', () => {
+  it('loads and saves the compact holdings layout with session credentials', async () => {
+    const layout = { v: 1 as const, cards: [['realized', 2] as ['realized', 2]] }
+    const fetchMock = vi.fn().mockImplementation(async () => Response.json(layout))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(portfolioApi.getHoldingsLayout()).resolves.toEqual(layout)
+    await expect(portfolioApi.saveHoldingsLayout(layout)).resolves.toEqual(layout)
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/portfolio/holdings-layout', expect.objectContaining({
+      method: 'PUT', credentials: 'include', body: JSON.stringify(layout),
+    }))
+  })
+
   it('retains the HTTP status for session-expiry handling', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
       JSON.stringify({ message: 'Not authenticated' }), { status: 401 },

@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+import HoldingsCardHeader from './HoldingsCardHeader'
 import { useState, useEffect, useRef } from 'react'
 import {
   BarChart,
@@ -15,6 +17,8 @@ import type { HoldingValueItem } from '../hooks/useHoldingGraphData'
 
 type HoldingsValueChartProps = {
   data: HoldingValueItem[]
+  embedded?: boolean
+  controls?: ReactNode
 }
 
 const formatCurrency = (value: number) => {
@@ -29,7 +33,7 @@ const formatPercent = (value: number) => {
   return `${value.toFixed(1)}%`
 }
 
-export default function HoldingsValueChart({ data }: HoldingsValueChartProps) {
+export default function HoldingsValueChart({ data, embedded = false, controls }: HoldingsValueChartProps) {
   const [chartType, setChartType] = useState<'pie' | 'bar'>('bar')
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -48,8 +52,8 @@ export default function HoldingsValueChart({ data }: HoldingsValueChartProps) {
 
   if (data.length === 0) {
     return (
-      <div className="bg-surface rounded-lg border border-border p-4">
-        <h3 className="text-lg font-130 mb-3">Holdings by Value</h3>
+      <div className={embedded ? 'p-4' : 'bg-surface rounded-lg border border-border p-4'}>
+        <HoldingsCardHeader title="Holdings by Value" controls={controls} />
         <div className="text-muted text-sm">No holdings to display.</div>
       </div>
     )
@@ -67,9 +71,8 @@ export default function HoldingsValueChart({ data }: HoldingsValueChartProps) {
   }
 
   return (
-    <div className="bg-surface rounded-lg border border-border p-4 flex flex-col">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-130">Holdings by Value</h3>
+    <div className={`p-4 flex flex-col ${embedded ? '' : 'bg-surface rounded-lg border border-border'}`}>
+      <HoldingsCardHeader title="Holdings by Value" controls={controls}>
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
@@ -112,7 +115,7 @@ export default function HoldingsValueChart({ data }: HoldingsValueChartProps) {
             </div>
           )}
         </div>
-      </div>
+      </HoldingsCardHeader>
 
       <div className={`${chartHeight} flex items-center justify-center`}>
         <ResponsiveContainer width="100%" height="100%">

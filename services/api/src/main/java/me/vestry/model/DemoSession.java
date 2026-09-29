@@ -1,5 +1,6 @@
 package me.vestry.model;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -11,12 +12,21 @@ public class DemoSession implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private Portfolio portfolio;
+    private volatile JsonNode holdingsLayout;
     private List<Transaction> transactions = new ArrayList<>();
     private List<JournalEntry> journalEntries = new ArrayList<>();
     private List<WatchlistItem> watchlistItems = new ArrayList<>();
     private int remainingTrades = 3;
     private int nextId = -1;
     private Set<String> sessionTrackedTickers = new HashSet<>();
+
+    public JsonNode getHoldingsLayout() {
+        return holdingsLayout;
+    }
+
+    public void setHoldingsLayout(JsonNode holdingsLayout) {
+        this.holdingsLayout = holdingsLayout;
+    }
 
     public Set<String> getSessionTrackedTickers() {
         return sessionTrackedTickers;

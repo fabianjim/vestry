@@ -1,6 +1,9 @@
 package me.vestry.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.JsonNode;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.*;
 
@@ -20,6 +23,11 @@ public class User {
 
     @Column(name = "is_demo", nullable = false)
     private boolean demo = false;
+
+    @JsonIgnore
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "holdings_layout")
+    private JsonNode holdingsLayout;
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     @JsonIgnore
@@ -70,5 +78,13 @@ public class User {
 
     public void setDemo(boolean demo) {
         this.demo = demo;
+    }
+
+    public JsonNode getHoldingsLayout() {
+        return holdingsLayout;
+    }
+
+    public void setHoldingsLayout(JsonNode holdingsLayout) {
+        this.holdingsLayout = holdingsLayout;
     }
 }

@@ -27,7 +27,6 @@ function useViewStateValues() {
   return {
     chartMode: useState<'hourly' | 'daily'>('hourly'),
     chartDate: useState(initialChartDate),
-    pendingSettings: useState(DEFAULT_SETTINGS),
     appliedSettings: useState(DEFAULT_SETTINGS),
     panelTabs: useState<Record<PanelScope, PanelTab>>({ dashboard: 'performance', analysis: 'metadata' }),
   }

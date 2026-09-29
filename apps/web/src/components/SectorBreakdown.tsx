@@ -1,9 +1,13 @@
+import type { ReactNode } from 'react'
+import HoldingsCardHeader from './HoldingsCardHeader'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from 'recharts'
 import type { SectorBreakdownItem } from '../hooks/useHoldingGraphData'
 
 type SectorBreakdownProps = {
   data: SectorBreakdownItem[]
+  embedded?: boolean
+  controls?: ReactNode
 }
 
 const formatCurrency = (value: number) => {
@@ -18,7 +22,7 @@ const formatPercent = (value: number) => {
   return `${value.toFixed(1)}%`
 }
 
-export default function SectorBreakdown({ data }: SectorBreakdownProps) {
+export default function SectorBreakdown({ data, embedded = false, controls }: SectorBreakdownProps) {
   const [chartType, setChartType] = useState<'pie' | 'bar'>('pie')
   const [showEtfs, setShowEtfs] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -50,8 +54,8 @@ export default function SectorBreakdown({ data }: SectorBreakdownProps) {
 
   if (data.length === 0) {
     return (
-      <div className="bg-surface rounded-lg border border-border p-4">
-        <h3 className="text-lg font-130 mb-3">Sector Allocation</h3>
+      <div className={embedded ? 'p-4' : 'bg-surface rounded-lg border border-border p-4'}>
+        <HoldingsCardHeader title="Sector Allocation" controls={controls} />
         <div className="text-muted text-sm">No holdings to display.</div>
       </div>
     )
@@ -60,9 +64,8 @@ export default function SectorBreakdown({ data }: SectorBreakdownProps) {
   const chartHeight = chartType === 'bar' ? 'h-72' : 'h-64'
 
   return (
-    <div className="bg-surface rounded-lg border border-border p-4 flex flex-col">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-130">Sector Allocation</h3>
+    <div className={`p-4 flex flex-col ${embedded ? '' : 'bg-surface rounded-lg border border-border'}`}>
+      <HoldingsCardHeader title="Sector Allocation" controls={controls}>
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
@@ -132,7 +135,7 @@ export default function SectorBreakdown({ data }: SectorBreakdownProps) {
             </div>
           )}
         </div>
-      </div>
+      </HoldingsCardHeader>
 
       <div className={`${chartHeight} flex items-center justify-center`}>
         <ResponsiveContainer width="100%" height="100%">

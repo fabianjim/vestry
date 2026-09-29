@@ -165,5 +165,5 @@ export function useHoldingGraphData() {
     return holding?.buyTimestamp ?? null
   }
 
-  return { nodes, edges, sectorData, holdingsValueData, totalValue, error, getMetadata, getTrackingStartDate, getStockSnapshot }
+  return { holdings, isPending: holdingsQuery.isPending, nodes, edges, sectorData, holdingsValueData, totalValue, error, getMetadata, getTrackingStartDate, getStockSnapshot }
 }

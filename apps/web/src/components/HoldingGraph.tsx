@@ -196,6 +196,7 @@ type HoldingGraphProps = {
   groupBySector?: boolean
   width?: number
   height?: number
+  embedded?: boolean
 }
 
 export default function HoldingGraph({
@@ -205,6 +206,7 @@ export default function HoldingGraph({
   groupBySector = false,
   width = 800,
   height = 500,
+  embedded = false,
 }: HoldingGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const onNodeClickRef = useRef(onNodeClick)
@@ -256,6 +258,7 @@ export default function HoldingGraph({
       const zoom = d3
         .zoom<SVGSVGElement, unknown>()
         .scaleExtent([0.5, 4])
+        .filter(event => event.type === 'wheel' ? event.metaKey : !event.ctrlKey && !event.button)
         .on('zoom', (event) => {
           g.attr('transform', event.transform.toString())
         })
@@ -407,7 +410,8 @@ export default function HoldingGraph({
       ref={svgRef}
       width={width}
       height={height}
-      className="w-full h-auto border border-border rounded-lg bg-surface"
+      viewBox={`0 0 ${width} ${height}`}
+      className={`w-full h-auto rounded-lg bg-surface ${embedded ? '' : 'border border-border'}`}
       style={{ aspectRatio: `${width} / ${height}` }}
     />
   )

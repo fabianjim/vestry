@@ -100,11 +100,10 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
         }`}
       >
         {/* Toggle Button */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
+        <div className={`flex items-center justify-between py-4 pr-4 border-b border-border ${isOpen ? '' : 'pl-4'}`}>
           {isOpen && (
-            <span className="flex items-center gap-2 text-lg font-130">
-              <img src="/logo.svg" alt="" width={36} height={36} className="shrink-0" />
-              
+            <span className="flex flex-1 items-center justify-center">
+              <img src="/logo.svg" alt="" width={44} height={44} className="shrink-0" />
             </span>
           )}
           <button
@@ -113,7 +112,7 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
               setIsOpen(next)
               setUserManuallyClosed(!next)
             }}
-            className="p-2 rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
+            className="ml-auto p-2 rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
             aria-label={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           >
             {isOpen ? (
