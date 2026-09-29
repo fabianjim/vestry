@@ -335,7 +335,7 @@ export default function TransactionHistory() {
       {openFilter === 'date' && createPortal(
         <div
           ref={dateDropdownRef}
-          className="bg-elevated border border-border rounded-lg shadow-floating p-3 z-50"
+          className="bg-background/35 backdrop-blur-xl border border-foreground/5 rounded-xl shadow-sm shadow-background/20 p-3 z-50"
           style={{
             position: 'fixed',
             top: dropdownPos.top,
@@ -351,7 +351,7 @@ export default function TransactionHistory() {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full bg-background border border-border-control rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full bg-foreground/5 border border-border-control rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
             <div>
@@ -360,7 +360,7 @@ export default function TransactionHistory() {
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="w-full bg-background border border-border-control rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full bg-foreground/5 border border-border-control rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
           </div>
@@ -379,7 +379,7 @@ export default function TransactionHistory() {
       {openFilter === 'type' && createPortal(
         <div
           ref={typeDropdownRef}
-          className="bg-elevated border border-border rounded-lg shadow-floating p-3 z-50"
+          className="bg-background/35 backdrop-blur-xl border border-foreground/5 rounded-xl shadow-sm shadow-background/20 p-3 z-50"
           style={{
             position: 'fixed',
             top: dropdownPos.top,
@@ -416,7 +416,7 @@ export default function TransactionHistory() {
       {openFilter === 'ticker' && createPortal(
         <div
           ref={tickerDropdownRef}
-          className="bg-elevated border border-border rounded-lg shadow-floating p-3 z-50"
+          className="bg-background/35 backdrop-blur-xl border border-foreground/5 rounded-xl shadow-sm shadow-background/20 p-3 z-50"
           style={{
             position: 'fixed',
             top: dropdownPos.top,

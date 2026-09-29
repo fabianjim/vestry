@@ -45,11 +45,6 @@ export default function PositionSizeReturnCard({ holdings, controls, onHoldingCl
           </ResponsiveContainer>
         </div>
         <p className="text-center text-xs text-muted mb-3">Current portfolio weight (%)</p>
-        <div className="flex flex-wrap gap-2">
-          {points.map(point => <button key={point.ticker} onClick={() => onHoldingClick(point.ticker)}
-            aria-label={`Open ${point.ticker}: ${point.weight.toFixed(1)}% weight, ${point.returnPercent.toFixed(1)}% unrealized return`}
-            className="rounded border border-border px-2 py-1 text-xs hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary">{point.ticker}</button>)}
-        </div>
       </> : <p className="text-sm text-muted">{holdings.length ? 'No positions with both price and cost data available.' : 'No holdings to display.'}</p>}
       {missingPrices > 0 && <p role="status" className="text-sm text-muted mt-3">{missingPrices} holding(s) lack prices. Weights cover priced holdings only.</p>}
       {missingReturns > 0 && <p role="status" className="text-sm text-muted mt-3">{missingReturns} holding(s) lack cost data and are not plotted. Their values remain included in portfolio weights.</p>}

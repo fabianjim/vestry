@@ -79,16 +79,16 @@ export default function SectorBreakdown({ data, embedded = false, controls }: Se
             </div>
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-full mt-1 bg-elevated border border-border rounded-md shadow-floating z-50 min-w-[180px] py-1">
+            <div className="absolute right-0 top-full mt-1 bg-background/35 backdrop-blur-xl border border-foreground/5 rounded-xl shadow-sm shadow-background/20 z-50 min-w-[180px] py-1">
               <div className="px-3 py-2">
                 <div className="text-xs text-muted mb-1.5">View</div>
-                <div className="flex bg-elevated rounded-md p-0.5">
+                <div className="flex bg-foreground/5 rounded-md p-0.5">
                   <button
                     onClick={() => { setChartType('pie'); setMenuOpen(false) }}
                     className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
                       chartType === 'pie'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-foreground hover:text-primary-foreground'
+                        ? 'bg-primary/15 text-foreground hover:text-secondary'
+                        : 'text-foreground hover:text-secondary'
                     }`}
                   >
                     Pie
@@ -97,8 +97,8 @@ export default function SectorBreakdown({ data, embedded = false, controls }: Se
                     onClick={() => { setChartType('bar'); setMenuOpen(false) }}
                     className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
                       chartType === 'bar'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-foreground hover:text-primary-foreground'
+                        ? 'bg-primary/15 text-foreground hover:text-secondary'
+                        : 'text-foreground hover:text-secondary'
                     }`}
                   >
                     Bar
@@ -108,13 +108,13 @@ export default function SectorBreakdown({ data, embedded = false, controls }: Se
               {hasEtfs && (
                 <div className="border-t border-border px-3 py-2">
                   <div className="text-xs text-muted mb-1.5">Show ETFs?</div>
-                  <div className="flex bg-elevated rounded-md p-0.5">
+                  <div className="flex bg-foreground/5 rounded-md p-0.5">
                     <button
                       onClick={() => { setShowEtfs(true); setMenuOpen(false) }}
                       className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
                         showEtfs
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-foreground hover:text-primary-foreground'
+                          ? 'bg-primary/15 text-foreground hover:text-secondary'
+                          : 'text-foreground hover:text-secondary'
                       }`}
                     >
                       On
@@ -123,8 +123,8 @@ export default function SectorBreakdown({ data, embedded = false, controls }: Se
                       onClick={() => { setShowEtfs(false); setMenuOpen(false) }}
                       className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
                         !showEtfs
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-foreground hover:text-primary-foreground'
+                          ? 'bg-primary/15 text-foreground hover:text-secondary'
+                          : 'text-foreground hover:text-secondary'
                       }`}
                     >
                       Off
