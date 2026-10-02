@@ -13,6 +13,7 @@ public class DemoSession implements Serializable {
 
     private Portfolio portfolio;
     private volatile JsonNode holdingsLayout;
+    private volatile JsonNode dashboardLayout;
     private List<Transaction> transactions = new ArrayList<>();
     private List<JournalEntry> journalEntries = new ArrayList<>();
     private List<WatchlistItem> watchlistItems = new ArrayList<>();
@@ -26,6 +27,14 @@ public class DemoSession implements Serializable {
 
     public void setHoldingsLayout(JsonNode holdingsLayout) {
         this.holdingsLayout = holdingsLayout;
+    }
+
+    public JsonNode getDashboardLayout() {
+        return dashboardLayout;
+    }
+
+    public void setDashboardLayout(JsonNode dashboardLayout) {
+        this.dashboardLayout = dashboardLayout;
     }
 
     public Set<String> getSessionTrackedTickers() {

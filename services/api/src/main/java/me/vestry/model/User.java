@@ -29,6 +29,11 @@ public class User {
     @Column(name = "holdings_layout")
     private JsonNode holdingsLayout;
 
+    @JsonIgnore
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "dashboard_layout")
+    private JsonNode dashboardLayout;
+
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     @JsonIgnore
     private Portfolio portfolio;
@@ -86,5 +91,13 @@ public class User {
 
     public void setHoldingsLayout(JsonNode holdingsLayout) {
         this.holdingsLayout = holdingsLayout;
+    }
+
+    public JsonNode getDashboardLayout() {
+        return dashboardLayout;
+    }
+
+    public void setDashboardLayout(JsonNode dashboardLayout) {
+        this.dashboardLayout = dashboardLayout;
     }
 }

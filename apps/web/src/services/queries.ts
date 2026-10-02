@@ -5,6 +5,11 @@ import { journalApi, portfolioApi, stockApi, watchlistApi } from './api'
 // Cache raw responses so every screen can reuse the same request and derive its own view.
 export const portfolioQueries = {
   all: ['portfolio'] as const,
+  dashboardLayout: () => queryOptions({
+    queryKey: ['dashboard-layout'],
+    queryFn: ({ signal }) => portfolioApi.getDashboardLayout(signal),
+    staleTime: Infinity,
+  }),
   layout: () => queryOptions({
     queryKey: ['holdings-layout'],
     queryFn: ({ signal }) => portfolioApi.getHoldingsLayout(signal),

@@ -4,6 +4,7 @@ import type { StockData, StockHistoryPoint } from '../types/stock'
 import type { PnLSummary, Transaction } from '../types/transaction'
 import type { WatchlistItem } from '../types/watchlist'
 import type { HoldingsLayout } from '../utils/holdingsLayout'
+import type { DashboardLayout } from '../utils/dashboardLayout'
 
 const API_BASE = '/api';
 
@@ -91,6 +92,12 @@ async function apiClient(endpoint: string, options: FetchOptions = {}) {
 
 // Portfolio API
 export const portfolioApi = {
+  getDashboardLayout: (signal?: AbortSignal): Promise<DashboardLayout> =>
+    apiClient('/portfolio/dashboard-layout', { signal }),
+
+  saveDashboardLayout: (layout: DashboardLayout): Promise<DashboardLayout> =>
+    apiClient('/portfolio/dashboard-layout', { method: 'PUT', body: layout }),
+
   getHoldingsLayout: (signal?: AbortSignal): Promise<HoldingsLayout> =>
     apiClient('/portfolio/holdings-layout', { signal }),
 
