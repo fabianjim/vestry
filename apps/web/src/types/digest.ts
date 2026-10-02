@@ -10,7 +10,7 @@ export type DigestState = {
       news: string
       reflection: string
       questions: { text: string; destination: DigestDestination }[]
-      sources: { headline: string; summary: string; publishedOn: string; url: string }[]
+      sources: { headline: string; summary: string; publishedOn: string | null; url: string }[]
       newsStatus: 'FETCHING' | 'READY' | 'EMPTY' | 'UNAVAILABLE' | 'DISABLED'
       demoTemplate: boolean
     }

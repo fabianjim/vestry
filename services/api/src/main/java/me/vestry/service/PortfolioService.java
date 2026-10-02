@@ -325,8 +325,11 @@ public class PortfolioService {
      * Uses average cost basis method per ticker.
      */
     public PnLSummaryDTO getPnLSummary() {
-        List<Transaction> transactions = transactionService.getTransactionHistory();
+        return calculatePnLSummary(transactionService.getTransactionHistory());
+    }
 
+    // Shared with scheduled demo snapshots; keeps the existing chronological average-cost calculation.
+    PnLSummaryDTO calculatePnLSummary(List<Transaction> transactions) {
         // Group transactions by ticker
         Map<String, List<Transaction>> byTicker = new HashMap<>();
         for (Transaction tx : transactions) {

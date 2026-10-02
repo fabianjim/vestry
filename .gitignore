@@ -35,3 +35,6 @@ build/
 
 ### Environment Files ###
 application-dev.properties
+
+# Local AI diagnostic credentials
+/services/api/.env.ai-diagnostic

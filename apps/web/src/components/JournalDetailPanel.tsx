@@ -178,7 +178,6 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
             day: '2-digit',
             year: 'numeric',
           })}
-          {' · '}
           <span className="font-130">Time:</span>{' '}
           {new Date(entry.timestamp).toLocaleTimeString('en-US', {
             hour: 'numeric',
@@ -191,10 +190,8 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
           {entry.priceSnapshot != null && entry.priceSnapshot > 0 ? formatCurrency(entry.priceSnapshot) : '—'}
           {(entry.entryType === 'BUY' || entry.entryType === 'SELL') && (
             <>
-              {' · '}
               <span className="font-130">Shares:</span>{' '}
               {matchedTransaction ? matchedTransaction.shares : '-'}
-              {' · '}
               <span className="font-130">Total:</span>{' '}
               {matchedTransaction ? formatCurrency(matchedTransaction.totalValue) : '-'}
             </>

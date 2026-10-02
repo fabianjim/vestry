@@ -1,3 +1,4 @@
+import GlassSelect from './GlassSelect'
 import type { ReactNode } from 'react'
 import { Area, AreaChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { concentrationSummary, type ValuedHolding } from '../utils/holdingsAnalysis'
@@ -17,15 +18,12 @@ export default function ConcentrationCard({ holdings, controls, large, topN, onT
     {!holdings.length ? <p className="text-sm text-muted">No holdings to display.</p> : !rows.length ?
       <p className="text-sm text-muted">Prices are unavailable. Concentration cannot be calculated.</p> : <>
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 mb-3">
-        <label className="flex items-center gap-1.5 text-sm text-secondary whitespace-nowrap">
+        <div className="flex items-center gap-1.5 text-sm text-secondary whitespace-nowrap">
           Top
-          <select aria-label="Number of top holdings" value={summary.topN} disabled={disabled}
-            className="rounded border border-border-control bg-surface px-2 py-1 text-foreground focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
-            onChange={event => onTopNChange(Number(event.target.value))}>
-            {rows.map(row => <option key={row.rank} value={row.rank}>{row.rank}</option>)}
-          </select>
+          <GlassSelect label="Number of top holdings" value={summary.topN} disabled={disabled} width={128}
+            options={rows.map(row => ({ value: row.rank, label: String(row.rank) }))} onChange={onTopNChange} />
           {summary.topN === 1 ? 'holding' : 'holdings'}
-        </label>
+        </div>
         <p className="text-xl font-130 text-primary tabular-nums text-center" aria-live="polite">{percent(summary.topWeight)}</p>
         <p className="text-sm text-secondary tabular-nums text-right">
           {formatCompactCurrency(summary.topValue!)} of {formatCompactCurrency(rows[rows.length - 1].cumulativeValue)}
@@ -64,7 +62,7 @@ export default function ConcentrationCard({ holdings, controls, large, topN, onT
         <div>
           <p className="text-xs text-muted mb-1">Largest position</p>
           <button className="text-sm font-130 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary rounded"
-            onClick={() => onHoldingClick(largest!.ticker)}>{largest!.ticker} · {percent(largest!.weight)}</button>
+            onClick={() => onHoldingClick(largest!.ticker)}>{largest!.ticker} {percent(largest!.weight)}</button>
         </div>
         <div>
           <p className="text-xs text-muted mb-1">Effective holdings</p>

@@ -66,7 +66,7 @@ class DigestServiceTest {
         assertEquals(result, service.generate(job, snapshot));
         verify(client, times(1)).generate(eq(job), eq("digest"), argThat(r -> !r.webSearch()
                 && r.schema() != null && r.input().contains("private reflection")
-                && !r.instructions().contains("private reflection") && !r.input().contains("https://")));
+                && !r.instructions().contains("private reflection") && r.input().contains("https://news.example/story")));
         verify(news, times(1)).getOrFetch(job, List.of("AAPL"));
     }
 
@@ -88,7 +88,7 @@ class DigestServiceTest {
         var badCitation = validBody(); badCitation.putArray("sourceIds").add(99);
         answer(badCitation);
         assertThrows(IllegalStateException.class, () -> service.generate(job, snapshot));
-        var longBody = validBody().put("reflection", "word ".repeat(181));
+        var longBody = validBody().put("reflection", "word ".repeat(151));
         answer(longBody);
         assertThrows(IllegalStateException.class, () -> service.generate(job, snapshot));
         var badTarget = validBody(); ((ObjectNode) badTarget.path("questions").get(0)).put("destination", "https://evil.example");
@@ -115,10 +115,10 @@ class DigestServiceTest {
         for (int i = 0; i < 6; i++) entries.addObject().put("body", "投資\\\"".repeat(100));
         var large = new DigestContextService.Snapshot(7, false, now, List.of("AAPL"), context.toString());
         var items = new ArrayList<NewsBriefing.Item>();
-        for (int i = 0; i < 4; i++) items.add(new NewsBriefing.Item("投".repeat(160), "資".repeat(280),
-                LocalDate.of(2026, 10, 2), "https://news.example/story" + i));
+        for (int i = 0; i < 12; i++) items.add(new NewsBriefing.Item("投".repeat(160), "資".repeat(280),
+                LocalDate.of(2026, 10, 2), "https://news.example/" + "a".repeat(1900) + i));
         when(news.getOrFetch(job, snapshot.tickers())).thenReturn(new NewsBriefing(LocalDate.of(2026, 10, 2), now,
-                NewsBriefing.Status.READY, items));
+                NewsBriefing.Status.READY, items, "資".repeat(3000)));
         answer(validBody());
         service.generate(job, large);
         var request = org.mockito.ArgumentCaptor.forClass(OpenAiClient.Request.class);
@@ -138,6 +138,56 @@ class DigestServiceTest {
         when(client.generate(any(), anyString(), any())).thenThrow(new IllegalStateException("unavailable"));
         assertThrows(IllegalStateException.class, () -> service.generate(job, snapshot));
         assertEquals(0, repository.count());
+    }
+
+    @Test
+    void schemaBoundsEveryFieldAndOnlyPermitsAvailableCitations() {
+        answer(validBody());
+        service.generate(job, snapshot);
+        var request = org.mockito.ArgumentCaptor.forClass(OpenAiClient.Request.class);
+        verify(client).generate(eq(job), eq("digest"), request.capture());
+        var properties = request.getValue().schema().path("properties");
+        var newsPattern = java.util.regex.Pattern.compile(properties.path("news").path("pattern").asText());
+        var reflectionPattern = java.util.regex.Pattern.compile(properties.path("reflection").path("pattern").asText());
+        var questionPattern = java.util.regex.Pattern.compile(properties.path("questions").path("items").path("properties").path("text").path("pattern").asText());
+        assertTrue(newsPattern.matcher("word ".repeat(55)).matches());
+        assertFalse(newsPattern.matcher("word ".repeat(56)).matches());
+        assertTrue(reflectionPattern.matcher("word ".repeat(55)).matches());
+        assertFalse(reflectionPattern.matcher("word ".repeat(56)).matches());
+        assertTrue(questionPattern.matcher("word ".repeat(20)).matches());
+        assertFalse(questionPattern.matcher("word ".repeat(21)).matches());
+        assertFalse(reflectionPattern.matcher("").matches());
+        assertEquals(0, properties.path("sourceIds").path("minItems").asInt());
+        assertEquals(1, properties.path("sourceIds").path("items").path("minimum").asInt());
+        assertEquals(1, properties.path("sourceIds").path("items").path("maximum").asInt());
+    }
+
+    @Test
+    void emptyNewsSchemaRequiresEmptyNewsTextAndNoCitations() {
+        when(news.getOrFetch(job, snapshot.tickers())).thenReturn(briefing(NewsBriefing.Status.EMPTY));
+        var body = validBody().put("news", ""); body.putArray("sourceIds");
+        answer(body);
+        var result = service.generate(job, snapshot);
+        assertEquals("No relevant recent news was found.", result.content().news());
+        var request = org.mockito.ArgumentCaptor.forClass(OpenAiClient.Request.class);
+        verify(client).generate(eq(job), eq("digest"), request.capture());
+        var properties = request.getValue().schema().path("properties");
+        assertEquals(0, properties.path("sourceIds").path("maxItems").asInt(-1));
+        assertEquals("", properties.path("news").path("enum").get(0).asText());
+    }
+
+    @Test
+    void searchResultsWithoutRelevantRecentEvidenceProduceAnEmptyNewsBriefing() {
+        when(news.getOrFetch(job, snapshot.tickers())).thenReturn(new NewsBriefing(
+                LocalDate.of(2026, 10, 2), now, NewsBriefing.Status.READY,
+                briefing(NewsBriefing.Status.READY).items(), "Only older coverage was found."));
+        var body = validBody().put("news", ""); body.putArray("sourceIds");
+        answer(body);
+        var result = service.generate(job, snapshot);
+        assertEquals(NewsBriefing.Status.EMPTY, result.content().newsStatus());
+        assertEquals("No relevant recent news was found.", result.content().news());
+        assertTrue(result.content().sources().isEmpty());
+        verify(client).generate(any(), anyString(), argThat(r -> r.input().contains("Only older coverage was found.")));
     }
 
     private ObjectNode validBody() {

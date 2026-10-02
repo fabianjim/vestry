@@ -5,6 +5,8 @@ import me.vestry.api.OpenAiClient;
 import me.vestry.dto.PnLSummaryDTO;
 import me.vestry.model.*;
 import me.vestry.repository.JournalEntryRepository;
+import me.vestry.repository.PortfolioRepository;
+import me.vestry.repository.TransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.time.*;
@@ -18,10 +20,12 @@ class DigestContextServiceTest {
     private final JournalEntryRepository journal = mock(JournalEntryRepository.class);
     private final NasdaqMetadataService metadata = mock(NasdaqMetadataService.class);
     private final OpenAiClient client = mock(OpenAiClient.class);
+    private final PortfolioRepository savedPortfolios = mock(PortfolioRepository.class);
+    private final TransactionRepository transactions = mock(TransactionRepository.class);
     private final ObjectMapper mapper = new ObjectMapper();
     private final Instant now = Instant.parse("2026-10-02T12:00:00Z");
     private final DigestContextService service = new DigestContextService(users, portfolios, journal, metadata, client, mapper,
-            Clock.fixed(now, ZoneOffset.UTC));
+            Clock.fixed(now, ZoneOffset.UTC), savedPortfolios, transactions);
     private final User user = new User("private username", "secret password");
 
     @BeforeEach
@@ -82,6 +86,27 @@ class DigestContextServiceTest {
         verify(users).getCurrentUser();
         verifyNoMoreInteractions(users); // No demo-session lookup or visitor mutation is read.
         verify(journal).findTop6ByUserIdOrderByTimestampDescIdDesc(7);
+    }
+
+    @Test
+    void scheduledSnapshotReadsOnlySavedDemoDataWithoutAuthentication() throws Exception {
+        user.setDemo(true);
+        when(savedPortfolios.findByUserId(7)).thenReturn(Optional.of(new Portfolio(user, List.of(new Holding("AAPL", 2)))));
+        when(portfolios.calculatePnLSummary(List.of())).thenReturn(new PnLSummaryDTO(40, 10, 25, 5, 15, 3));
+        var snapshot = service.captureDemo(user);
+        assertTrue(snapshot.demo());
+        assertEquals(7, snapshot.userId());
+        assertEquals(2, mapper.readTree(snapshot.json()).path("holdings").get(0).path("shares").asDouble());
+        verifyNoInteractions(users);
+        verify(transactions).findByUserIdOrderByTimestampDesc(7);
+        verify(portfolios, never()).getPortfolio();
+        verify(portfolios, never()).getPnLSummary();
+    }
+
+    @Test
+    void scheduledSnapshotRejectsPersonalAccountsBeforeReadingData() {
+        assertThrows(IllegalArgumentException.class, () -> service.captureDemo(user));
+        verifyNoInteractions(users, savedPortfolios, transactions, journal, portfolios);
     }
 
     @Test

@@ -16,21 +16,21 @@ const ready: DigestState = { ...idle, status: 'READY', digest: {
 } }
 const noop = () => {}
 const render = (state: DigestState, isDemo = false) => renderToString(<MemoryRouter>
-  <DashboardDigest state={state} isDemo={isDemo} pending={false} error={false} dismissing={false}
-    onGenerate={noop} onCheck={noop} onDismiss={noop} onDashboard={noop} />
+  <DashboardDigest state={state} isDemo={isDemo} pending={false} error={false}
+    onGenerate={noop} onCheck={noop} onDashboard={noop} />
 </MemoryRouter>)
 
 it('offers explicit generation for private accounts and no generate button for demo visitors', () => {
   expect(render(idle)).toContain('Generate briefing')
-  expect(render(idle)).toContain('OpenAI')
   expect(render(idle, true)).not.toContain('Generate briefing')
-  expect(render(idle, true)).toContain('Shared demo briefing')
+  expect(render(idle, true)).toContain('10 a.m. New York time')
 })
 
 it('renders citations and fixed exploration links while treating generated content as text', () => {
   const html = render(ready)
   expect(html).toContain('href="https://news.example/report"')
   expect(html).toContain('rel="noopener noreferrer"')
+  expect(html).not.toContain('AI-generated')
   expect(html).toContain('href="/analysis"')
   expect(html).toContain('href="/journal"')
   expect(html).toContain('&lt;script&gt;untrusted text&lt;/script&gt;')
@@ -44,4 +44,23 @@ it('renders nothing when disabled or dismissed, and retains the previous briefin
   const failed = render({ ...ready, status: 'FAILED' })
   expect(failed).toContain('try again tomorrow')
   expect(failed).toContain('Company reported earnings.')
+})
+
+it('omits the source instruction when news is unavailable', () => {
+  const digest = ready.digest!
+  const html = render({ ...ready, digest: { ...digest, content: {
+    ...digest.content, news: 'News is currently unavailable.', newsStatus: 'UNAVAILABLE', sources: [],
+  } } })
+  expect(html).not.toContain('AI-generated.')
+  expect(html).not.toContain('check the linked sources')
+})
+
+it('explains the next scheduled attempt for demo failures without offering generation or dismissal', () => {
+  const html = render({ ...ready, status: 'FAILED' }, true)
+  expect(html).toContain('next weekday at 10 a.m. New York time')
+  expect(html).toContain('Company reported earnings.')
+  expect(html).not.toContain('Dismiss')
+  expect(html).not.toContain('Generate briefing')
+  expect(html).not.toContain('Shared demo briefing')
+  expect(html).not.toContain('AI')
 })

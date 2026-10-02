@@ -1,16 +1,16 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
-function positionAt(button: HTMLButtonElement) {
+function positionAt(button: HTMLButtonElement, width: number) {
   const bounds = button.getBoundingClientRect()
   return {
     top: Math.max(8, Math.min(bounds.bottom + 4, window.innerHeight - 328)),
-    right: Math.max(8, window.innerWidth - bounds.right),
+    right: Math.max(8, Math.min(window.innerWidth - bounds.right, window.innerWidth - Math.min(width, window.innerWidth * 0.8) - 8)),
   }
 }
 
-export default function SettingsPopover({ label, trigger, disabled, glass = false, children }: {
-  label: string; trigger: ReactNode; disabled?: boolean; glass?: boolean; children: ReactNode
+export default function SettingsPopover({ label, trigger, disabled, glass = false, triggerClassName = '', width = 256, children }: {
+  label: string; trigger: ReactNode; disabled?: boolean; glass?: boolean; triggerClassName?: string; width?: number; children: ReactNode
 }) {
   const [position, setPosition] = useState<{ top: number; right: number } | null>(null)
   const panel = useRef<HTMLDivElement>(null)
@@ -26,7 +26,7 @@ export default function SettingsPopover({ label, trigger, disabled, glass = fals
       if (event.key === 'Escape') { setPosition(null); button.current?.focus() }
     }
     const reposition = () => {
-      if (button.current) setPosition(positionAt(button.current))
+      if (button.current) setPosition(positionAt(button.current, width))
     }
     panel.current?.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled)')?.focus()
     document.addEventListener('pointerdown', outside)
@@ -41,13 +41,13 @@ export default function SettingsPopover({ label, trigger, disabled, glass = fals
       window.removeEventListener('scroll', reposition, true)
       window.removeEventListener('resize', reposition)
     }
-  }, [open])
+  }, [open, width])
 
   return <div className="relative shrink-0">
     <button ref={button} type="button" disabled={disabled} aria-label={label} aria-expanded={open} aria-controls={id}
-      className="rounded px-2 py-1.5 text-sm hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40"
+      className={`rounded px-2 py-1.5 text-sm hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40 ${triggerClassName}`}
       onClick={() => {
-        setPosition(open ? null : positionAt(button.current!))
+        setPosition(open ? null : positionAt(button.current!, width))
       }}>{trigger}</button>
     {position && createPortal(<div className="fixed inset-0 z-50 pointer-events-none overflow-hidden contain-paint">
       <div ref={panel} id={id} aria-label={label}
@@ -62,8 +62,8 @@ export default function SettingsPopover({ label, trigger, disabled, glass = fals
             event.preventDefault(); setPosition(null); button.current?.focus()
           }
         }}
-        style={{ ...position, maxHeight: `min(20rem, calc(100dvh - ${position.top + 8}px))` }}
-        className={`fixed pointer-events-auto w-64 max-w-[80vw] overflow-y-auto p-2 ${glass
+        style={{ ...position, width, maxHeight: `min(20rem, calc(100dvh - ${position.top + 8}px))` }}
+        className={`fixed pointer-events-auto max-w-[80vw] overflow-y-auto p-2 ${glass
           ? 'bg-background/35 backdrop-blur-xl border border-foreground/5 rounded-xl shadow-sm shadow-background/20'
           : 'rounded-lg border border-border bg-elevated shadow-floating'}`}>
         {children}

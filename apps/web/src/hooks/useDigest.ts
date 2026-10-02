@@ -1,9 +1,8 @@
-import { useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { portfolioApi } from '../services/api'
 import { portfolioQueries } from '../services/queries'
 
-export function useDigest(isDemo: boolean, visible: boolean) {
+export function useDigest(visible: boolean) {
   const client = useQueryClient()
   const availability = useQuery(portfolioQueries.digestAvailability())
   const enabled = visible && availability.data?.available === true
@@ -20,14 +19,5 @@ export function useDigest(isDemo: boolean, visible: boolean) {
     retry: false,
     onSuccess: state => client.setQueryData(portfolioQueries.digest().queryKey, state),
   })
-  const attempted = useRef<string | null>(null)
-  const day = query.data?.day
-  const shouldGenerate = enabled && isDemo && !query.isError && query.data?.status === 'IDLE'
-  const { mutate } = generate
-  useEffect(() => {
-    if (!shouldGenerate || !day || attempted.current === day) return
-    attempted.current = day
-    mutate()
-  }, [shouldGenerate, day, mutate])
   return { available: availability.data?.available === true, query, generate }
 }

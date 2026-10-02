@@ -61,13 +61,33 @@ class DashboardDigestServiceTest {
     }
 
     @Test
-    void demoVisitorsShareOneKeyWhileOtherAccountsUseDistinctKeys() {
+    void demoVisitorsCannotTriggerGenerationAndScheduleSharesOneDailyKey() {
         user.setDemo(true);
+        when(context.captureDemo(user)).thenReturn(new DigestContextService.Snapshot(7, true, now, List.of(), "{}"));
         service.generate(new DemoSession()); service.generate(new DemoSession());
+        verifyNoInteractions(context, generations);
+        service.generateDemo(user); service.generateDemo(user);
         assertEquals(1, stored.size());
+        verify(context, times(1)).captureDemo(user);
+        verify(context, never()).capture();
+        user.setDemo(false);
         user.setId(8);
+        assertThrows(IllegalArgumentException.class, () -> service.generateDemo(user));
         service.generate(null);
         assertEquals(2, stored.size());
+    }
+
+    @Test
+    void scheduledDemoIgnoresVisitorVisibilityAndRetainsPreviousResultBeforeRefresh() {
+        user.setDemo(true);
+        var previous = new DigestService.Result(UUID.randomUUID(), now.minusSeconds(86400), now.minusSeconds(86400), null);
+        when(digests.latest()).thenReturn(Optional.of(previous));
+        assertEquals(previous, service.get(new DemoSession()).digest());
+        when(context.captureDemo(user)).thenReturn(new DigestContextService.Snapshot(7, true, now, List.of(), "{}"));
+        clearInvocations(layouts, users);
+        service.generateDemo(user);
+        verifyNoInteractions(layouts, users);
+        assertEquals(previous, service.get(new DemoSession()).digest());
     }
 
     @Test

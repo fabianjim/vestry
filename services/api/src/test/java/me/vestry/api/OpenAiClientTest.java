@@ -75,6 +75,25 @@ class OpenAiClientTest {
     }
 
     @Test
+    void combinesStrictOutputSchemaWithRequiredSearchAndSourceAttribution() throws Exception {
+        var schema = mapper.readTree("{\"type\":\"object\",\"properties\":{},\"required\":[],\"additionalProperties\":false}");
+        var search = new OpenAiClient.Request("Find news", "AAPL", 1024, true, schema);
+        server.expect(anything())
+                .andExpect(jsonPath("$.text.format.type").value("json_schema"))
+                .andExpect(jsonPath("$.text.format.strict").value(true))
+                .andExpect(jsonPath("$.text.format.schema.additionalProperties").value(false))
+                .andExpect(jsonPath("$.tool_choice.type").value("web_search"))
+                .andExpect(jsonPath("$.max_tool_calls").value(1))
+                .andExpect(jsonPath("$.include[0]").value("web_search_call.action.sources"))
+                .andRespond(withSuccess("""
+                    {"status":"completed","output":[{"type":"web_search_call","status":"completed"}],
+                     "usage":{"input_tokens":8300,"output_tokens":50}}
+                    """, MediaType.APPLICATION_JSON));
+        client.generate(job, "summary", search);
+        server.verify();
+    }
+
+    @Test
     void uncertainSearchRetainsItsFullReservation() {
         var search = new OpenAiClient.Request("Find public news", "AAPL", 1024, true);
         server.expect(anything()).andRespond(withSuccess("""
@@ -104,6 +123,8 @@ class OpenAiClientTest {
     void timeoutRetainsAllowanceAndDoesNotRetry() {
         server.expect(anything()).andRespond(withException(new IOException("private provider detail")));
         var failure = assertThrows(IllegalStateException.class, () -> client.generate(job, "summary", request));
+        assertEquals("PROVIDER_TRANSPORT_ERROR", failure.getMessage());
+        assertNull(failure.getCause());
         assertFalse(failure.toString().contains("private provider detail"));
         verify(budget, never()).settleCall(any(), anyLong());
         server.verify();
@@ -113,6 +134,8 @@ class OpenAiClientTest {
     void providerFailureDoesNotLeakResponseOrRetry() {
         server.expect(anything()).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS).body("sensitive body"));
         var failure = assertThrows(IllegalStateException.class, () -> client.generate(job, "summary", request));
+        assertEquals("PROVIDER_HTTP_ERROR", failure.getMessage());
+        assertNull(failure.getCause());
         assertFalse(failure.toString().contains("sensitive body"));
         verify(budget, never()).settleCall(any(), anyLong());
         server.verify();
@@ -130,6 +153,20 @@ class OpenAiClientTest {
             """, MediaType.APPLICATION_JSON));
         assertThrows(IllegalStateException.class, () -> client.generate(job, "summary", request));
         verify(budget).settleCall(call, 120);
+        server.verify();
+    }
+
+    @Test
+    void truncatedNewsReportsTokenLimitAfterSettlingUsageWithoutRetry() {
+        var search = new OpenAiClient.Request("Find news", "AAPL", 1024, true);
+        server.expect(anything()).andRespond(withSuccess("""
+            {"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},
+             "output":[{"type":"web_search_call","status":"completed"}],
+             "usage":{"input_tokens":8300,"output_tokens":1024}}
+            """, MediaType.APPLICATION_JSON));
+        var failure = assertThrows(OpenAiClient.Failure.class, () -> client.generate(job, "summary", search));
+        assertEquals("PROVIDER_OUTPUT_TOKEN_LIMIT", failure.getMessage());
+        verify(budget).settleCall(call, 18159);
         server.verify();
     }
 

@@ -9,6 +9,10 @@ import org.springframework.http.*;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.client.ResourceAccessException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.net.http.HttpClient;
@@ -17,6 +21,13 @@ import java.util.UUID;
 
 @Component
 public class OpenAiClient {
+    private static final Logger log = LoggerFactory.getLogger(OpenAiClient.class);
+
+    /** Only locally defined categories belong here; never retain provider text or exception causes. */
+    public static final class Failure extends IllegalStateException {
+        private Failure(String category) { super(category); }
+    }
+
     public static final String MODEL = "gpt-4.1-mini-2025-04-14";
     private static final String ENDPOINT = "https://api.openai.com/v1/responses";
     private final RestTemplate http;
@@ -72,16 +83,20 @@ public class OpenAiClient {
         try {
             String raw = http.postForObject(ENDPOINT, new HttpEntity<>(body, headers), String.class);
             response = mapper.readTree(raw == null ? "null" : raw);
+        } catch (RestClientResponseException failure) {
+            log.warn("AI call {} generation {} rejected: HTTP {}", call, jobId, failure.getStatusCode().value());
+            throw new Failure("PROVIDER_HTTP_ERROR");
+        } catch (ResourceAccessException failure) {
+            throw new Failure("PROVIDER_TRANSPORT_ERROR");
         } catch (Exception failure) {
-            // Do not expose provider bodies, prompts, or authorization headers through exceptions/logs.
-            throw new IllegalStateException("AI provider request failed; no automatic retry");
+            throw new Failure("PROVIDER_INVALID_JSON");
         }
-        if (response == null) throw new IllegalStateException("AI response is empty; reservation retained");
+        if (response == null || response.isNull()) throw new Failure("PROVIDER_EMPTY_RESPONSE");
         JsonNode usage = response.path("usage");
         long input = tokenCount(usage.path("input_tokens"));
         long output = tokenCount(usage.path("output_tokens"));
         if (request.webSearch() && !response.path("output").isArray()) {
-            throw new IllegalStateException("AI output is unavailable; reservation retained");
+            throw new Failure("PROVIDER_MISSING_OUTPUT");
         }
         long searches = 0;
         for (var item : response.path("output")) {
@@ -90,12 +105,14 @@ public class OpenAiClient {
         // Charge the fixed search block separately even if provider usage includes it: never undercount.
         long actual = cost(input, output) + searches * SEARCH_ALLOWANCE;
         budget.settleCall(call, actual);
-        if (actual > reserved) throw new IllegalStateException("AI usage exceeded its reservation");
+        if (actual > reserved) throw new Failure("USAGE_OVER_RESERVATION");
         if (searches > (request.webSearch() ? 1 : 0)) {
-            throw new IllegalStateException("AI exceeded its search limit");
+            throw new Failure("SEARCH_LIMIT_EXCEEDED");
         }
         if (!"completed".equals(response.path("status").asText()) || !response.path("output").isArray()) {
-            throw new IllegalStateException("AI response was not completed");
+            String reason = response.path("incomplete_details").path("reason").asText();
+            throw new Failure("max_output_tokens".equals(reason) ? "PROVIDER_OUTPUT_TOKEN_LIMIT"
+                    : "content_filter".equals(reason) ? "PROVIDER_CONTENT_FILTER" : "PROVIDER_INCOMPLETE_RESPONSE");
         }
         return response;
     }
@@ -126,7 +143,7 @@ public class OpenAiClient {
 
     private static long tokenCount(JsonNode value) {
         if (!value.isIntegralNumber() || !value.canConvertToLong() || value.longValue() < 0 || value.longValue() > 1_000_000) {
-            throw new IllegalStateException("AI usage is unavailable; reservation retained");
+            throw new Failure("PROVIDER_MISSING_USAGE");
         }
         return value.longValue();
     }

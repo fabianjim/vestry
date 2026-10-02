@@ -16,7 +16,7 @@ import { portfolioQueries } from '../services/queries'
 import type { JournalEntry } from '../types/journal'
 import type { LayoutContext } from '../components/Layout'
 import { journalApi, portfolioApi } from '../services/api'
-import DashboardCustomize from '../components/DashboardCustomize'
+import BriefingBar from '../components/BriefingBar'
 import DashboardSummary from '../components/DashboardSummary'
 import DashboardDigest from '../components/DashboardDigest'
 import { useDigest } from '../hooks/useDigest'
@@ -25,20 +25,14 @@ import { useDashboardLayout } from '../hooks/useDashboardLayout'
 export default function Dashboard() {
   const queryClient = useQueryClient()
   const { isDemo, refreshDemoStatus } = useOutletContext<LayoutContext>()
-  const preferences = useDashboardLayout(isDemo)
+  const preferences = useDashboardLayout()
   const { layout } = preferences
-  const briefingVisible = Boolean(preferences.query.data) && layout.showBriefing && !preferences.editing
-  const briefing = useDigest(isDemo, briefingVisible)
-  const explorePerformance = async () => {
-    if (!layout.showPerformance) {
-      try { await preferences.save.mutateAsync({ ...layout, showPerformance: true }) }
-      catch { return }
-    }
-    requestAnimationFrame(() => {
-      const section = document.getElementById('portfolio-performance')
-      section?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      section?.focus({ preventScroll: true })
-    })
+  const briefingVisible = Boolean(preferences.query.data) && layout.showBriefing
+  const briefing = useDigest(briefingVisible)
+  const explorePerformance = () => {
+    const section = document.getElementById('portfolio-performance')
+    section?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    section?.focus({ preventScroll: true })
   }
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
@@ -287,40 +281,45 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="flex-1 max-w-6xl mx-auto mt-6 px-3">
 
-      <DashboardCustomize preferences={preferences} aiAvailable={briefing.available}
-        briefing={briefing.available && briefingVisible && <DashboardDigest state={briefing.query.data} isDemo={isDemo}
+      {briefing.available && <BriefingBar expanded={layout.showBriefing}
+        disabled={!preferences.query.data || preferences.save.isPending}
+        onToggle={() => preferences.save.mutate({ ...layout, showBriefing: !layout.showBriefing })}>
+        <DashboardDigest state={briefing.query.data} isDemo={isDemo}
           pending={briefing.generate.isPending} error={Boolean(briefing.query.error || briefing.generate.error)}
-          dismissing={preferences.save.isPending} onGenerate={() => briefing.generate.mutate()}
-          onCheck={() => { briefing.generate.reset(); void briefing.query.refetch() }}
-          onDismiss={() => preferences.save.mutate({ ...layout, showBriefing: false })}
-          onDashboard={() => { void explorePerformance() }} />} />
+          onGenerate={() => briefing.generate.mutate()}
+          onCheck={() => { briefing.generate.reset(); void briefing.query.refetch() }} onDashboard={explorePerformance} />
+      </BriefingBar>}
+      {preferences.query.error && <p role="alert" className="text-sm text-error mb-4">Could not load dashboard preferences.{' '}
+        <button className="underline" onClick={() => { void preferences.query.refetch() }}>Retry</button></p>}
+      {preferences.save.error && <p role="alert" className="text-sm text-error mb-4">Could not save your change.{' '}
+        <button className="underline" onClick={() => preferences.save.variables && preferences.save.mutate(preferences.save.variables)}>Retry</button></p>}
+      {preferences.save.isPending && <p role="status" className="text-xs text-muted mb-2">Saving…</p>}
       <DashboardSummary metrics={layout.metrics} holdings={results} pnl={pnlSummary}
-        ready={!holdingsQuery.isPending && !holdingsQuery.error} />
+        disabled={!preferences.query.data || preferences.save.isPending}
+        onMetricChange={(index, metric) => {
+          const metrics = [...layout.metrics] as typeof layout.metrics
+          metrics[index] = metric
+          preferences.save.mutate({ ...layout, metrics })
+        }} ready={!holdingsQuery.isPending && !holdingsQuery.error} />
 
       {(error || queryError) && <div className="text-error mt-2 mb-4">{error || queryError}</div>}
 
-      {/* Keep sections mounted so customization does not discard chart state or journal drafts. */}
       {/* Portfolio History Chart */}
-      <div id="portfolio-performance" tabIndex={-1} hidden={!layout.showPerformance} className="mb-8">
+      <div id="portfolio-performance" tabIndex={-1} className="mb-8">
         <h3 className="text-xl font-130 mb-4">Portfolio Performance</h3>
         <PortfolioChart
           ref={portfolioChartRef}
           onPinClick={(entries) => {
             if (!entries.length) return
-            if (layout.showJournal) {
-              setActiveJournalIds(entries.map((e) => e.id))
-              journalPanelRef.current?.scrollToEntry(entries[0].id)
-            } else {
-              setSelectedJournalEntry(entries[0])
-              setSelectedTicker(null)
-            }
+            setActiveJournalIds(entries.map((e) => e.id))
+            journalPanelRef.current?.scrollToEntry(entries[0].id)
           }}
         />
       </div>
 
       {/* Holdings Table */}
       {/* Journal Section */}
-      <div hidden={!layout.showJournal} className="mb-8">
+      <div className="mb-8">
         <div className="flex items-center justify-between mt-4 mb-4">
           <h3 className="text-xl font-130 m-0">Journal</h3>
           <Link to="/journal" className="text-sm italic text-secondary hover:text-foreground transition-colors">
@@ -336,10 +335,10 @@ export default function Dashboard() {
             setSelectedJournalEntry(entry)
             setSelectedTicker(null)
           }}
-          onViewOnChart={layout.showPerformance ? (entry) => {
+          onViewOnChart={(entry) => {
             portfolioChartRef.current?.setHourlyDate(new Date(entry.timestamp))
             portfolioChartRef.current?.scrollIntoView()
-          } : undefined}
+          }}
         />
       </div>
 

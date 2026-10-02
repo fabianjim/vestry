@@ -52,7 +52,7 @@ public class DashboardDigestService {
         var user = users.getCurrentUser();
         var day = today();
         var before = state(user, demo, day);
-        if (before.status() != Status.IDLE) return before;
+        if (user.isDemo() || before.status() != Status.IDLE) return before;
         try {
             var snapshot = context.capture();
             generations.submit(key(user, day), digests.allowance(snapshot), id -> digests.generate(id, snapshot));
@@ -62,6 +62,16 @@ public class DashboardDigestService {
             return after.status() == Status.IDLE ? new State(Status.LIMITED, day, before.digest()) : after;
         }
         return state(user, demo, day);
+    }
+
+    /** Scheduler entry point: no authenticated principal or visitor layout is required. */
+    public void generateDemo(User user) {
+        if (!user.isDemo()) throw new IllegalArgumentException("Scheduled briefings are demo-only");
+        if (!available() || !budget.canStart()) return;
+        String requestKey = key(user, today());
+        if (jobs.findByRequestKey(requestKey).isPresent()) return;
+        var snapshot = context.captureDemo(user);
+        generations.submit(requestKey, digests.allowance(snapshot), id -> digests.generate(id, snapshot));
     }
 
     private State state(User user, DemoSession demo, LocalDate day) {

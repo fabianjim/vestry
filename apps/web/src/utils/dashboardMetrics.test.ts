@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ValuedHolding } from './holdingsAnalysis'
 import { dashboardMetrics } from './dashboardMetrics'
-import { DEFAULT_DASHBOARD_LAYOUT, resetDashboardLayout } from './dashboardLayout'
 
 const holding = (ticker: string, shares: number, price: number, prevClose = price): ValuedHolding => ({
   ticker, shares,
@@ -53,10 +52,4 @@ describe('dashboard summary metrics', () => {
     expect(dashboardMetrics([], undefined)['total-pnl'].value).toBeNull()
   })
 
-  it('resets the layout without changing the AI preference or mutating defaults', () => {
-    const reset = resetDashboardLayout({ ...DEFAULT_DASHBOARD_LAYOUT, showBriefing: false, showJournal: false })
-    expect(reset).toEqual({ ...DEFAULT_DASHBOARD_LAYOUT, showBriefing: false })
-    reset.metrics[0] = 'holding-count'
-    expect(DEFAULT_DASHBOARD_LAYOUT.metrics[0]).toBe('value')
-  })
 })

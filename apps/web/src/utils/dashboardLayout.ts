@@ -24,7 +24,3 @@ export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
   showJournal: true,
   showBriefing: true,
 }
-
-export function resetDashboardLayout(layout: DashboardLayout): DashboardLayout {
-  return { ...DEFAULT_DASHBOARD_LAYOUT, metrics: [...DEFAULT_DASHBOARD_LAYOUT.metrics], showBriefing: layout.showBriefing }
-}

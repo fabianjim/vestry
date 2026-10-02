@@ -4,6 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import me.vestry.api.OpenAiClient;
 import me.vestry.repository.JournalEntryRepository;
+import me.vestry.repository.PortfolioRepository;
+import me.vestry.repository.TransactionRepository;
+import me.vestry.model.User;
+import me.vestry.model.Portfolio;
+import me.vestry.dto.PnLSummaryDTO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,9 +26,12 @@ public class DigestContextService {
     private final OpenAiClient client;
     private final ObjectMapper mapper;
     private final Clock clock;
+    private final PortfolioRepository savedPortfolios;
+    private final TransactionRepository transactions;
 
     public DigestContextService(DemoSessionResolver users, PortfolioService portfolios, JournalEntryRepository journal,
-                                NasdaqMetadataService metadata, OpenAiClient client, ObjectMapper mapper, Clock aiClock) {
+                                NasdaqMetadataService metadata, OpenAiClient client, ObjectMapper mapper, Clock aiClock,
+                                PortfolioRepository savedPortfolios, TransactionRepository transactions) {
         this.users = users;
         this.portfolios = portfolios;
         this.journal = journal;
@@ -31,6 +39,8 @@ public class DigestContextService {
         this.client = client;
         this.mapper = mapper;
         clock = aiClock;
+        this.savedPortfolios = savedPortfolios;
+        this.transactions = transactions;
     }
 
     public record Snapshot(int userId, boolean demo, Instant capturedAt, List<String> tickers, String json) {
@@ -43,7 +53,19 @@ public class DigestContextService {
         if (!client.isConfigured()) throw new IllegalStateException("AI is disabled");
         var user = users.getCurrentUser();
         // Persistent demo template only: visitor edits must never enter the shared demo digest.
-        var portfolio = portfolios.getPortfolio();
+        return capture(user, portfolios.getPortfolio(), portfolios.getPnLSummary());
+    }
+
+    /** Read the persistent demo template without impersonating a visitor or accessing session state. */
+    @Transactional(readOnly = true)
+    public Snapshot captureDemo(User user) {
+        if (!client.isConfigured()) throw new IllegalStateException("AI is disabled");
+        if (!user.isDemo()) throw new IllegalArgumentException("Scheduled briefings are demo-only");
+        return capture(user, savedPortfolios.findByUserId(user.getId()).orElse(null),
+                portfolios.calculatePnLSummary(transactions.findByUserIdOrderByTimestampDesc(user.getId())));
+    }
+
+    private Snapshot capture(User user, Portfolio portfolio, PnLSummaryDTO pnl) {
         var now = clock.instant();
         var root = mapper.createObjectNode().put("capturedAt", now.toString()).put("journalIsRecentSample", true);
         var positions = root.putArray("holdings");
@@ -69,7 +91,6 @@ public class DigestContextService {
                 });
             }
         }
-        var pnl = portfolios.getPnLSummary();
         root.set("portfolioValue", mapper.valueToTree(complete ? finite(total) : null));
         root.set("realizedPnl", mapper.valueToTree(finite(pnl.getRealizedPnL())));
         root.set("unrealizedPnl", mapper.valueToTree(complete ? finite(pnl.getUnrealizedPnL()) : null));
