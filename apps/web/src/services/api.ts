@@ -6,6 +6,8 @@ import type { WatchlistItem } from '../types/watchlist'
 import type { HoldingsLayout } from '../utils/holdingsLayout'
 import type { DashboardLayout } from '../utils/dashboardLayout'
 
+import type { DigestState } from '../types/digest'
+
 const API_BASE = '/api';
 
 interface FetchOptions {
@@ -92,6 +94,10 @@ async function apiClient(endpoint: string, options: FetchOptions = {}) {
 
 // Portfolio API
 export const portfolioApi = {
+  digestAvailability: (signal?: AbortSignal): Promise<{ available: boolean }> =>
+    apiClient('/portfolio/digest/availability', { signal }),
+  getDigest: (signal?: AbortSignal): Promise<DigestState> => apiClient('/portfolio/digest', { signal }),
+  generateDigest: (): Promise<DigestState> => apiClient('/portfolio/digest', { method: 'POST', body: {} }),
   getDashboardLayout: (signal?: AbortSignal): Promise<DashboardLayout> =>
     apiClient('/portfolio/dashboard-layout', { signal }),
 

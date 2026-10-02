@@ -25,6 +25,8 @@ export function useDashboardLayout(isDemo: boolean) {
         try { localStorage.setItem(DEMO_BRIEFING_KEY, String(!layout.showBriefing)) } catch { /* Session preference still applies. */ }
       }
       setDraft(null)
+      if (layout.showBriefing) void client.invalidateQueries({ queryKey: portfolioQueries.digest().queryKey })
+      else void client.cancelQueries({ queryKey: portfolioQueries.digest().queryKey })
     },
   })
   const stored = query.data ?? DEFAULT_DASHBOARD_LAYOUT

@@ -35,6 +35,18 @@ public class AiBudgetService {
 
     public record Start(UUID id, boolean created) {}
 
+    /** Read-only availability hint; start() still enforces exact costs under the database lock. */
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    public boolean canStart() {
+        if (!limits.enabled() || budget.findById(1).map(AiBudget::isBlocked).orElse(true)) return false;
+        var now = clock.instant();
+        var day = now.atZone(BUDGET_ZONE).toLocalDate();
+        return jobs.countByBudgetDay(day) < limits.dailyGenerations()
+                && jobs.totalCharged() < limits.lifetimeMicros() && jobs.chargedOn(day) < limits.dailyMicros()
+                && jobs.findByStatus(AiGeneration.Status.RUNNING).stream()
+                    .noneMatch(job -> job.getStartedAt().plus(MAX_JOB_TIME).isAfter(now));
+    }
+
     public Start start(String key, long allowance) {
         if (!limits.enabled()) throw new IllegalStateException("AI is disabled");
         if (key == null || !key.matches("[a-f0-9]{64}") || allowance <= 0) {

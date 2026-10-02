@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import CustomizationToolbar from './CustomizationToolbar'
 import SettingsPopover from './SettingsPopover'
 import type { useDashboardLayout } from '../hooks/useDashboardLayout'
@@ -5,11 +6,13 @@ import { DASHBOARD_METRICS, resetDashboardLayout, type DashboardMetric } from '.
 
 const control = 'rounded px-2 py-1.5 text-sm hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40 disabled:cursor-not-allowed'
 
-export default function DashboardCustomize({ preferences }: { preferences: ReturnType<typeof useDashboardLayout> }) {
+export default function DashboardCustomize({ preferences, aiAvailable = false, briefing }: {
+  preferences: ReturnType<typeof useDashboardLayout>; aiAvailable?: boolean; briefing?: ReactNode
+}) {
   const { layout, editing, setDraft, query, save, start, cancel } = preferences
   const disabled = save.isPending
   return <>
-    <CustomizationToolbar title={editing ? 'Customizing Your Dashboard…' : 'Your Dashboard'} editing={editing} glass>
+    <CustomizationToolbar title={editing ? 'Customizing Your Dashboard…' : 'Your Dashboard'} editing={editing} glass content={editing ? undefined : briefing}>
       {editing ? <>
         <SettingsPopover label="Summary metrics" trigger="Summary metrics" disabled={disabled} glass>
           <fieldset disabled={disabled} className="space-y-3 p-1">
@@ -31,7 +34,7 @@ export default function DashboardCustomize({ preferences }: { preferences: Retur
         <SettingsPopover label="Dashboard sections" trigger="Sections" disabled={disabled} glass>
           <fieldset disabled={disabled}>
             <legend className="sr-only">Dashboard sections</legend>
-            {([['showPerformance', 'Portfolio Performance'], ['showJournal', 'Journal'], ['showBriefing', 'AI briefing']] as const).map(([key, label]) =>
+            {([['showPerformance', 'Portfolio Performance'], ['showJournal', 'Journal'], ['showBriefing', 'AI briefing']] as const).filter(([key]) => key !== 'showBriefing' || aiAvailable).map(([key, label]) =>
               <label key={key} className="flex items-center gap-2 p-2 text-sm cursor-pointer rounded hover:bg-foreground/5">
                 <input type="checkbox" className="accent-primary" checked={layout[key]}
                   onChange={event => setDraft({ ...layout, [key]: event.target.checked })} />{label}
@@ -47,6 +50,6 @@ export default function DashboardCustomize({ preferences }: { preferences: Retur
     </CustomizationToolbar>
     {query.error && <p role="alert" className="text-sm text-error mb-4">Could not load your dashboard preferences.{' '}
       <button className="underline" onClick={() => query.refetch()}>Retry</button></p>}
-    {save.error && <p role="alert" className="text-sm text-error mb-4">Could not save your changes. Select Done to retry, or Cancel.</p>}
+    {save.error && <p role="alert" className="text-sm text-error mb-4">Could not save your dashboard preferences. Please try again.</p>}
   </>
 }

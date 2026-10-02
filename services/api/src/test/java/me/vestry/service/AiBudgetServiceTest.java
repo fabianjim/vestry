@@ -54,7 +54,9 @@ class AiBudgetServiceTest {
 
     @Test
     void reservesBeforeWorkAndDeduplicatesAcrossServiceCalls() {
+        assertTrue(service.canStart());
         var start = service.start(key(1), 10_000);
+        assertFalse(service.canStart());
         assertEquals(10_000, jobs.totalCharged());
         assertEquals(LocalDate.of(2026, 10, 1), jobs.findById(start.id()).orElseThrow().getBudgetDay());
         var duplicate = service.start(key(1), 10_000);
@@ -67,6 +69,7 @@ class AiBudgetServiceTest {
         assertThrows(IllegalStateException.class, () -> service.reserveCall(start.id(), "summary", 4_000));
         service.finish(start.id(), true);
         assertEquals(900, jobs.totalCharged());
+        assertTrue(service.canStart());
         assertEquals(AiGeneration.Status.SUCCEEDED, jobs.findById(start.id()).orElseThrow().getStatus());
         assertFalse(service.start(key(1), 10_000).created());
     }
@@ -115,6 +118,7 @@ class AiBudgetServiceTest {
             service.finish(job.id(), false);
         }
         assertEquals(0, jobs.totalCharged());
+        assertFalse(service.canStart());
         assertThrows(IllegalStateException.class, () -> service.start(key(6), 1_000));
     }
 
@@ -153,6 +157,7 @@ class AiBudgetServiceTest {
     @Test
     void missingBudgetRowFailsClosed() {
         budget.deleteAll();
+        assertFalse(service.canStart());
         assertThrows(IllegalStateException.class, () -> service.start(key(1), 1_000));
         assertEquals(0, jobs.count());
     }

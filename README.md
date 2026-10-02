@@ -70,8 +70,8 @@ Run `make help` to list commands for more .
 ## AI digest foundation
 
 The backend includes a budgeted Responses API client, background-job ledger, and cached news retrieval.
-Digest generation and account-scoped result storage are implemented. User-facing endpoints and dashboard
-integration remain separate implementation steps. No AI calls run automatically.
+Digest generation, account-scoped storage, and dashboard integration are implemented. AI is off by default;
+a configured demo dashboard requests a shared daily briefing only while its briefing section is visible.
 
 AI is disabled by default. Configuration is server-only:
 
@@ -114,7 +114,7 @@ symbols and dates, never journal text, account details, or position sizes.
 
 The database cache is shared for identical symbol sets and New York calendar dates. Changing symbol
 order/case does not trigger another search. Empty results, failures, and abandoned attempts are also
-cached until the next date; no timer, visitor request, or startup hook currently initiates retrieval.
+cached until the next date. Retrieval starts only inside an authorized digest job, never from a startup hook.
 The service returns `DISABLED` without accessing the cache or provider when AI is unconfigured.
 
 Up to four stories retain headlines, short summaries, publication dates, and HTTPS source links.
@@ -154,9 +154,34 @@ prompt safeguards and structural validation do not independently verify every ge
 `portfolio_digests` stores the validated result and capture/generation timestamps, not the raw context or
 prompt. Results are private to the account; the demo template's result is shared by that demo account.
 `DigestService.latest()` derives ownership from the authenticated principal and returns nothing when AI
-is disabled. These services do not introduce automatic private-account generation. Endpoint authorization,
-demo refresh triggers, dismissal, polling, and display belong to the dashboard integration step.
+is disabled. Private-account generation requires an explicit button click. The dashboard integration applies
+authentication, daily deduplication, visibility checks, and the existing global spending limits.
 All tests use mocked model responses; editorial quality still needs the activation-stage live evaluation.
+
+### Dashboard integration
+
+Authenticated routes under `/api/portfolio/digest`:
+
+- `GET /availability`: configuration availability only; never reads journal context or starts work.
+- `GET /`: current status and the authenticated account's latest saved result; never generates.
+- `POST /` with JSON: request today's digest, respecting saved visibility and budget limits.
+
+Responses use `Cache-Control: no-store`. Ownership comes from the authenticated principal, not request
+parameters. One server-generated key per account/New York date deduplicates attempts across requests,
+restarts, and demo visitors. Failed or expired attempts are not replayed that day. Older successful results
+remain available during generation or after a failed refresh. The global five-attempt/day limit still applies.
+
+The digest expands within the dashboard's glass customization bar. Private accounts generate only on click;
+visible demo dashboards request the shared template briefing once eligible. Polling runs every two seconds
+only during active generation and stops on completion, failure, dismissal, or a network error. No recurring
+background scheduler is installed. A later visit or refetch can request the next day's demo briefing.
+
+Dismissal reuses `showBriefing`; private preferences are persisted, and demo preferences additionally use
+browser storage across demo sessions. Restore it through Customize → Sections. Reset layout preserves that
+choice. Hidden dashboards make no digest status/generation requests; the lightweight availability check
+allows the customization control to be shown only when AI is configured. Disabled local installations show
+neither the digest nor its customization toggle. Generated text is rendered as plain text, with cited news
+links and fixed navigation destinations. The performance question reveals the chart if it was hidden.
 
 ## Contributing
 

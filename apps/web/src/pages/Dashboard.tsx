@@ -18,6 +18,8 @@ import type { LayoutContext } from '../components/Layout'
 import { journalApi, portfolioApi } from '../services/api'
 import DashboardCustomize from '../components/DashboardCustomize'
 import DashboardSummary from '../components/DashboardSummary'
+import DashboardDigest from '../components/DashboardDigest'
+import { useDigest } from '../hooks/useDigest'
 import { useDashboardLayout } from '../hooks/useDashboardLayout'
 
 export default function Dashboard() {
@@ -25,6 +27,19 @@ export default function Dashboard() {
   const { isDemo, refreshDemoStatus } = useOutletContext<LayoutContext>()
   const preferences = useDashboardLayout(isDemo)
   const { layout } = preferences
+  const briefingVisible = Boolean(preferences.query.data) && layout.showBriefing && !preferences.editing
+  const briefing = useDigest(isDemo, briefingVisible)
+  const explorePerformance = async () => {
+    if (!layout.showPerformance) {
+      try { await preferences.save.mutateAsync({ ...layout, showPerformance: true }) }
+      catch { return }
+    }
+    requestAnimationFrame(() => {
+      const section = document.getElementById('portfolio-performance')
+      section?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      section?.focus({ preventScroll: true })
+    })
+  }
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
   const holdingsQuery = useHoldings()
@@ -272,7 +287,13 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="flex-1 max-w-6xl mx-auto mt-6 px-3">
 
-      <DashboardCustomize preferences={preferences} />
+      <DashboardCustomize preferences={preferences} aiAvailable={briefing.available}
+        briefing={briefing.available && briefingVisible && <DashboardDigest state={briefing.query.data} isDemo={isDemo}
+          pending={briefing.generate.isPending} error={Boolean(briefing.query.error || briefing.generate.error)}
+          dismissing={preferences.save.isPending} onGenerate={() => briefing.generate.mutate()}
+          onCheck={() => { briefing.generate.reset(); void briefing.query.refetch() }}
+          onDismiss={() => preferences.save.mutate({ ...layout, showBriefing: false })}
+          onDashboard={() => { void explorePerformance() }} />} />
       <DashboardSummary metrics={layout.metrics} holdings={results} pnl={pnlSummary}
         ready={!holdingsQuery.isPending && !holdingsQuery.error} />
 
@@ -280,7 +301,7 @@ export default function Dashboard() {
 
       {/* Keep sections mounted so customization does not discard chart state or journal drafts. */}
       {/* Portfolio History Chart */}
-      <div hidden={!layout.showPerformance} className="mb-8">
+      <div id="portfolio-performance" tabIndex={-1} hidden={!layout.showPerformance} className="mb-8">
         <h3 className="text-xl font-130 mb-4">Portfolio Performance</h3>
         <PortfolioChart
           ref={portfolioChartRef}
