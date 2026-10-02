@@ -9,8 +9,8 @@ function positionAt(button: HTMLButtonElement) {
   }
 }
 
-export default function HoldingsPopover({ label, trigger, disabled, children }: {
-  label: string; trigger: ReactNode; disabled?: boolean; children: ReactNode
+export default function SettingsPopover({ label, trigger, disabled, glass = false, children }: {
+  label: string; trigger: ReactNode; disabled?: boolean; glass?: boolean; children: ReactNode
 }) {
   const [position, setPosition] = useState<{ top: number; right: number } | null>(null)
   const panel = useRef<HTMLDivElement>(null)
@@ -28,7 +28,7 @@ export default function HoldingsPopover({ label, trigger, disabled, children }: 
     const reposition = () => {
       if (button.current) setPosition(positionAt(button.current))
     }
-    panel.current?.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled)')?.focus()
+    panel.current?.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled)')?.focus()
     document.addEventListener('pointerdown', outside)
     document.addEventListener('focusin', outside)
     document.addEventListener('keydown', escape)
@@ -56,14 +56,16 @@ export default function HoldingsPopover({ label, trigger, disabled, children }: 
         }}
         onKeyDown={event => {
           if (event.key !== 'Tab') return
-          const controls = panel.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)')
+          const controls = panel.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled)')
           const boundary = event.shiftKey ? controls?.[0] : controls?.[controls.length - 1]
           if (event.target === boundary) {
             event.preventDefault(); setPosition(null); button.current?.focus()
           }
         }}
         style={{ ...position, maxHeight: `min(20rem, calc(100dvh - ${position.top + 8}px))` }}
-        className="fixed pointer-events-auto w-64 max-w-[80vw] overflow-y-auto rounded-lg border border-border bg-elevated p-2 shadow-floating">
+        className={`fixed pointer-events-auto w-64 max-w-[80vw] overflow-y-auto p-2 ${glass
+          ? 'bg-background/35 backdrop-blur-xl border border-foreground/5 rounded-xl shadow-sm shadow-background/20'
+          : 'rounded-lg border border-border bg-elevated shadow-floating'}`}>
         {children}
       </div>
     </div>, document.body)}

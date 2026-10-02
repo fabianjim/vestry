@@ -16,11 +16,15 @@ import { portfolioQueries } from '../services/queries'
 import type { JournalEntry } from '../types/journal'
 import type { LayoutContext } from '../components/Layout'
 import { journalApi, portfolioApi } from '../services/api'
-import { formatCurrency, formatSignedCurrencyWithPercent } from '../utils/formatUtils'
+import DashboardCustomize from '../components/DashboardCustomize'
+import DashboardSummary from '../components/DashboardSummary'
+import { useDashboardLayout } from '../hooks/useDashboardLayout'
 
 export default function Dashboard() {
   const queryClient = useQueryClient()
   const { isDemo, refreshDemoStatus } = useOutletContext<LayoutContext>()
+  const preferences = useDashboardLayout(isDemo)
+  const { layout } = preferences
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
   const holdingsQuery = useHoldings()
@@ -263,81 +267,39 @@ export default function Dashboard() {
     }
   }
 
-  const calculatePortfolioValue = () => {
-    return results.reduce((total, holding) => {
-      const price = holding.stockData?.stock?.currentPrice || 0
-      return total + (holding.shares * price)
-    }, 0)
-  }
-
-  const calculateDayChange = () => {
-    let totalChange = 0
-    results.forEach(holding => {
-      const currentPrice = holding.stockData?.stock?.currentPrice || 0
-      const prevClose = holding.stockData?.stock?.prevClose || currentPrice
-      const change = (currentPrice - prevClose) * holding.shares
-      totalChange += change
-    })
-    return totalChange
-  }
-
-  const calculateDayChangePercent = () => {
-    let totalChange = 0
-    let totalPrevValue = 0
-    results.forEach(holding => {
-      const currentPrice = holding.stockData?.stock?.currentPrice || 0
-      const prevClose = holding.stockData?.stock?.prevClose || currentPrice
-      const change = (currentPrice - prevClose) * holding.shares
-      totalChange += change
-      totalPrevValue += prevClose * holding.shares
-    })
-    return totalPrevValue > 0 ? (totalChange / totalPrevValue) * 100 : 0
-  }
-
   return (
     <div className="flex min-h-screen gap-6"> {/* if modifying sidebar gap also update Layout.tsx */}
       {/* Main Content */}
       <div className="flex-1 max-w-6xl mx-auto mt-6 px-3">
 
-      {/* Portfolio Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="p-4 bg-surface rounded-lg border border-border">
-          <div className="text-sm text-muted">Total Portfolio Value</div>
-          <div className="text-2xl text-foreground font-130">
-            {formatCurrency(calculatePortfolioValue())}
-          </div>
-        </div>
-        <div className="p-4 bg-surface rounded-lg border border-border">
-          <div className="text-sm text-muted">Total Day's Change</div>
-          <div className={`text-2xl font-130 ${calculateDayChange() >= 0 ? 'text-gain-emphasis' : 'text-loss-emphasis'}`}>
-            {formatSignedCurrencyWithPercent(calculateDayChange(), calculateDayChangePercent())}
-          </div>
-        </div>
-        <div className="p-4 bg-surface rounded-lg border border-border">
-          <div className="text-sm text-muted">Total P/L</div>
-          <div className={`text-2xl font-130 ${(pnlSummary?.totalPnL ?? 0) >= 0 ? 'text-gain-emphasis' : 'text-loss-emphasis'}`}>
-            {pnlSummary ? formatSignedCurrencyWithPercent(pnlSummary.totalPnL, pnlSummary.totalPnLPercent) : '—'}
-          </div>
-        </div>
-      </div>
+      <DashboardCustomize preferences={preferences} />
+      <DashboardSummary metrics={layout.metrics} holdings={results} pnl={pnlSummary}
+        ready={!holdingsQuery.isPending && !holdingsQuery.error} />
 
       {(error || queryError) && <div className="text-error mt-2 mb-4">{error || queryError}</div>}
 
+      {/* Keep sections mounted so customization does not discard chart state or journal drafts. */}
       {/* Portfolio History Chart */}
-      <div className="mb-8">
+      <div hidden={!layout.showPerformance} className="mb-8">
         <h3 className="text-xl font-130 mb-4">Portfolio Performance</h3>
         <PortfolioChart
           ref={portfolioChartRef}
           onPinClick={(entries) => {
-            setActiveJournalIds(entries.map((e) => e.id))
-            journalPanelRef.current?.scrollToEntry(entries[0].id)
+            if (!entries.length) return
+            if (layout.showJournal) {
+              setActiveJournalIds(entries.map((e) => e.id))
+              journalPanelRef.current?.scrollToEntry(entries[0].id)
+            } else {
+              setSelectedJournalEntry(entries[0])
+              setSelectedTicker(null)
+            }
           }}
         />
       </div>
 
       {/* Holdings Table */}
       {/* Journal Section */}
-      <div className="mb-8">
+      <div hidden={!layout.showJournal} className="mb-8">
         <div className="flex items-center justify-between mt-4 mb-4">
           <h3 className="text-xl font-130 m-0">Journal</h3>
           <Link to="/journal" className="text-sm italic text-secondary hover:text-foreground transition-colors">
@@ -353,10 +315,10 @@ export default function Dashboard() {
             setSelectedJournalEntry(entry)
             setSelectedTicker(null)
           }}
-          onViewOnChart={(entry) => {
+          onViewOnChart={layout.showPerformance ? (entry) => {
             portfolioChartRef.current?.setHourlyDate(new Date(entry.timestamp))
             portfolioChartRef.current?.scrollIntoView()
-          }}
+          } : undefined}
         />
       </div>
 

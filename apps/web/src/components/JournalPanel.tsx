@@ -277,7 +277,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
                   <div className="text-sm text-foreground whitespace-pre-wrap">{getDisplayBody(entry.body)}</div>
                   <TagPills tags={entry.tags} />
                   <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {(entry.entryType === 'BUY' || entry.entryType === 'SELL') && isTradingHours(entry.timestamp) && (
+                    {onViewOnChart && (entry.entryType === 'BUY' || entry.entryType === 'SELL') && isTradingHours(entry.timestamp) && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation()

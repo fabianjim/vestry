@@ -5,7 +5,8 @@ import { SortableContext, sortableKeyboardCoordinates, useSortable } from '@dnd-
 import { useHoldingsLayout } from '../hooks/useHoldingsLayout'
 import { useHoldingsMotion } from '../hooks/useHoldingsMotion'
 import { holdingSlotAt, type HoldingSlot } from '../utils/holdingsDrag'
-import HoldingsPopover from './HoldingsPopover'
+import SettingsPopover from './SettingsPopover'
+import CustomizationToolbar from './CustomizationToolbar'
 import { DEFAULT_HOLDINGS_LAYOUT, HOLDINGS_CARDS, moveHoldingsCard, type HoldingsCard, type HoldingsCardId, type HoldingsLayout } from '../utils/holdingsLayout'
 
 const control = 'rounded px-2 py-1.5 text-sm hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40 disabled:cursor-not-allowed'
@@ -38,7 +39,7 @@ function Card({ card: [id, size], editing, disabled, index, count, onSize, onMov
         {[6, 12, 18].map(y => <g key={y}><circle cx={8} cy={y} r={2} /><circle cx={16} cy={y} r={2} /></g>)}
       </svg>
     </button>
-    <HoldingsPopover label={`Options for ${title}`} trigger={
+    <SettingsPopover label={`Options for ${title}`} trigger={
       <svg aria-hidden="true" className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
         {[6, 12, 18].map(x => <circle key={x} cx={x} cy={12} r={2} />)}
       </svg>
@@ -49,7 +50,7 @@ function Card({ card: [id, size], editing, disabled, index, count, onSize, onMov
         <button className={`${control} text-left`} disabled={disabled || index === count - 1} onClick={() => onMove(1)}>Move down</button>
         <button className={`${control} text-left`} disabled={disabled} onClick={onRemove}>Remove card</button>
       </div>
-    </HoldingsPopover>
+    </SettingsPopover>
   </div>
   return (
     <section ref={setNodeRef} aria-label={title}
@@ -94,14 +95,10 @@ export default function HoldingsGrid({ children }: {
   const move = (from: HoldingsCardId, to: HoldingsCardId) => setDraft(moveHoldingsCard(layout, from, to))
 
   return <>
-    <div className={`flex items-center justify-between flex-wrap gap-3 mb-4 ${editing
-      ? 'sticky top-4 z-40 -mx-3 rounded-2xl border border-foreground/5 bg-background/35 backdrop-blur-xl shadow-sm shadow-background/20 px-3 py-2'
-      : ''}`}>
-      <h1 className={editing ? 'text-sm font-90 text-secondary' : 'text-xl font-130'}>{editing ? 'Customizing Your Cards...' : 'Your Cards'}</h1>
-      <div className="flex flex-wrap items-center gap-1 text-secondary [&_button]:rounded-lg [&_button]:transition-colors">
+    <CustomizationToolbar title={editing ? 'Customizing Your Cards...' : 'Your Cards'} editing={editing}>
         {!editing && save.isPending && <span role="status" className="self-center text-xs text-muted">Saving…</span>}
         {editing ? <>
-          <HoldingsPopover label="Add cards" trigger="Add cards" disabled={disabled}>
+          <SettingsPopover label="Add cards" trigger="Add cards" disabled={disabled}>
             <fieldset disabled={disabled}>
               <legend className="sr-only">Analysis cards</legend>
               {(Object.keys(HOLDINGS_CARDS) as HoldingsCardId[]).map(id => (
@@ -114,7 +111,7 @@ export default function HoldingsGrid({ children }: {
                 </label>
               ))}
             </fieldset>
-          </HoldingsPopover>
+          </SettingsPopover>
           <button className={control} disabled={disabled} onClick={() => setDraft(DEFAULT_HOLDINGS_LAYOUT)}>Reset layout</button>
           <span aria-hidden="true" className="mx-2 h-4 w-px bg-foreground/10" />
           <button className={control} disabled={disabled} onClick={cancel}>Cancel</button>
@@ -126,8 +123,7 @@ export default function HoldingsGrid({ children }: {
             {disabled ? 'Saving…' : 'Done'}
           </button>
         </> : <button className={control} disabled={!query.data || disabled} onClick={start}>Customize</button>}
-      </div>
-    </div>
+    </CustomizationToolbar>
     {query.error && <p role="alert" className="text-sm text-error mb-4">
       Could not load your layout. <button className="underline" onClick={() => query.refetch()}>Retry</button>
     </p>}
