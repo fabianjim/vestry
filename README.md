@@ -70,7 +70,8 @@ Run `make help` to list commands for more .
 ## AI digest foundation
 
 The backend includes a budgeted Responses API client, background-job ledger, and cached news retrieval.
-Digest generation and user-facing endpoints are separate implementation steps. No AI calls run automatically.
+Digest generation and account-scoped result storage are implemented. User-facing endpoints and dashboard
+integration remain separate implementation steps. No AI calls run automatically.
 
 AI is disabled by default. Configuration is server-only:
 
@@ -107,7 +108,7 @@ provider billing separately. Tests mock the provider; they make no paid calls.
 ### News retrieval
 
 `NewsService` runs within an existing authorized generation job. The caller reserves its `allowance`
-alongside the future digest allowance. It performs one required, low-context `web_search` call for up
+alongside the digest allowance. It performs one required, low-context `web_search` call for up
 to eight normalized stock symbols plus broad market news. The request contains only those public
 symbols and dates, never journal text, account details, or position sizes.
 
@@ -121,7 +122,7 @@ URLs must appear in provider-returned sources or citations; reported publication
 the last three days through the briefing date. Today is preferred, with dated recent context for quiet
 days and weekends. Source dates and summaries are model-extracted, not independently fact-checked.
 Malformed or ungrounded results are unavailable, distinct from an empty search. Coverage is intentionally
-selective rather than exhaustive for every symbol. Later digest/UI steps must preserve source attribution.
+selective rather than exhaustive for every symbol. The digest retains validated source links; the UI must display them alongside the news paragraph.
 
 Search reservations include the tool fee and fixed search-token block described in the
 [OpenAI pricing documentation](https://developers.openai.com/api/docs/pricing).
@@ -129,6 +130,33 @@ Accounting conservatively adds that block to reported usage, even if usage alrea
 content. This can exhaust the application's allowance before the corresponding provider spend.
 Live search quality and account/model compatibility remain to be checked during explicit activation;
 all automated tests use mocked responses.
+
+### Digest generation
+
+`DigestContextService.capture()` runs on the authenticated request thread. It reads up to eight holdings,
+saved quote timestamps, metadata, existing P/L calculations, and a bounded sample of the six latest journal
+entries. It does not fetch new market prices. Missing quotes suppress valuation and unrealized metrics;
+realized P/L remains available. The immutable snapshot excludes credentials and account identity from the
+model input. For demo users it reads the persistent template, never a visitor's temporary session edits.
+
+The integration sequence is: capture the snapshot, reserve `DigestService.allowance(snapshot)` through
+`AiGenerationService.submit`, and call `DigestService.generate(jobId, snapshot)` inside that worker.
+The allowance covers news plus the maximum bounded summary request. An unresolved paid news call stops
+further calls in that job under the existing budget rules; cached unavailable news can be summarized
+without claiming that a successful search found nothing.
+
+The summary uses a strict JSON schema with no search tools. It targets 100–150 words and rejects responses
+above 180 words, invalid citation IDs, malformed responses, and unsupported navigation destinations.
+Questions point only to Dashboard, Holdings Analysis, or Journal. Sources are resolved from cached news,
+never model-generated URLs. No repair/retry calls are made. Journal and news text remain untrusted input;
+prompt safeguards and structural validation do not independently verify every generated claim.
+
+`portfolio_digests` stores the validated result and capture/generation timestamps, not the raw context or
+prompt. Results are private to the account; the demo template's result is shared by that demo account.
+`DigestService.latest()` derives ownership from the authenticated principal and returns nothing when AI
+is disabled. These services do not introduce automatic private-account generation. Endpoint authorization,
+demo refresh triggers, dismissal, polling, and display belong to the dashboard integration step.
+All tests use mocked model responses; editorial quality still needs the activation-stage live evaluation.
 
 ## Contributing
 

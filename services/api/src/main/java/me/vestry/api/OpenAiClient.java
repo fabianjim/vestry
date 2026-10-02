@@ -38,7 +38,10 @@ public class OpenAiClient {
         http = new RestTemplate(factory);
     }
 
-    public record Request(String instructions, String input, int maxOutputTokens, boolean webSearch) {
+    public record Request(String instructions, String input, int maxOutputTokens, boolean webSearch, JsonNode schema) {
+        public Request(String instructions, String input, int maxOutputTokens, boolean webSearch) {
+            this(instructions, input, maxOutputTokens, webSearch, null);
+        }
         public Request(String instructions, String input, int maxOutputTokens) {
             this(instructions, input, maxOutputTokens, false);
         }
@@ -106,6 +109,10 @@ public class OpenAiClient {
         var payload = mapper.createObjectNode().put("model", MODEL).put("store", false)
                 .put("instructions", request.instructions()).put("input", request.input())
                 .put("max_output_tokens", request.maxOutputTokens());
+        if (request.schema() != null) {
+            payload.putObject("text").putObject("format").put("type", "json_schema")
+                    .put("name", "portfolio_digest").put("strict", true).set("schema", request.schema());
+        }
         if (request.webSearch()) {
             payload.putArray("tools").addObject().put("type", "web_search").put("search_context_size", "low");
             payload.putObject("tool_choice").put("type", "web_search");

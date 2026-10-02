@@ -86,6 +86,21 @@ class OpenAiClientTest {
     }
 
     @Test
+    void sendsStrictSchemaWithoutEnablingTools() throws Exception {
+        var schema = mapper.readTree("{\"type\":\"object\",\"properties\":{},\"required\":[],\"additionalProperties\":false}");
+        var structured = new OpenAiClient.Request("Return JSON", "context", 800, false, schema);
+        server.expect(anything()).andExpect(jsonPath("$.text.format.type").value("json_schema"))
+                .andExpect(jsonPath("$.text.format.strict").value(true))
+                .andExpect(jsonPath("$.text.format.schema.additionalProperties").value(false))
+                .andExpect(jsonPath("$.tools").doesNotExist())
+                .andRespond(withSuccess("""
+                    {"status":"completed","output":[],"usage":{"input_tokens":100,"output_tokens":50}}
+                    """, MediaType.APPLICATION_JSON));
+        client.generate(job, "summary", structured);
+        server.verify();
+    }
+
+    @Test
     void timeoutRetainsAllowanceAndDoesNotRetry() {
         server.expect(anything()).andRespond(withException(new IOException("private provider detail")));
         var failure = assertThrows(IllegalStateException.class, () -> client.generate(job, "summary", request));
