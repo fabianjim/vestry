@@ -154,9 +154,9 @@ class DigestServiceTest {
         assertFalse(newsPattern.matcher("word ".repeat(56)).matches());
         assertTrue(reflectionPattern.matcher("word ".repeat(55)).matches());
         assertFalse(reflectionPattern.matcher("word ".repeat(56)).matches());
-        assertTrue(questionPattern.matcher("word ".repeat(20)).matches());
-        assertFalse(questionPattern.matcher("word ".repeat(21)).matches());
-        assertFalse(reflectionPattern.matcher("").matches());
+        assertTrue(questionPattern.matcher("word ".repeat(10)).matches());
+        assertFalse(questionPattern.matcher("word ".repeat(11)).matches());
+        assertTrue(reflectionPattern.matcher("").matches());
         assertEquals(0, properties.path("sourceIds").path("minItems").asInt());
         assertEquals(1, properties.path("sourceIds").path("items").path("minimum").asInt());
         assertEquals(1, properties.path("sourceIds").path("items").path("maximum").asInt());
@@ -190,11 +190,73 @@ class DigestServiceTest {
         verify(client).generate(any(), anyString(), argThat(r -> r.input().contains("Only older coverage was found.")));
     }
 
+    @Test
+    void acceptsShortNewsOnlyDigestAndEnforcesOneActionAndSectionLimits() {
+        var shortBody = validBody().put("reflection", "");
+        answer(shortBody);
+        assertEquals("", service.generate(job, snapshot).content().reflection());
+        repository.deleteAll();
+        var twoActions = validBody();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) twoActions.path("questions"))
+                .addObject().put("text", "Review holdings").put("destination", "HOLDINGS");
+        answer(twoActions);
+        assertThrows(IllegalStateException.class, () -> service.generate(job, snapshot));
+        answer(validBody().put("reflection", "word ".repeat(56)));
+        assertThrows(IllegalStateException.class, () -> service.generate(job, snapshot));
+        var longAction = validBody();
+        ((ObjectNode) longAction.path("questions").get(0)).put("text", "word ".repeat(11));
+        answer(longAction);
+        assertThrows(IllegalStateException.class, () -> service.generate(job, snapshot));
+        assertEquals(0, repository.count());
+    }
+
+    @Test
+    void acceptsExactly120WordsAndRejectsEmptyContent() {
+        var full = validBody().put("news", "news ".repeat(55)).put("reflection", "context ".repeat(55));
+        ((ObjectNode) full.path("questions").get(0)).put("text", "action ".repeat(10));
+        answer(full);
+        assertNotNull(service.generate(job, snapshot));
+        repository.deleteAll();
+        var empty = validBody().put("news", "").put("reflection", ""); empty.putArray("sourceIds");
+        answer(empty);
+        assertThrows(IllegalStateException.class, () -> service.generate(job, snapshot));
+    }
+
+    @Test
+    void editorialHistoryIsLimitedToThreePastBriefingsForTheSameAccount() {
+        for (int i = 1; i <= 4; i++) {
+            var time = now.minusSeconds(i * 86400L);
+            repository.saveAndFlush(new me.vestry.model.PortfolioDigest(UUID.randomUUID(), 7, time, time, validBody()));
+        }
+        repository.saveAndFlush(new me.vestry.model.PortfolioDigest(UUID.randomUUID(), 8, now, now, validBody()));
+        repository.saveAndFlush(new me.vestry.model.PortfolioDigest(UUID.randomUUID(), 7, now.plusSeconds(60), now.plusSeconds(60), validBody()));
+        var previous = repository.findTop3ByUserIdAndCapturedAtLessThanEqualOrderByGeneratedAtDesc(7, now);
+        assertEquals(3, previous.size());
+        assertEquals(now.minusSeconds(86400), previous.get(0).getCapturedAt());
+        assertEquals(now.minusSeconds(3 * 86400), previous.get(2).getCapturedAt());
+        assertTrue(previous.stream().allMatch(digest -> digest.getUserId() == 7));
+    }
+
+    @Test
+    void passesOlderSourceDateAndContinuingRelevanceToTheWriterWithoutAnAgeCutoff() throws Exception {
+        var older = new NewsBriefing.Item("Investor event announced", "An October 5 event was announced. Why it matters now: The event is three days away.",
+                LocalDate.of(2026, 9, 1), "https://news.example/story");
+        when(news.getOrFetch(job, snapshot.tickers())).thenReturn(new NewsBriefing(LocalDate.of(2026, 10, 2), now,
+                NewsBriefing.Status.READY, List.of(older)));
+        answer(validBody());
+        assertEquals(older, service.generate(job, snapshot).content().sources().get(0));
+        var request = org.mockito.ArgumentCaptor.forClass(OpenAiClient.Request.class);
+        verify(client).generate(eq(job), eq("digest"), request.capture());
+        var evidence = mapper.readTree(request.getValue().input()).path("newsSources").get(0);
+        assertEquals("2026-09-01", evidence.path("publishedOn").asText());
+        assertEquals(older.summary(), evidence.path("evidence").asText());
+    }
+
     private ObjectNode validBody() {
         var body = mapper.createObjectNode().put("news", "The company reported its quarterly results.")
                 .put("reflection", "Your recorded position offers a starting point for a reflection on concentration.");
         body.putArray("sourceIds").add(1);
-        body.putArray("questions").addObject().put("text", "What would you want to record about this decision?").put("destination", "JOURNAL");
+        body.putArray("questions").addObject().put("text", "Revisit your reasoning in the journal").put("destination", "JOURNAL");
         return body;
     }
 

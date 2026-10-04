@@ -64,3 +64,15 @@ it('explains the next scheduled attempt for demo failures without offering gener
   expect(html).not.toContain('Shared demo briefing')
   expect(html).not.toContain('AI')
 })
+
+
+it('renders a news-only digest with one direct next step and no empty reflection paragraph', () => {
+  const digest = ready.digest!
+  const html = render({ ...ready, digest: { ...digest, content: {
+    ...digest.content, reflection: '', questions: [{ text: 'Review your holdings', destination: 'HOLDINGS' }],
+  } } })
+  expect(html).toContain('Review your holdings')
+  expect(html).toContain('href="/analysis"')
+  expect(html.match(/<li /g)).toHaveLength(1)
+  expect(html).not.toContain('<p class="text-sm leading-relaxed text-foreground"></p>')
+})

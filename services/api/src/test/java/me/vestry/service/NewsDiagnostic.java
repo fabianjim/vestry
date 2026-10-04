@@ -60,6 +60,7 @@ class NewsDiagnostic {
     @Autowired NewsService news;
     @Autowired DigestService digests;
     @Autowired Clock clock;
+    @Autowired ObjectMapper mapper;
     @MockitoBean PortfolioDigestRepository savedDigests;
     @MockitoBean DemoSessionResolver users;
     // Exercise the real news path without reading, clearing or overwriting the dashboard cache.
@@ -76,6 +77,10 @@ class NewsDiagnostic {
             if (entry.getStatus() != NewsBriefing.Status.FETCHING) {
                 System.out.printf("AI diagnostic news: status=%s, sources=%d%n",
                         entry.getStatus(), entry.getItems() == null ? 0 : entry.getItems().path("items").size());
+            }
+            if (entry.getStatus() == NewsBriefing.Status.READY) {
+                System.out.println("\nPublic news research (model output, not independently verified):");
+                System.out.println(entry.getItems().path("research").asText());
             }
             return entry;
         });
@@ -108,10 +113,25 @@ class NewsDiagnostic {
             }
             return response;
         });
-        var tickers = List.of("AAPL", "NVDA", "SNOW", "TSLA", "SPY", "CAVA");
-        // Synthetic context only: no real portfolio, journal, or authenticated account is loaded.
-        var snapshot = new DigestContextService.Snapshot(0, true, clock.instant(), tickers,
-                "{\"holdings\":[{\"ticker\":\"AAPL\",\"shares\":2}],\"journal\":[],\"journalEntriesIncluded\":0}");
+        var tickers = List.of("AAPL", "SNOW");
+        // Synthetic context only: dates move with the run so this exercises recent activity and continuity.
+        // No real portfolio, journal, or authenticated account is loaded.
+        var now = clock.instant();
+        var yesterday = now.minus(java.time.Duration.ofDays(1));
+        var context = mapper.createObjectNode().put("capturedAt", now.toString())
+                .put("activitySinceExclusive", yesterday.toString()).put("activityThroughInclusive", now.toString())
+                .put("activityIsRecentSample", true).put("journalIsRecentSample", true).put("journalEntriesIncluded", 1);
+        context.putArray("holdings").addObject().put("ticker", "AAPL").put("shares", 2);
+        ((com.fasterxml.jackson.databind.node.ArrayNode) context.path("holdings"))
+                .addObject().put("ticker", "SNOW").put("shares", 3);
+        context.putArray("recentTransactions").addObject().put("ticker", "SNOW").put("type", "SELL")
+                .put("shares", 1).put("price", 180).put("timestamp", now.minusSeconds(7200).toString());
+        context.putArray("journal").addObject().put("ticker", "SNOW").put("type", "INSIGHT")
+                .put("timestamp", now.minusSeconds(3600).toString()).put("newSincePreviousBriefing", true)
+                .put("body", "After trimming Snowflake, I want to revisit whether my original reason for the remaining position still holds.");
+        context.putArray("previousCoverage").addObject().put("capturedAt", yesterday.toString())
+                .put("nextStep", "Revisit your reasoning in the journal").putArray("sourceUrls");
+        var snapshot = new DigestContextService.Snapshot(0, true, now, tickers, context.toString());
         long allowance = fullBriefing ? digests.allowance(snapshot) : news.allowance(tickers);
         long ceiling = fullBriefing ? 30_000 : 20_000;
         assertTrue(allowance <= ceiling, "Diagnostic exceeds its reservation ceiling; no request made");
@@ -128,6 +148,27 @@ class NewsDiagnostic {
                 status = result.content().newsStatus();
                 stories = result.content().sources().size();
                 System.out.printf("AI diagnostic: validatedBriefing=true, questions=%d%n", result.content().questions().size());
+                // This diagnostic uses synthetic context only; never add this output to production logging.
+                var content = result.content();
+                var displayedText = new StringBuilder();
+                System.out.println("\nGenerated briefing (synthetic portfolio):");
+                for (String paragraph : List.of(content.news(), content.reflection())) {
+                    if (!paragraph.isBlank()) {
+                        System.out.println(paragraph + "\n");
+                        displayedText.append(paragraph).append(' ');
+                    }
+                }
+                for (var action : content.questions()) {
+                    System.out.printf("%s → %s%n", action.text(), action.destination());
+                    displayedText.append(action.text()).append(' ');
+                }
+                String text = displayedText.toString().strip();
+                int wordCount = text.isEmpty() ? 0 : text.split("(?U)\\s+").length;
+                System.out.printf("Word count: %d / 120 (includes next-step text and news status; excludes source labels and destinations)%n", wordCount);
+                for (var source : content.sources()) {
+                    System.out.printf("Source: %s — %s%n", source.headline(), source.url());
+                }
+                System.out.println();
             } else {
                 var result = news.getOrFetch(job.id(), tickers);
                 status = result.status();

@@ -37,14 +37,14 @@ export default function DashboardDigest({ state, isDemo, pending, error, onGener
     </div>
     {message && <p role="status" className="text-sm text-secondary">{message}</p>}
     {digest && <>
-      <p className="text-sm leading-relaxed text-foreground">{digest.content.news}{' '}
+      <p className={digest.content.newsStatus === 'READY' ? 'text-sm leading-relaxed text-foreground' : 'text-xs text-muted'}>{digest.content.news}{' '}
         {digest.content.sources.map((source, index) => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer"
           className="text-primary hover:underline focus-visible:ring-2 focus-visible:ring-primary ml-1"
           title={source.publishedOn ? `${source.headline}  ${source.publishedOn}` : source.headline} aria-label={`Source ${index + 1}: ${source.headline}`}>
           [{index + 1}]
         </a>)}
       </p>
-      <p className="text-sm leading-relaxed text-foreground">{digest.content.reflection}</p>
+      {digest.content.reflection && <p className="text-sm leading-relaxed text-foreground">{digest.content.reflection}</p>}
       <ul className="space-y-1.5">
         {digest.content.questions.map((question, index) => <li key={index} className="text-sm">
           {question.destination === 'DASHBOARD'

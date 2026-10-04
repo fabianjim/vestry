@@ -6,14 +6,15 @@ import me.vestry.api.OpenAiClient;
 import me.vestry.repository.JournalEntryRepository;
 import me.vestry.repository.PortfolioRepository;
 import me.vestry.repository.TransactionRepository;
+import me.vestry.repository.PortfolioDigestRepository;
 import me.vestry.model.User;
 import me.vestry.model.Portfolio;
-import me.vestry.dto.PnLSummaryDTO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -28,10 +29,11 @@ public class DigestContextService {
     private final Clock clock;
     private final PortfolioRepository savedPortfolios;
     private final TransactionRepository transactions;
+    private final PortfolioDigestRepository digests;
 
     public DigestContextService(DemoSessionResolver users, PortfolioService portfolios, JournalEntryRepository journal,
                                 NasdaqMetadataService metadata, OpenAiClient client, ObjectMapper mapper, Clock aiClock,
-                                PortfolioRepository savedPortfolios, TransactionRepository transactions) {
+                                PortfolioRepository savedPortfolios, TransactionRepository transactions, PortfolioDigestRepository digests) {
         this.users = users;
         this.portfolios = portfolios;
         this.journal = journal;
@@ -41,6 +43,7 @@ public class DigestContextService {
         clock = aiClock;
         this.savedPortfolios = savedPortfolios;
         this.transactions = transactions;
+        this.digests = digests;
     }
 
     public record Snapshot(int userId, boolean demo, Instant capturedAt, List<String> tickers, String json) {
@@ -53,7 +56,7 @@ public class DigestContextService {
         if (!client.isConfigured()) throw new IllegalStateException("AI is disabled");
         var user = users.getCurrentUser();
         // Persistent demo template only: visitor edits must never enter the shared demo digest.
-        return capture(user, portfolios.getPortfolio(), portfolios.getPnLSummary());
+        return capture(user, portfolios.getPortfolio());
     }
 
     /** Read the persistent demo template without impersonating a visitor or accessing session state. */
@@ -61,13 +64,39 @@ public class DigestContextService {
     public Snapshot captureDemo(User user) {
         if (!client.isConfigured()) throw new IllegalStateException("AI is disabled");
         if (!user.isDemo()) throw new IllegalArgumentException("Scheduled briefings are demo-only");
-        return capture(user, savedPortfolios.findByUserId(user.getId()).orElse(null),
-                portfolios.calculatePnLSummary(transactions.findByUserIdOrderByTimestampDesc(user.getId())));
+        return capture(user, savedPortfolios.findByUserId(user.getId()).orElse(null));
     }
 
-    private Snapshot capture(User user, Portfolio portfolio, PnLSummaryDTO pnl) {
+    private Snapshot capture(User user, Portfolio portfolio) {
         var now = clock.instant();
         var root = mapper.createObjectNode().put("capturedAt", now.toString()).put("journalIsRecentSample", true);
+        var previous = digests.findTop3ByUserIdAndCapturedAtLessThanEqualOrderByGeneratedAtDesc(user.getId(), now);
+        // Compare activity to the last capture, capped at a week after an absence or on first use.
+        var weekAgo = now.minus(Duration.ofDays(7));
+        var since = previous.isEmpty() || previous.get(0).getCapturedAt().isBefore(weekAgo)
+                ? weekAgo : previous.get(0).getCapturedAt();
+        root.put("activitySinceExclusive", since.toString());
+        root.put("activityThroughInclusive", now.toString());
+        root.put("activityIsRecentSample", true);
+        var memory = root.putArray("previousCoverage");
+        for (var digest : previous) {
+            if (digest.getCapturedAt().isBefore(weekAgo)) continue;
+            var content = digest.getContent();
+            // Never recycle generated prose as factual context. Keep only navigation/repetition hints.
+            var coverage = memory.addObject().put("capturedAt", digest.getCapturedAt().toString())
+                    .put("nextStep", clip(content.path("questions").path(0).path("text").asText(), 100));
+            var links = coverage.putArray("sourceUrls");
+            content.path("sources").forEach(source -> {
+                if (links.size() < 2) links.add(clip(source.path("url").asText(), 512));
+            });
+        }
+        var activity = root.putArray("recentTransactions");
+        for (var trade : transactions.findTop12ByUserIdAndTimestampGreaterThanAndTimestampLessThanEqualOrderByTimestampDescIdDesc(
+                user.getId(), since, now)) {
+            activity.addObject().put("ticker", trade.getTicker()).put("type", trade.getType().name())
+                    .put("shares", trade.getShares()).put("price", trade.getPrice())
+                    .put("timestamp", trade.getTimestamp().toString());
+        }
         var positions = root.putArray("holdings");
         double total = 0;
         boolean complete = true;
@@ -92,20 +121,22 @@ public class DigestContextService {
             }
         }
         root.set("portfolioValue", mapper.valueToTree(complete ? finite(total) : null));
-        root.set("realizedPnl", mapper.valueToTree(finite(pnl.getRealizedPnL())));
-        root.set("unrealizedPnl", mapper.valueToTree(complete ? finite(pnl.getUnrealizedPnL()) : null));
-        root.set("totalPnlPercent", mapper.valueToTree(complete ? finite(pnl.getTotalPnLPercent()) : null));
         for (var position : positions) {
             if (complete && total > 0) ((ObjectNode) position).put("weightPercent", position.path("marketValue").asDouble() / total * 100);
         }
         var entries = root.putArray("journal");
         for (var entry : journal.findTop6ByUserIdOrderByTimestampDescIdDesc(user.getId())) {
-            entries.addObject().put("type", entry.getEntryType().name()).put("ticker", entry.getTicker())
+            if (entry.getTimestamp().isAfter(now) || entry.getTimestamp().isBefore(now.minus(Duration.ofDays(30)))) continue;
+            entries.addObject().put("newSincePreviousBriefing", entry.getTimestamp().isAfter(since))
+                    .put("type", entry.getEntryType().name()).put("ticker", entry.getTicker())
                     .put("timestamp", entry.getTimestamp().toString()).put("body", clip(entry.getBody(), 400));
         }
         // Bound serialized UTF-8, including escaped/multilingual text, rather than assuming ASCII.
-        while (bytes(root) > 6500 && !entries.isEmpty()) entries.remove(entries.size() - 1);
         if (bytes(root) > 6500) positions.forEach(p -> ((ObjectNode) p).remove("metadata"));
+        while (bytes(root) > 6500 && memory.size() > 1) memory.remove(memory.size() - 1);
+        while (bytes(root) > 6500 && entries.size() > 1) entries.remove(entries.size() - 1);
+        while (bytes(root) > 6500 && activity.size() > 1) activity.remove(activity.size() - 1);
+        while (bytes(root) > 6500 && !entries.isEmpty()) entries.remove(entries.size() - 1);
         if (bytes(root) > 6500) throw new IllegalStateException("Digest context is too large");
         root.put("journalEntriesIncluded", entries.size());
         var tickers = new java.util.ArrayList<String>();

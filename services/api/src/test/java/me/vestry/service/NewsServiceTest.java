@@ -75,23 +75,22 @@ class NewsServiceTest {
     }
 
     @Test
-    void usesPlainResearchAndProviderSourcesWithoutParsingGeneratedJson() {
+    void acceptsCitedProseWithoutAGeneratedJsonContractAndIgnoresUncitedSearchHits() {
         var answer = response();
-        var part = (com.fasterxml.jackson.databind.node.ObjectNode) answer.path("output").get(1).path("content").get(0);
-        part.put("text", "Dated research notes, not JSON. https://invented.example/story");
-        part.putArray("annotations").addObject().put("type", "url_citation")
-                .put("url", "https://news.example/cited").put("title", "Cited article");
         var sources = (com.fasterxml.jackson.databind.node.ArrayNode) answer.path("output").get(0).path("action").path("sources");
-        sources.addObject().put("url", "javascript:alert(1)");
-        sources.addObject().put("url", "https://user:password@news.example/private");
-        sources.addObject().put("url", "https://news.example/story");
+        sources.addObject().put("url", "https://news.example/unrelated");
+        var part = (com.fasterxml.jackson.databind.node.ObjectNode) answer.path("output").get(1).path("content").get(0);
+        var citations = (com.fasterxml.jackson.databind.node.ArrayNode) part.path("annotations");
+        citations.addObject().put("type", "url_citation").put("url", "javascript:alert(1)");
+        citations.addObject().put("type", "url_citation").put("url", "https://user:password@news.example/private");
+        citations.addObject().put("type", "url_citation").put("url", "https://news.example/story");
+        part.put("text", "On September 1 the company announced an October 5 event. That milestone is now four days away.");
         when(client.generate(any(), anyString(), any())).thenReturn(answer);
         var result = service.getOrFetch(job, List.of("AAPL"));
         assertEquals(Status.READY, result.status());
-        assertEquals(2, result.items().size());
-        assertEquals("Cited article", result.items().get(0).headline());
+        assertEquals(1, result.items().size());
+        assertEquals("https://news.example/story", result.items().get(0).url());
         assertEquals(part.path("text").asText(), result.research());
-        assertTrue(result.items().stream().noneMatch(item -> item.url().contains("invented")));
         assertEquals(result, service.getOrFetch(job, List.of("AAPL")));
         verify(client, times(1)).generate(any(), anyString(), argThat(r -> r.webSearch() && r.schema() == null));
     }
@@ -110,7 +109,7 @@ class NewsServiceTest {
             var part = (com.fasterxml.jackson.databind.node.ObjectNode) answer.path("output").get(1).path("content").get(0);
             switch (failure) {
                 case "search" -> search.put("status", "incomplete");
-                case "sources" -> ((com.fasterxml.jackson.databind.node.ObjectNode) search.path("action")).putArray("sources");
+                case "sources" -> part.putArray("annotations");
                 case "text" -> part.put("text", "");
                 case "refusal" -> part.put("type", "refusal");
             }
@@ -120,6 +119,19 @@ class NewsServiceTest {
         assertFalse(output.getAll().contains("private provider detail"));
         assertTrue(output.getAll().contains("SEARCH_INCOMPLETE"));
         assertTrue(output.getAll().contains("NEWS_REFUSED"));
+        assertTrue(output.getAll().contains("SEARCH_WITHOUT_CITATIONS"));
+    }
+
+    @Test
+    void completedSearchWithExplicitlyNoRelevantNewsIsEmptyAndCached() {
+        var answer = response();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) answer.path("output").get(0).path("action")).putArray("sources");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) answer.path("output").get(1).path("content").get(0))
+                .put("text", "NO_RELEVANT_NEWS");
+        when(client.generate(any(), anyString(), any())).thenReturn(answer);
+        assertEquals(Status.EMPTY, service.getOrFetch(job, List.of("AAPL")).status());
+        assertEquals(Status.EMPTY, service.getOrFetch(job, List.of("AAPL")).status());
+        verify(client, times(1)).generate(any(), anyString(), any());
     }
 
     @Test
@@ -168,7 +180,9 @@ class NewsServiceTest {
         var search = output.addObject().put("type", "web_search_call").put("status", "completed");
         search.putObject("action").putArray("sources").addObject().put("url", "https://news.example/story");
         output.addObject().put("type", "message").putArray("content").addObject()
-                .put("type", "output_text").put("text", "Company published quarterly results on October 1, 2026.");
+                .put("type", "output_text").put("text", "Company published quarterly results on October 1, 2026.")
+                .putArray("annotations").addObject().put("type", "url_citation")
+                .put("url", "https://news.example/story").put("title", "Company results");
         return mapper.createObjectNode().set("output", output);
     }
 }
