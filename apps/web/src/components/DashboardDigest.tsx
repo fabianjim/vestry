@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { DigestState } from '../types/digest'
 
-const button = 'rounded-lg px-2 py-1 text-xs text-secondary hover:bg-foreground/5 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40 disabled:cursor-not-allowed'
+const button = 'ml-auto rounded-lg px-2 py-1 text-xs text-secondary hover:bg-foreground/5 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40 disabled:cursor-not-allowed'
 
 export default function DashboardDigest({ state, isDemo, pending, error, onGenerate, onCheck, onDashboard }: {
   state?: DigestState
@@ -23,17 +23,12 @@ export default function DashboardDigest({ state, isDemo, pending, error, onGener
     : state.status === 'IDLE' ? (isDemo ? (digest ? null : 'The demo briefing is prepared at 10 a.m. New York time on weekdays.') : 'Connect recent news with your holdings and reflections.') : null
   return <section aria-label="Portfolio briefing content" aria-busy={working} className="space-y-3">
     <div className="flex items-center justify-between gap-3 flex-wrap">
-      <div className="flex items-baseline gap-2 flex-wrap">
-        {digest && <time className="text-xs text-muted" dateTime={digest.generatedAt}>
-          {new Date(digest.generatedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-        </time>}
-      </div>
-      <div className="flex items-center gap-1">
-        {!isDemo && state?.status === 'IDLE' && !error && <button className={`${button} text-primary`} disabled={working}
-          onClick={onGenerate}>{digest ? 'Generate today’s briefing' : 'Generate briefing'}</button>}
-        {(error || state?.status === 'LIMITED') && !working && <button className={button} onClick={onCheck}>Check again</button>}
-
-      </div>
+      {digest && <time className="text-xs text-muted" dateTime={digest.generatedAt}>
+        {new Date(digest.generatedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+      </time>}
+      {!isDemo && state?.status === 'IDLE' && !error && <button className={`${button} text-primary`} disabled={working}
+        onClick={onGenerate}>{digest ? 'Generate today’s briefing' : 'Generate briefing'}</button>}
+      {(error || state?.status === 'LIMITED') && !working && <button className={button} onClick={onCheck}>Check again</button>}
     </div>
     {message && <p role="status" className="text-sm text-secondary">{message}</p>}
     {digest && <>
@@ -54,6 +49,5 @@ export default function DashboardDigest({ state, isDemo, pending, error, onGener
         </li>)}
       </ul>
     </>}
-
   </section>
 }

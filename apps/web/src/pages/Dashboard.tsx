@@ -293,7 +293,7 @@ export default function Dashboard() {
         <button className="underline" onClick={() => { void preferences.query.refetch() }}>Retry</button></p>}
       {preferences.save.error && <p role="alert" className="text-sm text-error mb-4">Could not save your change.{' '}
         <button className="underline" onClick={() => preferences.save.variables && preferences.save.mutate(preferences.save.variables)}>Retry</button></p>}
-      {preferences.save.isPending && <p role="status" className="text-xs text-muted mb-2">Saving…</p>}
+      <p role="status" className="sr-only">{preferences.save.isPending ? 'Saving…' : ''}</p>
       <DashboardSummary metrics={layout.metrics} holdings={results} pnl={pnlSummary}
         disabled={!preferences.query.data || preferences.save.isPending}
         onMetricChange={(index, metric) => {

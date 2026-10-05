@@ -24,7 +24,7 @@ export default function DashboardSummary({ metrics, holdings, pnl, ready, onMetr
       const color = metric.format !== 'change' || metric.value == null || metric.value === 0 ? 'text-foreground'
         : metric.value > 0 ? 'text-gain-emphasis' : 'text-loss-emphasis'
       return <div key={index} className="p-4 bg-surface rounded-lg border border-border">
-        <div className="flex items-center gap-1 text-sm text-muted">
+        <div className="flex items-center gap-1 text-sm text-muted [&_button:disabled]:opacity-100">
           <GlassSelect label={`Choose ${['left', 'middle', 'right'][index]} summary metric`} value={id} disabled={disabled}
             onChange={value => onMetricChange(index, value)}
             options={(Object.keys(DASHBOARD_METRICS) as Array<DashboardLayout['metrics'][number]>).map(value => ({
