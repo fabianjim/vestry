@@ -17,6 +17,8 @@ import org.slf4j.LoggerFactory;
 import java.nio.charset.StandardCharsets;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Component
@@ -58,6 +60,11 @@ public class OpenAiClient {
         }
     }
 
+    public record Citation(String url, String title) {}
+    public record Response(String text, List<Citation> citations, boolean refused, boolean searchCompleted) {
+        public Response { citations = List.copyOf(citations); }
+    }
+
     public boolean isConfigured() {
         return limits.enabled() && !apiKey.isBlank() && limits.lifetimeMicros() > 0
                 && limits.dailyMicros() > 0 && limits.dailyGenerations() > 0;
@@ -70,7 +77,7 @@ public class OpenAiClient {
                 + (request.webSearch() ? SEARCH_ALLOWANCE : 0);
     }
 
-    public JsonNode generate(UUID jobId, String step, Request request) {
+    public Response generate(UUID jobId, String step, Request request) {
         if (!isConfigured()) throw new IllegalStateException("AI is not configured");
         String body = body(request);
         var headers = new HttpHeaders();
@@ -99,8 +106,26 @@ public class OpenAiClient {
             throw new Failure("PROVIDER_MISSING_OUTPUT");
         }
         long searches = 0;
+        boolean searched = false, refused = false;
+        var text = new StringBuilder();
+        var citations = new ArrayList<Citation>();
         for (var item : response.path("output")) {
-            if ("web_search_call".equals(item.path("type").asText())) searches++;
+            if ("web_search_call".equals(item.path("type").asText())) {
+                searches++;
+                searched |= "completed".equals(item.path("status").asText());
+            }
+            if (!"message".equals(item.path("type").asText())) continue;
+            for (var part : item.path("content")) {
+                refused |= "refusal".equals(part.path("type").asText());
+                if (!"output_text".equals(part.path("type").asText())) continue;
+                text.append(part.path("text").asText());
+                // Only message citations qualify; raw search hits are not cited evidence.
+                for (var annotation : part.path("annotations")) {
+                    if ("url_citation".equals(annotation.path("type").asText())) {
+                        citations.add(new Citation(annotation.path("url").asText(), annotation.path("title").asText(null)));
+                    }
+                }
+            }
         }
         // Charge the fixed search block separately even if provider usage includes it: never undercount.
         long actual = cost(input, output) + searches * SEARCH_ALLOWANCE;
@@ -114,7 +139,7 @@ public class OpenAiClient {
             throw new Failure("max_output_tokens".equals(reason) ? "PROVIDER_OUTPUT_TOKEN_LIMIT"
                     : "content_filter".equals(reason) ? "PROVIDER_CONTENT_FILTER" : "PROVIDER_INCOMPLETE_RESPONSE");
         }
-        return response;
+        return new Response(text.toString(), citations, refused, searched);
     }
 
     private String body(Request request) {

@@ -1,5 +1,6 @@
 package me.vestry.service;
 
+import lombok.RequiredArgsConstructor;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,6 +22,7 @@ import java.time.Instant;
 import java.util.*;
 
 @Service
+@RequiredArgsConstructor
 public class DigestService {
     private static final String INSTRUCTIONS = """
             Write a calm, useful entry point to a portfolio journal, addressing "you". Usually 40-70 words
@@ -66,16 +68,6 @@ public class DigestService {
     private final DemoSessionResolver users;
     private final ObjectMapper mapper;
     private final Clock clock;
-
-    public DigestService(OpenAiClient client, NewsService news, PortfolioDigestRepository digests,
-                         DemoSessionResolver users, ObjectMapper mapper, Clock aiClock) {
-        this.client = client;
-        this.news = news;
-        this.digests = digests;
-        this.users = users;
-        this.mapper = mapper;
-        clock = aiClock;
-    }
 
     public record Result(UUID id, Instant capturedAt, Instant generatedAt, DigestContent content) {}
 
@@ -149,17 +141,10 @@ public class DigestService {
                 clock.instant(), mapper.valueToTree(content))));
     }
 
-    private DigestContent validate(JsonNode response, NewsBriefing briefing, boolean demo) {
-        var text = new StringBuilder();
-        for (var output : response.path("output")) {
-            if (!"message".equals(output.path("type").asText())) continue;
-            for (var part : output.path("content")) {
-                if ("refusal".equals(part.path("type").asText())) throw new IllegalStateException("Digest was declined");
-                if ("output_text".equals(part.path("type").asText())) text.append(part.path("text").asText());
-            }
-        }
-        if (text.length() > 6000) throw new IllegalStateException("Digest is too large");
-        var body = json(text.toString());
+    private DigestContent validate(OpenAiClient.Response response, NewsBriefing briefing, boolean demo) {
+        if (response.refused()) throw new IllegalStateException("Digest was declined");
+        if (response.text().length() > 6000) throw new IllegalStateException("Digest is too large");
+        var body = json(response.text());
         String headline = field(body, "news", true), reflection = field(body, "reflection", true);
         var ids = body.path("sourceIds");
         var questions = body.path("questions");

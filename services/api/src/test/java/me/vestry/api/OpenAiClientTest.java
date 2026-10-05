@@ -5,6 +5,8 @@ import me.vestry.config.AiConfig.AiLimits;
 import me.vestry.service.AiBudgetService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -13,6 +15,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -53,8 +56,9 @@ class OpenAiClientTest {
         server.verify();
     }
 
-    @Test
-    void searchIsRequiredAndLimitedWithToolFeesIncludedBeforeNetworkAccess() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void extractsMessageContentAndSearchStateAfterSettlingUsage(boolean refused) {
         var search = new OpenAiClient.Request("Find public news", "AAPL", 1024, true);
         server.expect(anything())
                 .andExpect(jsonPath("$.tools[0].type").value("web_search"))
@@ -64,32 +68,26 @@ class OpenAiClientTest {
                 .andExpect(jsonPath("$.include[0]").value("web_search_call.action.sources"))
                 .andExpect(r -> verify(budget).reserveCall(job, "summary", client.allowance(search)))
                 .andRespond(withSuccess("""
-                    {"status":"completed","output":[{"type":"web_search_call","status":"completed"}],
+                    {"status":"completed","output":[
+                      {"type":"web_search_call","status":"completed","action":{"sources":[{"url":"https://uncited.example"}]}},
+                      {"type":"reasoning","content":[{"type":"output_text","text":"Ignore this"}]},
+                      {"type":"message","content":[{"type":"output_text","text":"First ","annotations":[
+                        {"type":"url_citation","url":"https://news.example","title":"News"},
+                        {"type":"file_citation","url":"https://ignored.example"}]},
+                        {"type":"output_text","text":"second"}]},
+                      {"type":"message","content":[{"type":"%s","text":" third","annotations":[
+                        {"type":"url_citation","url":"https://other.example"}]}]}],
                      "usage":{"input_tokens":8300,"output_tokens":50}}
-                    """, MediaType.APPLICATION_JSON));
+                    """.formatted(refused ? "refusal" : "output_text"), MediaType.APPLICATION_JSON));
         assertTrue(client.allowance(search) >= 16600);
-        client.generate(job, "summary", search);
+        var result = client.generate(job, "summary", search);
+        assertEquals(refused ? "First second" : "First second third", result.text());
+        assertEquals(refused, result.refused());
+        assertTrue(result.searchCompleted());
+        var citation = new OpenAiClient.Citation("https://news.example", "News");
+        assertEquals(refused ? List.of(citation) : List.of(citation, new OpenAiClient.Citation("https://other.example", null)), result.citations());
         // Includes both the $0.01 tool charge and fixed 8,000-token search block.
         verify(budget).settleCall(call, 16600);
-        server.verify();
-    }
-
-    @Test
-    void combinesStrictOutputSchemaWithRequiredSearchAndSourceAttribution() throws Exception {
-        var schema = mapper.readTree("{\"type\":\"object\",\"properties\":{},\"required\":[],\"additionalProperties\":false}");
-        var search = new OpenAiClient.Request("Find news", "AAPL", 1024, true, schema);
-        server.expect(anything())
-                .andExpect(jsonPath("$.text.format.type").value("json_schema"))
-                .andExpect(jsonPath("$.text.format.strict").value(true))
-                .andExpect(jsonPath("$.text.format.schema.additionalProperties").value(false))
-                .andExpect(jsonPath("$.tool_choice.type").value("web_search"))
-                .andExpect(jsonPath("$.max_tool_calls").value(1))
-                .andExpect(jsonPath("$.include[0]").value("web_search_call.action.sources"))
-                .andRespond(withSuccess("""
-                    {"status":"completed","output":[{"type":"web_search_call","status":"completed"}],
-                     "usage":{"input_tokens":8300,"output_tokens":50}}
-                    """, MediaType.APPLICATION_JSON));
-        client.generate(job, "summary", search);
         server.verify();
     }
 
@@ -104,18 +102,19 @@ class OpenAiClientTest {
         server.verify();
     }
 
-    @Test
-    void sendsStrictSchemaWithoutEnablingTools() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void sendsStrictSchemaWithOptionalSearch(boolean search) throws Exception {
         var schema = mapper.readTree("{\"type\":\"object\",\"properties\":{},\"required\":[],\"additionalProperties\":false}");
-        var structured = new OpenAiClient.Request("Return JSON", "context", 800, false, schema);
+        var structured = new OpenAiClient.Request("Return JSON", "context", 800, search, schema);
         server.expect(anything()).andExpect(jsonPath("$.text.format.type").value("json_schema"))
                 .andExpect(jsonPath("$.text.format.strict").value(true))
                 .andExpect(jsonPath("$.text.format.schema.additionalProperties").value(false))
-                .andExpect(jsonPath("$.tools").doesNotExist())
+                .andExpect(search ? jsonPath("$.tool_choice.type").value("web_search") : jsonPath("$.tools").doesNotExist())
                 .andRespond(withSuccess("""
                     {"status":"completed","output":[],"usage":{"input_tokens":100,"output_tokens":50}}
                     """, MediaType.APPLICATION_JSON));
-        client.generate(job, "summary", structured);
+        assertFalse(client.generate(job, "summary", structured).searchCompleted());
         server.verify();
     }
 

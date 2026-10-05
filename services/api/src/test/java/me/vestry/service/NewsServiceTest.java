@@ -1,6 +1,5 @@
 package me.vestry.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import me.vestry.api.OpenAiClient;
 import me.vestry.dto.NewsBriefing.Status;
@@ -75,22 +74,18 @@ class NewsServiceTest {
     }
 
     @Test
-    void acceptsCitedProseWithoutAGeneratedJsonContractAndIgnoresUncitedSearchHits() {
-        var answer = response();
-        var sources = (com.fasterxml.jackson.databind.node.ArrayNode) answer.path("output").get(0).path("action").path("sources");
-        sources.addObject().put("url", "https://news.example/unrelated");
-        var part = (com.fasterxml.jackson.databind.node.ObjectNode) answer.path("output").get(1).path("content").get(0);
-        var citations = (com.fasterxml.jackson.databind.node.ArrayNode) part.path("annotations");
-        citations.addObject().put("type", "url_citation").put("url", "javascript:alert(1)");
-        citations.addObject().put("type", "url_citation").put("url", "https://user:password@news.example/private");
-        citations.addObject().put("type", "url_citation").put("url", "https://news.example/story");
-        part.put("text", "On September 1 the company announced an October 5 event. That milestone is now four days away.");
+    void acceptsCitedProseAndFiltersUnsafeAndDuplicateCitations() {
+        var answer = new OpenAiClient.Response("On September 1 the company announced an October 5 event. That milestone is now four days away.",
+                List.of(new OpenAiClient.Citation("https://news.example/story", "Company results"),
+                        new OpenAiClient.Citation("javascript:alert(1)", null),
+                        new OpenAiClient.Citation("https://user:password@news.example/private", null),
+                        new OpenAiClient.Citation("https://news.example/story", "Duplicate")), false, true);
         when(client.generate(any(), anyString(), any())).thenReturn(answer);
         var result = service.getOrFetch(job, List.of("AAPL"));
         assertEquals(Status.READY, result.status());
         assertEquals(1, result.items().size());
         assertEquals("https://news.example/story", result.items().get(0).url());
-        assertEquals(part.path("text").asText(), result.research());
+        assertEquals(answer.text(), result.research());
         assertEquals(result, service.getOrFetch(job, List.of("AAPL")));
         verify(client, times(1)).generate(any(), anyString(), argThat(r -> r.webSearch() && r.schema() == null));
     }
@@ -104,15 +99,10 @@ class NewsServiceTest {
         verify(client, times(1)).generate(any(), anyString(), any());
         for (String failure : List.of("search", "sources", "text", "refusal")) {
             cache.deleteAll();
-            var answer = response();
-            var search = (com.fasterxml.jackson.databind.node.ObjectNode) answer.path("output").get(0);
-            var part = (com.fasterxml.jackson.databind.node.ObjectNode) answer.path("output").get(1).path("content").get(0);
-            switch (failure) {
-                case "search" -> search.put("status", "incomplete");
-                case "sources" -> part.putArray("annotations");
-                case "text" -> part.put("text", "");
-                case "refusal" -> part.put("type", "refusal");
-            }
+            var valid = response();
+            var answer = new OpenAiClient.Response(failure.equals("text") ? "" : valid.text(),
+                    failure.equals("sources") ? List.of() : valid.citations(),
+                    failure.equals("refusal"), !failure.equals("search"));
             doReturn(answer).when(client).generate(any(), anyString(), any());
             assertEquals(Status.UNAVAILABLE, service.getOrFetch(job, List.of("AAPL")).status());
         }
@@ -124,11 +114,8 @@ class NewsServiceTest {
 
     @Test
     void completedSearchWithExplicitlyNoRelevantNewsIsEmptyAndCached() {
-        var answer = response();
-        ((com.fasterxml.jackson.databind.node.ObjectNode) answer.path("output").get(0).path("action")).putArray("sources");
-        ((com.fasterxml.jackson.databind.node.ObjectNode) answer.path("output").get(1).path("content").get(0))
-                .put("text", "NO_RELEVANT_NEWS");
-        when(client.generate(any(), anyString(), any())).thenReturn(answer);
+        when(client.generate(any(), anyString(), any()))
+                .thenReturn(new OpenAiClient.Response("NO_RELEVANT_NEWS", List.of(), false, true));
         assertEquals(Status.EMPTY, service.getOrFetch(job, List.of("AAPL")).status());
         assertEquals(Status.EMPTY, service.getOrFetch(job, List.of("AAPL")).status());
         verify(client, times(1)).generate(any(), anyString(), any());
@@ -175,14 +162,8 @@ class NewsServiceTest {
         assertTrue(allowance + 10000 <= 30000);
     }
 
-    private JsonNode response() {
-        var output = mapper.createArrayNode();
-        var search = output.addObject().put("type", "web_search_call").put("status", "completed");
-        search.putObject("action").putArray("sources").addObject().put("url", "https://news.example/story");
-        output.addObject().put("type", "message").putArray("content").addObject()
-                .put("type", "output_text").put("text", "Company published quarterly results on October 1, 2026.")
-                .putArray("annotations").addObject().put("type", "url_citation")
-                .put("url", "https://news.example/story").put("title", "Company results");
-        return mapper.createObjectNode().set("output", output);
+    private OpenAiClient.Response response() {
+        return new OpenAiClient.Response("Company published quarterly results on October 1, 2026.",
+                List.of(new OpenAiClient.Citation("https://news.example/story", "Company results")), false, true);
     }
 }

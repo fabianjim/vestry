@@ -1,5 +1,6 @@
 package me.vestry.controller;
 
+import lombok.RequiredArgsConstructor;
 import jakarta.servlet.http.HttpServletRequest;
 import me.vestry.model.DemoSession;
 import me.vestry.service.DashboardDigestService;
@@ -12,14 +13,10 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/portfolio/digest")
+@RequiredArgsConstructor
 public class DigestController {
     private final DashboardDigestService digests;
     private final DemoSessionResolver sessions;
-
-    public DigestController(DashboardDigestService digests, DemoSessionResolver sessions) {
-        this.digests = digests;
-        this.sessions = sessions;
-    }
 
     @GetMapping("/availability")
     public ResponseEntity<Map<String, Boolean>> availability() {

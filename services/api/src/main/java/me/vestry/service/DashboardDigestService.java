@@ -1,5 +1,6 @@
 package me.vestry.service;
 
+import lombok.RequiredArgsConstructor;
 import me.vestry.model.AiGeneration;
 import me.vestry.model.DemoSession;
 import me.vestry.model.User;
@@ -15,6 +16,7 @@ import java.time.ZoneId;
 import java.util.HexFormat;
 
 @Service
+@RequiredArgsConstructor
 public class DashboardDigestService {
     private static final ZoneId ZONE = ZoneId.of("America/New_York");
     private final DigestService digests;
@@ -25,19 +27,6 @@ public class DashboardDigestService {
     private final DashboardLayoutService layouts;
     private final DemoSessionResolver users;
     private final Clock clock;
-
-    public DashboardDigestService(DigestService digests, DigestContextService context, AiGenerationService generations,
-                                  AiGenerationRepository jobs, AiBudgetService budget, DashboardLayoutService layouts,
-                                  DemoSessionResolver users, Clock aiClock) {
-        this.digests = digests;
-        this.context = context;
-        this.generations = generations;
-        this.jobs = jobs;
-        this.budget = budget;
-        this.layouts = layouts;
-        this.users = users;
-        clock = aiClock;
-    }
 
     public enum Status { DISABLED, HIDDEN, IDLE, GENERATING, READY, FAILED, LIMITED }
     public record State(Status status, LocalDate day, DigestService.Result digest) {}

@@ -1,6 +1,6 @@
 package me.vestry.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import lombok.RequiredArgsConstructor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import me.vestry.api.OpenAiClient;
 import me.vestry.dto.NewsBriefing;
@@ -25,6 +25,7 @@ import java.time.ZoneId;
 import java.util.*;
 
 @Service
+@RequiredArgsConstructor
 public class NewsService {
     private static final Logger log = LoggerFactory.getLogger(NewsService.class);
     private static final class InvalidNews extends IllegalStateException {
@@ -46,13 +47,6 @@ public class NewsService {
     private final NewsCacheRepository cache;
     private final ObjectMapper mapper;
     private final Clock clock;
-
-    public NewsService(OpenAiClient client, NewsCacheRepository cache, ObjectMapper mapper, Clock aiClock) {
-        this.client = client;
-        this.cache = cache;
-        this.mapper = mapper;
-        clock = aiClock;
-    }
 
     /** Reserve this amount alongside the digest allowance before starting the existing generation job. */
     public long allowance(List<String> tickers) {
@@ -100,43 +94,26 @@ public class NewsService {
         return mapper.convertValue(entry.getItems(), NewsBriefing.class);
     }
 
-    private NewsBriefing parse(JsonNode response, LocalDate day) {
+    private NewsBriefing parse(OpenAiClient.Response response, LocalDate day) {
+        if (response.refused()) throw new InvalidNews("NEWS_REFUSED");
         Map<String, Item> sources = new LinkedHashMap<>();
-        StringBuilder text = new StringBuilder();
-        boolean searched = false;
-        // Only provider citation annotations qualify; raw search hits are not cited evidence.
-        for (var output : response.path("output")) {
-            if (!"message".equals(output.path("type").asText())) continue;
-            for (var part : output.path("content")) {
-                if ("refusal".equals(part.path("type").asText())) throw new InvalidNews("NEWS_REFUSED");
-                if (!"output_text".equals(part.path("type").asText())) continue;
-                text.append(part.path("text").asText());
-                for (var citation : part.path("annotations")) {
-                    if ("url_citation".equals(citation.path("type").asText())) addSource(sources, citation);
-                }
-            }
-        }
-        for (var output : response.path("output")) {
-            if ("web_search_call".equals(output.path("type").asText())
-                    && "completed".equals(output.path("status").asText())) {
-                searched = true;
-            }
-        }
-        if (!searched || text.isEmpty() || text.length() > 12000) throw new InvalidNews("SEARCH_INCOMPLETE");
-        if ("NO_RELEVANT_NEWS".equals(text.toString().strip())) {
+        response.citations().forEach(citation -> addSource(sources, citation));
+        String text = response.text();
+        if (!response.searchCompleted() || text.isEmpty() || text.length() > 12000) throw new InvalidNews("SEARCH_INCOMPLETE");
+        if ("NO_RELEVANT_NEWS".equals(text.strip())) {
             return new NewsBriefing(day, clock.instant(), Status.EMPTY, List.of());
         }
         if (sources.isEmpty()) throw new InvalidNews("SEARCH_WITHOUT_CITATIONS");
-        return new NewsBriefing(day, clock.instant(), Status.READY, List.copyOf(sources.values()), text.toString());
+        return new NewsBriefing(day, clock.instant(), Status.READY, List.copyOf(sources.values()), text);
     }
 
-    private static void addSource(Map<String, Item> sources, JsonNode source) {
-        String url = source.path("url").asText();
+    private static void addSource(Map<String, Item> sources, OpenAiClient.Citation source) {
+        String url = source.url();
         try {
             URI uri = URI.create(url);
             if (sources.size() < 4 && url.length() <= 2048 && "https".equalsIgnoreCase(uri.getScheme())
                     && uri.getHost() != null && uri.getUserInfo() == null) {
-                String title = source.path("title").asText(uri.getHost());
+                String title = source.title() == null ? uri.getHost() : source.title();
                 sources.putIfAbsent(url, new Item(title.substring(0, Math.min(title.length(), 160)), "", null, url));
             }
         } catch (IllegalArgumentException ignored) { /* Discard malformed source links. */ }

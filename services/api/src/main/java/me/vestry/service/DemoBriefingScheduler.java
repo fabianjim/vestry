@@ -1,5 +1,6 @@
 package me.vestry.service;
 
+import lombok.RequiredArgsConstructor;
 import me.vestry.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -7,15 +8,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class DemoBriefingScheduler {
     private static final Logger log = LoggerFactory.getLogger(DemoBriefingScheduler.class);
     private final UserRepository users;
     private final DashboardDigestService briefings;
-
-    public DemoBriefingScheduler(UserRepository users, DashboardDigestService briefings) {
-        this.users = users;
-        this.briefings = briefings;
-    }
 
     @Scheduled(cron = "0 0 10 * * MON-FRI", zone = "America/New_York")
     public void generate() {

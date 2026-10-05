@@ -1,5 +1,6 @@
 package me.vestry.service;
 
+import lombok.RequiredArgsConstructor;
 import me.vestry.config.AiConfig.AiLimits;
 import me.vestry.model.AiBudget;
 import me.vestry.model.AiCall;
@@ -15,6 +16,7 @@ import java.util.UUID;
 
 @Service
 @Transactional(propagation = Propagation.REQUIRES_NEW)
+@RequiredArgsConstructor
 public class AiBudgetService {
     public static final Duration MAX_JOB_TIME = Duration.ofMinutes(5);
     private static final ZoneId BUDGET_ZONE = ZoneId.of("America/New_York");
@@ -23,15 +25,6 @@ public class AiBudgetService {
     private final AiCallRepository calls;
     private final AiLimits limits;
     private final Clock clock;
-
-    public AiBudgetService(AiBudgetRepository budget, AiGenerationRepository jobs, AiCallRepository calls,
-                           AiLimits limits, Clock aiClock) {
-        this.budget = budget;
-        this.jobs = jobs;
-        this.calls = calls;
-        this.limits = limits;
-        this.clock = aiClock;
-    }
 
     public record Start(UUID id, boolean created) {}
 

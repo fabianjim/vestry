@@ -129,13 +129,16 @@ class DigestServiceTest {
     }
 
     @Test
-    void disabledAndProviderFailuresDoNotSaveResults() {
+    void disabledProviderFailuresAndRefusalsDoNotSaveResults() {
         when(client.isConfigured()).thenReturn(false);
         assertTrue(service.latest().isEmpty());
         assertThrows(IllegalStateException.class, () -> service.generate(job, snapshot));
         verifyNoInteractions(news, users);
         when(client.isConfigured()).thenReturn(true);
         when(client.generate(any(), anyString(), any())).thenThrow(new IllegalStateException("unavailable"));
+        assertThrows(IllegalStateException.class, () -> service.generate(job, snapshot));
+        doReturn(new OpenAiClient.Response(validBody().toString(), List.of(), true, false))
+                .when(client).generate(any(), anyString(), any());
         assertThrows(IllegalStateException.class, () -> service.generate(job, snapshot));
         assertEquals(0, repository.count());
     }
@@ -261,10 +264,8 @@ class DigestServiceTest {
     }
 
     private void answer(ObjectNode body) {
-        var response = mapper.createObjectNode();
-        response.putArray("output").addObject().put("type", "message").putArray("content")
-                .addObject().put("type", "output_text").put("text", body.toString());
-        when(client.generate(any(), anyString(), any())).thenReturn(response);
+        when(client.generate(any(), anyString(), any()))
+                .thenReturn(new OpenAiClient.Response(body.toString(), List.of(), false, false));
     }
 
     private NewsBriefing briefing(NewsBriefing.Status status) {

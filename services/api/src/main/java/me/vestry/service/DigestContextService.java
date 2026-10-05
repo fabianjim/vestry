@@ -1,5 +1,6 @@
 package me.vestry.service;
 
+import lombok.RequiredArgsConstructor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import me.vestry.api.OpenAiClient;
@@ -19,6 +20,7 @@ import java.time.Instant;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class DigestContextService {
     private final DemoSessionResolver users;
     private final PortfolioService portfolios;
@@ -30,21 +32,6 @@ public class DigestContextService {
     private final PortfolioRepository savedPortfolios;
     private final TransactionRepository transactions;
     private final PortfolioDigestRepository digests;
-
-    public DigestContextService(DemoSessionResolver users, PortfolioService portfolios, JournalEntryRepository journal,
-                                NasdaqMetadataService metadata, OpenAiClient client, ObjectMapper mapper, Clock aiClock,
-                                PortfolioRepository savedPortfolios, TransactionRepository transactions, PortfolioDigestRepository digests) {
-        this.users = users;
-        this.portfolios = portfolios;
-        this.journal = journal;
-        this.metadata = metadata;
-        this.client = client;
-        this.mapper = mapper;
-        clock = aiClock;
-        this.savedPortfolios = savedPortfolios;
-        this.transactions = transactions;
-        this.digests = digests;
-    }
 
     public record Snapshot(int userId, boolean demo, Instant capturedAt, List<String> tickers, String json) {
         public Snapshot { tickers = List.copyOf(tickers); }
