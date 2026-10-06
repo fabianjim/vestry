@@ -47,7 +47,7 @@ import static org.mockito.Mockito.when;
 })
 @ActiveProfiles("ai-diagnostic")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({AiConfig.class, AiBudgetService.class, OpenAiClient.class, NewsService.class, DigestService.class, NewsDiagnostic.Config.class})
+@Import({me.vestry.config.LangfuseConfig.class, AiConfig.class, AiBudgetService.class, OpenAiClient.class, NewsService.class, DigestService.class, NewsDiagnostic.Config.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class NewsDiagnostic {
     @TestConfiguration

@@ -30,6 +30,7 @@ eval-ai:
 	  . ./services/api/.env.ai-diagnostic; \
 	  test -n "$${OPENAI_API_KEY:-}" || { echo 'Set OPENAI_API_KEY in services/api/.env.ai-diagnostic.' >&2; exit 1; }; \
 	  export OPENAI_API_KEY; \
+	  export LANGFUSE_TRACING_ENABLED LANGFUSE_BASE_URL LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY LANGFUSE_RELEASE; \
 	  node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 22 || (major === 22 && minor < 22)) { console.error("Promptfoo requires Node >=22.22.0."); process.exit(1); }'; \
 	  cd services/api; \
 	  ./mvnw -q test-compile dependency:build-classpath -DincludeScope=test -Dmdep.outputFile=target/eval-classpath.txt; \

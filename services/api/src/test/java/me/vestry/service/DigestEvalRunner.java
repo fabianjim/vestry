@@ -32,11 +32,19 @@ public final class DigestEvalRunner {
         // Promptfoo treats stdout as the output, so library diagnostics belong on stderr.
         var output = System.out;
         System.setOut(System.err);
-        var client = new OpenAiClient(MAPPER, singleCallBudget(), new AiLimits(true, 10_000, 10_000, 1), key);
-        output.println(MAPPER.writeValueAsString(evaluate(MAPPER.readTree(args[0]), client)));
+        try (var tracing = BriefingTracing.create(Boolean.parseBoolean(env("LANGFUSE_TRACING_ENABLED", "false")),
+                env("LANGFUSE_BASE_URL", "https://us.cloud.langfuse.com"), env("LANGFUSE_PUBLIC_KEY", ""),
+                env("LANGFUSE_SECRET_KEY", ""), "evaluation", env("LANGFUSE_RELEASE", ""), true)) {
+            var client = new OpenAiClient(MAPPER, singleCallBudget(), new AiLimits(true, 10_000, 10_000, 1), key, tracing);
+            output.println(MAPPER.writeValueAsString(evaluate(MAPPER.readTree(args[0]), client, tracing)));
+        }
     }
 
     static DigestContent evaluate(JsonNode fixture, OpenAiClient client) throws Exception {
+        return evaluate(fixture, client, BriefingTracing.disabled());
+    }
+
+    static DigestContent evaluate(JsonNode fixture, OpenAiClient client, BriefingTracing tracing) throws Exception {
         var portfolio = fixture.required("portfolio");
         var capturedAt = Instant.parse(portfolio.required("capturedAt").asText());
         var tickers = new ArrayList<String>();
@@ -49,8 +57,12 @@ public final class DigestEvalRunner {
         var repository = mock(PortfolioDigestRepository.class);
         when(repository.saveAndFlush(any(PortfolioDigest.class))).thenAnswer(call -> call.getArgument(0));
         var service = new DigestService(client, news, repository, mock(DemoSessionResolver.class),
-                MAPPER, Clock.fixed(capturedAt, ZoneOffset.UTC));
+                MAPPER, Clock.fixed(capturedAt, ZoneOffset.UTC), tracing);
         return service.generate(job, snapshot).content();
+    }
+
+    private static String env(String key, String fallback) {
+        return System.getenv().getOrDefault(key, fallback);
     }
 
     /** Test-only accounting: one attempted call, with no persistent daily/lifetime budget. */

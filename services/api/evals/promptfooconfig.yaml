@@ -1,4 +1,4 @@
-# Run with make eval-ai (paid; loads OPENAI_API_KEY from services/api/.env.ai-diagnostic).
+# Run with make eval-ai
 # Fixtures replace context capture and live research, not the application prompt.
 # Text checks flag specific regressions; they do not establish factual accuracy.
 description: Portfolio briefing writer regressions

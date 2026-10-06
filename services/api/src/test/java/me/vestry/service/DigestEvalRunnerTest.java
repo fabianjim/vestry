@@ -2,6 +2,7 @@ package me.vestry.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import me.vestry.api.OpenAiClient;
+import me.vestry.service.BriefingTracing;
 import me.vestry.config.AiConfig.AiLimits;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,7 +31,7 @@ class DigestEvalRunnerTest {
     @BeforeEach
     void setup() {
         client = new OpenAiClient(mapper, DigestEvalRunner.singleCallBudget(),
-                new AiLimits(true, 10_000, 10_000, 1), "test-key");
+                new AiLimits(true, 10_000, 10_000, 1), "test-key", BriefingTracing.disabled());
         server = MockRestServiceServer.bindTo((RestTemplate) ReflectionTestUtils.getField(client, "http")).build();
     }
 
@@ -50,6 +51,33 @@ class DigestEvalRunnerTest {
         assertEquals("Record a thought about your portfolio.", content.reflection());
         assertTrue(content.sources().isEmpty());
         server.verify();
+    }
+
+    @Test
+    void syntheticEvaluationCapturesContentInEvaluationEnvironmentAndFlushesOnExit() throws Exception {
+        var exporter = io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter.create();
+        var processor = io.opentelemetry.sdk.trace.export.BatchSpanProcessor.builder(exporter).build();
+        var provider = io.opentelemetry.sdk.trace.SdkTracerProvider.builder().addSpanProcessor(processor).build();
+        try (var tracing = new BriefingTracing(provider.get("test"), provider, "production", "eval-test", true)) {
+            var evaluatedClient = new OpenAiClient(mapper, DigestEvalRunner.singleCallBudget(),
+                    new AiLimits(true, 10_000, 10_000, 1), "test-key", tracing);
+            var evaluatedServer = MockRestServiceServer.bindTo(
+                    (RestTemplate) ReflectionTestUtils.getField(evaluatedClient, "http")).build();
+            evaluatedServer.expect(anything()).andRespond(withSuccess(response("""
+                    {"news":"","reflection":"Record a thought.","sourceIds":[],
+                     "questions":[{"text":"Record a thought","destination":"JOURNAL"}]}
+                    """), MediaType.APPLICATION_JSON));
+            assertNotNull(DigestEvalRunner.evaluate(mapper.readTree(FIXTURE), evaluatedClient, tracing));
+            provider.forceFlush().join(5, java.util.concurrent.TimeUnit.SECONDS);
+            var spans = exporter.getFinishedSpanItems();
+            assertEquals(3, spans.size()); // Research is a supplied fixture in Promptfoo.
+            assertTrue(spans.stream().allMatch(s -> "evaluation".equals(s.getAttributes().get(
+                    io.opentelemetry.api.common.AttributeKey.stringKey("langfuse.environment")))));
+            assertTrue(spans.stream().allMatch(s -> "full".equals(s.getAttributes().get(
+                    io.opentelemetry.api.common.AttributeKey.stringKey("langfuse.observation.metadata.content_capture")))));
+            assertTrue(spans.toString().contains("Record a thought."));
+            evaluatedServer.verify();
+        }
     }
 
     @Test
