@@ -68,6 +68,7 @@ public class DigestService {
     private final DemoSessionResolver users;
     private final ObjectMapper mapper;
     private final Clock clock;
+    private final BriefingTracing tracing;
 
     public record Result(UUID id, Instant capturedAt, Instant generatedAt, DigestContent content) {}
 
@@ -86,8 +87,27 @@ public class DigestService {
     /** Run via AiGenerationService after reserving allowance; no request/session state is accessed here. */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public Result generate(UUID job, DigestContextService.Snapshot snapshot) {
+        try (var observation = tracing.briefing(job, snapshot.demo())) {
+            observation.json("langfuse.observation.input", Map.of("capturedAt", snapshot.capturedAt().toString(),
+                    "holdingCount", snapshot.tickers().size()));
+            observation.inputJson(snapshot.json());
+            try {
+                var result = generateObserved(job, snapshot, observation);
+                observation.summary(Map.of("status", "READY", "newsStatus", result.content().newsStatus().name(),
+                        "sourceCount", result.content().sources().size()));
+                observation.output(result.content());
+                return result;
+            } catch (RuntimeException failure) {
+                observation.failure("BRIEFING_FAILED");
+                throw failure;
+            }
+        }
+    }
+
+    private Result generateObserved(UUID job, DigestContextService.Snapshot snapshot, BriefingTracing.Observation observation) {
         if (!available()) throw new IllegalStateException("AI is disabled");
         var existing = digests.findByIdAndUserId(job, snapshot.userId());
+        observation.metadata("digest_cache_hit", existing.isPresent());
         if (existing.isPresent()) return result(existing.get());
         var briefing = news.getOrFetch(job, snapshot.tickers());
         var input = mapper.createObjectNode();
@@ -136,7 +156,17 @@ public class DigestService {
         // This validates the full serialized request before a paid summary call.
         client.allowance(request);
         var response = client.generate(job, "digest", request);
-        var content = validate(response, briefing, snapshot.demo());
+        DigestContent content;
+        try (var validation = tracing.step("validate-portfolio-briefing", "guardrail")) {
+            validation.input(response.text());
+            try {
+                content = validate(response, briefing, snapshot.demo());
+                validation.summary(Map.of("valid", true, "sourceCount", content.sources().size()));
+            } catch (RuntimeException failure) {
+                validation.failure("BRIEFING_VALIDATION_FAILED");
+                throw failure;
+            }
+        }
         return result(digests.saveAndFlush(new PortfolioDigest(job, snapshot.userId(), snapshot.capturedAt(),
                 clock.instant(), mapper.valueToTree(content))));
     }

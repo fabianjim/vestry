@@ -47,6 +47,7 @@ public class NewsService {
     private final NewsCacheRepository cache;
     private final ObjectMapper mapper;
     private final Clock clock;
+    private final BriefingTracing tracing;
 
     /** Reserve this amount alongside the digest allowance before starting the existing generation job. */
     public long allowance(List<String> tickers) {
@@ -56,17 +57,38 @@ public class NewsService {
     /** Called only inside an authorized AI job. Cache hits never reserve or call the provider. */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public NewsBriefing getOrFetch(UUID jobId, List<String> tickers) {
+        try (var observation = tracing.step("retrieve-market-news", "retriever")) {
+            observation.input(tickers);
+            try {
+                var result = getOrFetchObserved(jobId, tickers, observation);
+                observation.summary(Map.of("status", result.status().name(), "sourceCount", result.items().size()));
+                observation.output(result);
+                if (result.status() == Status.UNAVAILABLE) {
+                    observation.attribute("langfuse.observation.level", "WARNING");
+                    observation.attribute("langfuse.observation.status_message", "NEWS_UNAVAILABLE");
+                }
+                return result;
+            } catch (RuntimeException failure) {
+                observation.failure("NEWS_RETRIEVAL_FAILED");
+                throw failure;
+            }
+        }
+    }
+
+    private NewsBriefing getOrFetchObserved(UUID jobId, List<String> tickers, BriefingTracing.Observation observation) {
         LocalDate day = today();
         if (!client.isConfigured()) return new NewsBriefing(day, null, Status.DISABLED, List.of());
         String symbols = symbols(tickers);
         String key = key(day + ":" + symbols);
         var existing = cache.findById(key);
+        observation.metadata("cache_hit", existing.isPresent());
         if (existing.isPresent()) return briefing(existing.get());
         NewsCache entry;
         try {
             // Commit before network access. Failed or abandoned claims are not retried that day.
             entry = cache.saveAndFlush(new NewsCache(key, day, clock.instant()));
         } catch (DataIntegrityViolationException claimed) {
+            observation.metadata("cache_claim_conflict", true);
             return cache.findById(key).map(this::briefing)
                     .orElseGet(() -> new NewsBriefing(day, null, Status.UNAVAILABLE, List.of()));
         }

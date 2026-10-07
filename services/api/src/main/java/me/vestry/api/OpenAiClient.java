@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import me.vestry.config.AiConfig.AiLimits;
 import me.vestry.service.AiBudgetService;
+import me.vestry.service.BriefingTracing;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -19,6 +20,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -37,13 +39,15 @@ public class OpenAiClient {
     private final AiBudgetService budget;
     private final AiLimits limits;
     private final String apiKey;
+    private final BriefingTracing tracing;
 
     public OpenAiClient(ObjectMapper mapper, AiBudgetService budget, AiLimits limits,
-                        @Value("${vestry.ai.api-key:}") String apiKey) {
+                        @Value("${vestry.ai.api-key:}") String apiKey, BriefingTracing tracing) {
         this.mapper = mapper;
         this.budget = budget;
         this.limits = limits;
         this.apiKey = apiKey;
+        this.tracing = tracing;
         var transport = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
                 .followRedirects(HttpClient.Redirect.NEVER).build();
         var factory = new JdkClientHttpRequestFactory(transport);
@@ -66,7 +70,7 @@ public class OpenAiClient {
     }
 
     public boolean isConfigured() {
-        return limits.enabled() && !apiKey.isBlank() && limits.lifetimeMicros() > 0
+        return limits.enabled() && !apiKey.isBlank() && limits.permitsLifetimeSpend(0, 1)
                 && limits.dailyMicros() > 0 && limits.dailyGenerations() > 0;
     }
 
@@ -78,14 +82,37 @@ public class OpenAiClient {
     }
 
     public Response generate(UUID jobId, String step, Request request) {
+        try (var observation = tracing.step(request != null && request.webSearch()
+                ? "research-market-news" : "write-portfolio-briefing", "generation")) {
+            try {
+                return generateObserved(jobId, step, request, observation);
+            } catch (RuntimeException failure) {
+                observation.failure(failure instanceof Failure ? failure.getMessage() : "GENERATION_FAILED");
+                throw failure;
+            }
+        }
+    }
+
+    private Response generateObserved(UUID jobId, String step, Request request, BriefingTracing.Observation observation) {
         if (!isConfigured()) throw new IllegalStateException("AI is not configured");
         String body = body(request);
+        observation.attribute("langfuse.observation.model.name", MODEL);
+        observation.attribute("gen_ai.system", "openai");
+        observation.json("langfuse.observation.model.parameters", Map.of(
+                "max_output_tokens", request.maxOutputTokens(), "web_search", request.webSearch()));
+        observation.metadata("prompt_fingerprint", BriefingTracing.fingerprint(request.instructions()));
+        if (request.schema() != null) {
+            observation.metadata("schema_fingerprint", BriefingTracing.fingerprint(request.schema().toString()));
+        }
+        observation.input(Map.of("instructions", request.instructions(), "input", request.input(),
+                "schema", request.schema() == null ? mapper.nullNode() : request.schema()));
         var headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(apiKey);
         // This transaction commits before network I/O. Any ambiguous failure retains its reservation.
         long reserved = allowance(request);
         UUID call = budget.reserveCall(jobId, step, reserved);
+        observation.metadata("call_id", call);
         JsonNode response;
         try {
             String raw = http.postForObject(ENDPOINT, new HttpEntity<>(body, headers), String.class);
@@ -102,6 +129,7 @@ public class OpenAiClient {
         JsonNode usage = response.path("usage");
         long input = tokenCount(usage.path("input_tokens"));
         long output = tokenCount(usage.path("output_tokens"));
+        observation.json("langfuse.observation.usage_details", Map.of("input", input, "output", output, "total", input + output));
         if (request.webSearch() && !response.path("output").isArray()) {
             throw new Failure("PROVIDER_MISSING_OUTPUT");
         }
@@ -129,6 +157,13 @@ public class OpenAiClient {
         }
         // Charge the fixed search block separately even if provider usage includes it: never undercount.
         long actual = cost(input, output) + searches * SEARCH_ALLOWANCE;
+        observation.metadata("web_search_calls", searches);
+        observation.metadata("search_completed", searched);
+        observation.metadata("refused", refused);
+        observation.metadata("cost_basis", "conservative_budget_estimate_including_search");
+        observation.json("langfuse.observation.cost_details", Map.of("total", actual / 1_000_000.0));
+        // Demo/evaluation only: retain tool actions and refusals as well as the model's text/citations.
+        observation.output(response.path("output"));
         budget.settleCall(call, actual);
         if (actual > reserved) throw new Failure("USAGE_OVER_RESERVATION");
         if (searches > (request.webSearch() ? 1 : 0)) {

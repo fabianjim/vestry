@@ -2,6 +2,7 @@ package me.vestry.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import me.vestry.api.OpenAiClient;
+import me.vestry.service.BriefingTracing;
 import me.vestry.dto.NewsBriefing.Status;
 import me.vestry.repository.NewsCacheRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +41,7 @@ class NewsServiceTest {
 
     @TestConfiguration
     static class Config {
+        @Bean BriefingTracing tracing() { return BriefingTracing.disabled(); }
         @Bean ObjectMapper mapper() { return new ObjectMapper().findAndRegisterModules(); }
         @Bean MutableClock clock() { return new MutableClock(); }
     }
@@ -61,7 +63,7 @@ class NewsServiceTest {
     void cachesAcrossAccountsAndServiceInstancesThenRefreshesOnNewYorkDateChange() {
         when(client.generate(any(), anyString(), any())).thenReturn(response());
         var first = service.getOrFetch(job, List.of("msft", "AAPL"));
-        var restarted = new NewsService(client, cache, mapper, clock);
+        var restarted = new NewsService(client, cache, mapper, clock, BriefingTracing.disabled());
         assertEquals(first, restarted.getOrFetch(UUID.randomUUID(), List.of("aapl", "MSFT", "AAPL")));
         assertEquals(Status.READY, first.status());
         assertEquals(LocalDate.of(2026, 10, 1), first.newsDate());
@@ -154,8 +156,8 @@ class NewsServiceTest {
     @Test
     void researchAndFullBriefingFitExistingReservationCeilings() {
         var realClient = new OpenAiClient(mapper, mock(AiBudgetService.class),
-                new me.vestry.config.AiConfig.AiLimits(true, 100000, 100000, 5), "test-key");
-        var bounded = new NewsService(realClient, cache, mapper, clock);
+                new me.vestry.config.AiConfig.AiLimits(true, 100000, 100000, 5), "test-key", BriefingTracing.disabled());
+        var bounded = new NewsService(realClient, cache, mapper, clock, BriefingTracing.disabled());
         long allowance = bounded.allowance(List.of("ABCDEFGHIJ", "KLMNOPQRST", "UVWXYZABCD", "EFGHIJKLMN",
                 "OPQRSTUVWX", "YZABCDEFGH", "IJKLMNOPQR", "STUVWXYZAB"));
         assertTrue(allowance <= 20000);

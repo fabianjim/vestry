@@ -3,6 +3,7 @@ package me.vestry.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import me.vestry.api.OpenAiClient;
+import me.vestry.service.BriefingTracing;
 import me.vestry.dto.NewsBriefing;
 import me.vestry.model.User;
 import me.vestry.repository.PortfolioDigestRepository;
@@ -42,6 +43,7 @@ class DigestServiceTest {
 
     @TestConfiguration
     static class Config {
+        @Bean BriefingTracing tracing() { return BriefingTracing.disabled(); }
         @Bean ObjectMapper mapper() { return new ObjectMapper().findAndRegisterModules(); }
         @Bean Clock clock() { return Clock.fixed(Instant.parse("2026-10-02T12:00:00Z"), ZoneOffset.UTC); }
     }
@@ -124,7 +126,7 @@ class DigestServiceTest {
         var request = org.mockito.ArgumentCaptor.forClass(OpenAiClient.Request.class);
         verify(client).generate(eq(job), eq("digest"), request.capture());
         var actualClient = new OpenAiClient(mapper, mock(AiBudgetService.class),
-                new me.vestry.config.AiConfig.AiLimits(false, 0, 0, 0), "");
+                new me.vestry.config.AiConfig.AiLimits(false, 0, 0, 0), "", BriefingTracing.disabled());
         assertTrue(actualClient.allowance(request.getValue()) < 10_000);
     }
 

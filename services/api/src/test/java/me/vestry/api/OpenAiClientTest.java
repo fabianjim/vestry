@@ -1,5 +1,7 @@
 package me.vestry.api;
 
+import me.vestry.service.BriefingTracing;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import me.vestry.config.AiConfig.AiLimits;
 import me.vestry.service.AiBudgetService;
@@ -34,7 +36,7 @@ class OpenAiClientTest {
 
     @BeforeEach
     void setup() {
-        client = new OpenAiClient(mapper, budget, new AiLimits(true, 100000, 100000, 5), "test-key");
+        client = new OpenAiClient(mapper, budget, new AiLimits(true, 100000, 100000, 5), "test-key", BriefingTracing.disabled());
         server = MockRestServiceServer.bindTo((RestTemplate) ReflectionTestUtils.getField(client, "http")).build();
         when(budget.reserveCall(eq(job), eq("summary"), anyLong())).thenReturn(call);
     }
@@ -180,13 +182,23 @@ class OpenAiClientTest {
     }
 
     @Test
+    void uncappedLifetimeEnablesConfiguredClientButStillRequiresDailyAllowance() {
+        assertTrue(new OpenAiClient(mapper, budget, new AiLimits(true, -1, 200_000, 5),
+                "test-key", BriefingTracing.disabled()).isConfigured());
+        assertFalse(new OpenAiClient(mapper, budget, new AiLimits(true, -1, 0, 5),
+                "test-key", BriefingTracing.disabled()).isConfigured());
+        assertFalse(new OpenAiClient(mapper, budget, new AiLimits(true, -1, 200_000, 0),
+                "test-key", BriefingTracing.disabled()).isConfigured());
+    }
+
+    @Test
     void rejectsDisabledUnconfiguredAndOversizedRequestsBeforeReservation() {
-        var disabled = new OpenAiClient(mapper, budget, new AiLimits(false, 0, 0, 0), "test-key");
+        var disabled = new OpenAiClient(mapper, budget, new AiLimits(false, 0, 0, 0), "test-key", BriefingTracing.disabled());
         assertThrows(IllegalStateException.class, () -> disabled.generate(job, "summary", request));
-        var zeroBudget = new OpenAiClient(mapper, budget, new AiLimits(true, 0, 100, 5), "test-key");
+        var zeroBudget = new OpenAiClient(mapper, budget, new AiLimits(true, 0, 100, 5), "test-key", BriefingTracing.disabled());
         assertFalse(zeroBudget.isConfigured());
         assertThrows(IllegalStateException.class, () -> zeroBudget.generate(job, "summary", request));
-        var noKey = new OpenAiClient(mapper, budget, new AiLimits(true, 100, 100, 5), "");
+        var noKey = new OpenAiClient(mapper, budget, new AiLimits(true, 100, 100, 5), "", BriefingTracing.disabled());
         assertThrows(IllegalStateException.class, () -> noKey.generate(job, "summary", request));
         assertThrows(IllegalArgumentException.class, () -> client.generate(job, "summary", new OpenAiClient.Request("", "日".repeat(6000), 600)));
         assertThrows(IllegalArgumentException.class, () -> client.allowance(new OpenAiClient.Request("", "context", 1025)));
