@@ -35,7 +35,7 @@ public class AiBudgetService {
         var now = clock.instant();
         var day = now.atZone(BUDGET_ZONE).toLocalDate();
         return jobs.countByBudgetDay(day) < limits.dailyGenerations()
-                && jobs.totalCharged() < limits.lifetimeMicros() && jobs.chargedOn(day) < limits.dailyMicros()
+                && limits.permitsLifetimeSpend(jobs.totalCharged(), 1) && jobs.chargedOn(day) < limits.dailyMicros()
                 && jobs.findByStatus(AiGeneration.Status.RUNNING).stream()
                     .noneMatch(job -> job.getStartedAt().plus(MAX_JOB_TIME).isAfter(now));
     }
@@ -60,7 +60,7 @@ public class AiBudgetService {
         }
         var day = now.atZone(BUDGET_ZONE).toLocalDate();
         if (jobs.countByBudgetDay(day) >= limits.dailyGenerations()
-                || allowance > limits.lifetimeMicros() - jobs.totalCharged()
+                || !limits.permitsLifetimeSpend(jobs.totalCharged(), allowance)
                 || allowance > limits.dailyMicros() - jobs.chargedOn(day)) {
             throw new IllegalStateException("AI allowance reached");
         }

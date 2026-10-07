@@ -182,6 +182,16 @@ class OpenAiClientTest {
     }
 
     @Test
+    void uncappedLifetimeEnablesConfiguredClientButStillRequiresDailyAllowance() {
+        assertTrue(new OpenAiClient(mapper, budget, new AiLimits(true, -1, 200_000, 5),
+                "test-key", BriefingTracing.disabled()).isConfigured());
+        assertFalse(new OpenAiClient(mapper, budget, new AiLimits(true, -1, 0, 5),
+                "test-key", BriefingTracing.disabled()).isConfigured());
+        assertFalse(new OpenAiClient(mapper, budget, new AiLimits(true, -1, 200_000, 0),
+                "test-key", BriefingTracing.disabled()).isConfigured());
+    }
+
+    @Test
     void rejectsDisabledUnconfiguredAndOversizedRequestsBeforeReservation() {
         var disabled = new OpenAiClient(mapper, budget, new AiLimits(false, 0, 0, 0), "test-key", BriefingTracing.disabled());
         assertThrows(IllegalStateException.class, () -> disabled.generate(job, "summary", request));

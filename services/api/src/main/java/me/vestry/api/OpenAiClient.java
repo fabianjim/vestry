@@ -70,7 +70,7 @@ public class OpenAiClient {
     }
 
     public boolean isConfigured() {
-        return limits.enabled() && !apiKey.isBlank() && limits.lifetimeMicros() > 0
+        return limits.enabled() && !apiKey.isBlank() && limits.permitsLifetimeSpend(0, 1)
                 && limits.dailyMicros() > 0 && limits.dailyGenerations() > 0;
     }
 

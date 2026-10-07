@@ -155,6 +155,36 @@ class AiBudgetServiceTest {
     }
 
     @Test
+    @Transactional
+    void uncappedLifetimeAllowsSpendingAcrossDaysButStillEnforcesDailyMoney() {
+        var uncapped = new AiBudgetService(budget, jobs, calls, new AiLimits(true, -1, 20_000, 5), clock);
+        for (int day = 0; day < 3; day++) {
+            clock.now.set(Instant.parse("2026-10-02T12:00:00Z").plus(Duration.ofDays(day)));
+            assertTrue(uncapped.canStart());
+            var job = uncapped.start(key(day + 1), 20_000);
+            var call = uncapped.reserveCall(job.id(), "digest", 20_000);
+            uncapped.settleCall(call, 20_000);
+            uncapped.finish(job.id(), true);
+            assertFalse(uncapped.canStart());
+            assertThrows(IllegalStateException.class, () -> uncapped.start(key(99), 1));
+        }
+        assertEquals(60_000, jobs.totalCharged());
+    }
+
+    @Test
+    @Transactional
+    void uncappedLifetimeStillEnforcesDailyGenerationCount() {
+        var uncapped = new AiBudgetService(budget, jobs, calls, new AiLimits(true, -1, 20_000, 2), clock);
+        for (int n = 1; n <= 2; n++) {
+            var job = uncapped.start(key(n), 1_000);
+            uncapped.finish(job.id(), false);
+        }
+        assertEquals(0, jobs.totalCharged());
+        assertFalse(uncapped.canStart());
+        assertThrows(IllegalStateException.class, () -> uncapped.start(key(3), 1_000));
+    }
+
+    @Test
     void missingBudgetRowFailsClosed() {
         budget.deleteAll();
         assertFalse(service.canStart());
