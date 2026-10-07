@@ -3,7 +3,7 @@
 # The Tiingo API token should be set as an environment variable or in run configurations.
 # https://api.tiingo.com/
 
-tiingo-api-token=${TIINGO_API_TOKEN}
+tiingo.api.token=${TIINGO_API_TOKEN}
 
 
 # Spring Setup
@@ -19,3 +19,13 @@ spring.jpa.hibernate.ddl-auto=update
 spring.jpa.show-sql=true
 spring.jpa.properties.hibernate.format_sql=true
 spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
+
+# Optional AI briefings (paid OpenAI API usage)
+vestry.ai.enabled=false
+vestry.ai.api-key=${OPENAI_API_KEY:}
+
+# Optional budget settings in USD, defaults are shown here
+vestry.ai.daily-budget-usd=0.20
+vestry.ai.daily-generations=5
+# Unlimited
+vestry.ai.lifetime-budget-usd=-1 
