@@ -12,41 +12,19 @@ Hourly market updates and price snapshots give your journal a financial context,
 
 ### Requirements
 
-- Java 17
-- Node.js 22.22+
-- PostgreSQL
 - A [Tiingo API token](https://api.tiingo.com/)
+- Docker with Compose
 
 ### Run locally
 
-1. Create a PostgreSQL database.
-2. Copy `services/api/application.properties.example` to `services/api/application-dev.properties` and fill in your database connection and Tiingo token.
-3. From the repository root, run:
+1. Start Docker and copy `.env.example` to `.env` in the repository root.
+2. Fill in `TIINGO_API_TOKEN`.
+3. For optional AI briefings, set `VESTRY_AI_ENABLED` to `true` and fill in `OPENAI_API_KEY`. OpenAI API usage is billed to your account.
+4. From the repository root, run:
 
-```bash
-npm --prefix apps/web ci
-make dev
-```
-
-The backend runs on port 8080 using the default `dev` profile.
-
-### Optional AI briefings
-
-In `services/api/application-dev.properties`, configure:
-
-```properties
-vestry.ai.enabled=true
-```
-
-Optional budget settings are provided where limits apply across the instance.
-
-Provide your OpenAI API key before starting the app:
-
-```bash
-export OPENAI_API_KEY=your-api-key
-```
-
-OpenAI API usage is billed to your account.
+   ```bash
+   docker compose up --build
+   ```
 
 ## Development
 
