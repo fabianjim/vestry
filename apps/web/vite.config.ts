@@ -40,7 +40,7 @@ export default defineConfig(({ mode }) => ({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: loadEnv(mode, '.', 'VESTRY_').VESTRY_API_PROXY_TARGET || 'http://localhost:8080',
         changeOrigin: true,
       },
     },

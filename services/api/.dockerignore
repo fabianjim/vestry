@@ -1,0 +1,7 @@
+target
+.env*
+**/application-dev.properties
+application*.properties
+AGENTS.md
+.git
+.idea
