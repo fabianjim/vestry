@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { authApi } from '../services/api'
 import { useScrollReveal } from '../hooks/useScrollReveal'
 import { useLandingNavigation } from '../hooks/useLandingNavigation'
+import { useDemoLogin } from '../hooks/useDemoLogin'
 import LandingNav from '../components/landing/LandingNav'
 import LandingChart from '../components/landing/LandingChart'
-import LandingJournalCard from '../components/landing/LandingJournalCard'
+import LandingJournal from '../components/landing/LandingJournal'
 import LandingDetailCard from '../components/landing/LandingDetailCard'
 import LandingCTA from '../components/landing/LandingCTA'
 import { GithubIcon, EnvelopeIcon } from '../components/icons'
@@ -32,9 +33,16 @@ function RevealSection({ children, className }: { children: React.ReactNode; cla
 export default function Landing() {
   const navigate = useNavigate()
   const [activeSection, setActiveSection] = useState(0)
+  const [demoLocation, setDemoLocation] = useState<'nav' | 'cta' | null>(null)
+  const { start, loading, error } = useDemoLogin()
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
 
   useLandingNavigation(true)
+
+  const openDemo = (location: 'nav' | 'cta') => {
+    setDemoLocation(location)
+    void start()
+  }
 
   useEffect(() => {
     let active = true
@@ -89,22 +97,26 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <LandingNav />
+      <LandingNav onDemoClick={() => openDemo('nav')} loading={loading} error={demoLocation === 'nav' ? error : null} />
 
       <div className="fixed left-6 top-1/2 -translate-y-1/2 z-40 hidden md:flex flex-col gap-4">
         {SECTIONS.map((id, index) => (
           <button
+            type="button"
             key={id}
             onClick={() => scrollTo(id)}
-            className={`
-              h-[2px] rounded-full transition-all duration-300
+            className="group relative py-2 cursor-pointer"
+            aria-label={`Go to ${id} section`}
+            aria-current={index === activeSection ? 'true' : undefined}
+          >
+            <span className={`block h-[2px] rounded-full transition-all duration-300
               ${index === activeSection
                 ? 'w-8 bg-primary'
-                : 'w-4 bg-foreground/30 hover:bg-foreground/60'
+                : 'w-4 bg-foreground/30 group-hover:bg-foreground/60 group-focus-visible:bg-foreground/60'
               }
-            `}
-            aria-label={`Go to ${id} section`}
-          />
+            `} />
+            <span aria-hidden="true" className="pointer-events-none absolute left-full top-1/2 ml-3 -translate-y-1/2 text-xs text-muted capitalize opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">{id}</span>
+          </button>
         ))}
       </div>
 
@@ -116,16 +128,16 @@ export default function Landing() {
           ref={(el) => { sectionRefs.current[0] = el }}
           className="min-h-[calc(100svh-3.5rem)] flex flex-col justify-center px-6 py-16"
         >
-          <RevealSection className="max-w-4xl mx-auto w-full">
-            <div className="text-center mb-10">
-              <h1 className="text-4xl md:text-5xl font-90 tracking-tight text-foreground mb-4">Track your decisions</h1>
-              <p className="text-base md:text-lg text-secondary max-w-xl mx-auto leading-relaxed">
-                Watch your portfolio unfold hour by hour. Record your thoughts and actions on 4,000+ stocks and ETFs so you can revisit them later.
-              </p>
+          {/* The hero renders at once; its chart playback is the entrance. */}
+          <div className="max-w-4xl mx-auto w-full">
+            <div className="text-center mb-6">
+              <h1 className="text-4xl md:text-5xl font-90 tracking-tight text-foreground mb-4">
+                Your brokerage shows what happened.<br />Vestry keeps why.
+              </h1>
             </div>
 
             <LandingChart onBuyClick={() => scrollTo('reflect')} />
-          </RevealSection>
+          </div>
         </section>
 
         {/* Reflect */}
@@ -133,17 +145,17 @@ export default function Landing() {
           data-landing-stop
           id="reflect"
           ref={(el) => { sectionRefs.current[1] = el }}
-          className="min-h-[calc(100svh-3.5rem)] flex flex-col justify-center px-6 py-16"
+          className="min-h-[calc(100svh-3.5rem)] flex flex-col justify-center px-6 py-8"
         >
-          <RevealSection className="max-w-3xl mx-auto w-full">
-            <div className="text-center mb-10">
+          <RevealSection className="max-w-4xl mx-auto w-full">
+            <div className="text-center mb-8">
               <h2 className="text-3xl md:text-4xl font-90 tracking-tight text-foreground mb-4">Reflect on every trade</h2>
-              <p className="text-base text-secondary max-w-lg mx-auto leading-relaxed">
-                Recall the context and emotions behind your trades days or months in the future.
+              <p className="text-base text-secondary max-w-xl mx-auto leading-relaxed">
+                Keep your thoughts in one place. Come back to what you actually thought and recall the context and emotions behind your trades.
               </p>
             </div>
 
-            <LandingJournalCard onSpxClick={() => scrollTo('analyze')} />
+            <LandingJournal onSpyClick={() => scrollTo('analyze')} />
           </RevealSection>
         </section>
 
@@ -155,10 +167,10 @@ export default function Landing() {
           className="min-h-[calc(100svh-3.5rem)] flex flex-col justify-center px-6 py-8"
         >
           <RevealSection className="max-w-3xl mx-auto w-full">
-            <div className="text-center mb-10">
+            <div className="text-center mb-6">
               <h2 className="text-3xl md:text-4xl font-90 tracking-tight text-foreground mb-4">Analyze what happened</h2>
               <p className="text-base text-secondary max-w-lg mx-auto leading-relaxed">
-                See the entry against customizable metrics. <br></br> Understand trends and outcomes without
+                See the entry against customizable metrics. <br /> Understand trends and outcomes without
                 noise.
               </p>
             </div>
@@ -176,10 +188,7 @@ export default function Landing() {
         >
           <div className="flex flex-1 items-center px-6 py-16">
             <RevealSection className="max-w-3xl mx-auto w-full">
-              <LandingCTA onDemoClick={() => {
-                const demoButton = document.querySelector('[data-demo-button]') as HTMLButtonElement | null
-                demoButton?.click()
-              }} />
+              <LandingCTA onDemoClick={() => openDemo('cta')} loading={loading} error={demoLocation === 'cta' ? error : null} />
             </RevealSection>
           </div>
 

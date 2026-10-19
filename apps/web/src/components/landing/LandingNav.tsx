@@ -1,26 +1,14 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { authApi } from '../../services/api'
-import { redirectAfterLogin } from '../../utils/redirectAfterLogin'
+import { Link } from 'react-router-dom'
 import { GithubIcon } from '../icons'
 import { preloadApplication } from '../../utils/loadApplication'
 
-export default function LandingNav() {
-  const navigate = useNavigate()
-  const [demoLoading, setDemoLoading] = useState(false)
+interface LandingNavProps {
+  onDemoClick: () => void
+  loading: boolean
+  error: string | null
+}
 
-  const handleDemo = async () => {
-    preloadApplication()
-    setDemoLoading(true)
-    try {
-      await authApi.login('demo', 'demo')
-      await redirectAfterLogin(navigate)
-    } catch {
-      navigate('/login')
-    } finally {
-      setDemoLoading(false)
-    }
-  }
+export default function LandingNav({ onDemoClick, loading, error }: LandingNavProps) {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border">
@@ -30,7 +18,7 @@ export default function LandingNav() {
           Vestry
         </span>
 
-        <nav className="flex items-center gap-1 sm:gap-3">
+        <nav className="relative flex items-center gap-1 sm:gap-3">
           <a
             href="https://github.com/fabianjim/vestry"
             target="_blank"
@@ -50,15 +38,15 @@ export default function LandingNav() {
           </Link>
           <button
             type="button"
-            data-demo-button
             onMouseEnter={preloadApplication}
             onFocus={preloadApplication}
-            onClick={handleDemo}
-            disabled={demoLoading}
+            onClick={onDemoClick}
+            disabled={loading}
             className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed cursor-pointer"
           >
-            Try Demo Now
+            {loading ? 'Opening demo…' : 'Try the demo'}
           </button>
+          {error && <p role="status" className="absolute right-0 top-full mt-3 w-64 rounded-md border border-border bg-surface p-3 text-sm text-secondary">{error}</p>}
         </nav>
       </div>
     </header>
