@@ -5,6 +5,8 @@ export type StockHistoryPoint = {
   high: number
   low: number
   prevClose: number
+  hourBucket?: string
+  type?: 'EOD' | 'INTRADAY' | 'INITIAL'
 }
 
 export type StockSnapshot = {

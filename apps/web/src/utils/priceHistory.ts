@@ -16,6 +16,13 @@ const dateLabel = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York
 const timeLabel = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' })
 export const formatPriceHistoryDate = (time: number, intraday = false) => (intraday ? timeLabel : dateLabel).format(time)
 
+/** Matches the portfolio chart: INTRADAY quotes sit on their hour bucket, INITIAL quotes on their minute. */
+function chartTime(point: StockHistoryPoint): number {
+  if (point.type === 'INTRADAY' && point.hourBucket) return Date.parse(point.hourBucket)
+  const time = Date.parse(point.timestamp)
+  return point.type === 'INITIAL' ? time - time % 60000 : time
+}
+
 /** All keeps daily observations; Day/Week keep every observation, with exact-time snapshots. */
 export function buildPriceHistory(
   history: StockHistoryPoint[],
@@ -34,7 +41,7 @@ export function buildPriceHistory(
   const valid = (point: PriceHistoryPoint) => Number.isFinite(point.time) && Number.isFinite(point.price)
     && point.price > 0 && point.time >= start && point.time <= end
   const observations = new Map<string | number, PriceHistoryPoint>()
-  history.map(point => ({ time: Date.parse(point.timestamp), price: point.currentPrice }))
+  history.map(point => ({ time: range === 'all' ? Date.parse(point.timestamp) : chartTime(point), price: point.currentPrice }))
     .filter(valid).sort((a, b) => a.time - b.time)
     .forEach(point => observations.set(range === 'all' ? marketDateKey(new Date(point.time)) : point.time, point))
   const points = new Map([...observations.values()].map(point => [point.time, point]))

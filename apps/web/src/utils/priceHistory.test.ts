@@ -67,6 +67,17 @@ describe('price history periods', () => {
     ], [], 'week', new Date('2026-01-01T20:00:00Z')).map(point => point.price)).toEqual([90, 100])
   })
 
+  it('places Day/Week quotes on the same rounded times as the portfolio chart', () => {
+    const history: StockHistoryPoint[] = [
+      { ...quote('2026-09-29T13:47:31Z', 95), type: 'INITIAL', hourBucket: '2026-09-29T13:47:31Z' },
+      { ...quote('2026-09-29T14:00:42Z', 100), type: 'INTRADAY', hourBucket: '2026-09-29T14:00:00Z' },
+      { ...quote('2026-09-29T14:59:58Z', 110), type: 'INTRADAY', hourBucket: '2026-09-29T15:00:00Z' },
+    ]
+    const times = ['2026-09-29T13:47:00Z', '2026-09-29T14:00:00Z', '2026-09-29T15:00:00Z'].map(Date.parse)
+    expect(buildPriceHistory(history, [], 'day', now).map(point => point.time)).toEqual(times)
+    expect(buildPriceHistory(history, [], 'week', now).map(point => point.time)).toEqual(times)
+  })
+
   it('leaves periods without observations empty instead of showing an older day', () => {
     expect(buildPriceHistory([quote('2026-09-28T14:00:00Z', 100)], [], 'day', now)).toEqual([])
   })
