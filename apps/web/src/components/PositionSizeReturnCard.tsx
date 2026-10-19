@@ -20,9 +20,9 @@ export default function PositionSizeReturnCard({ holdings, controls, onHoldingCl
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 24, right: 32, bottom: 8, left: 0 }} accessibilityLayer>
               <XAxis type="number" dataKey="weight" name="Portfolio weight" unit="%" domain={[0, 100]}
-                tickFormatter={value => `${value}%`} stroke="var(--color-muted)" fontSize={11} />
+                stroke="var(--color-muted)" fontSize={11} />
               <YAxis type="number" dataKey="returnPercent" name="Unrealized return" unit="%" domain={['auto', 'auto']}
-                tickFormatter={value => `${value}%`} stroke="var(--color-muted)" fontSize={11} width={55} />
+                stroke="var(--color-muted)" fontSize={11} width={55} />
               <ReferenceLine y={0} ifOverflow="extendDomain" stroke="var(--color-border-control)" strokeDasharray="3 3" />
               <Tooltip cursor={{ strokeDasharray: '3 3' }}
                 content={({ active, payload }) => {
