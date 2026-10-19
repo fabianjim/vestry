@@ -10,6 +10,7 @@ import me.vestry.repository.StockRepository;
 import me.vestry.repository.TrackedStockRepository;
 import me.vestry.repository.UserRepository;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -76,6 +77,11 @@ public class PortfolioServiceCreatePortfolioTest {
         SecurityContextHolder.setContext(securityContext);
         when(securityContext.getAuthentication()).thenReturn(authentication);
         when(authentication.getPrincipal()).thenReturn(mockUser);
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test

@@ -9,6 +9,7 @@ import me.vestry.model.User;
 import me.vestry.repository.JournalEntryRepository;
 import me.vestry.repository.TransactionRepository;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -244,6 +245,11 @@ public class JournalEntryServiceTest {
         lenient().when(securityContext.getAuthentication()).thenReturn(authentication);
         lenient().when(authentication.getPrincipal()).thenReturn(mockUser);
         lenient().when(tagService.resolveTags(any(User.class), any())).thenReturn(new HashSet<>());
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
