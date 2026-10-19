@@ -2,9 +2,11 @@ import { preloadApplication } from '../../utils/loadApplication'
 
 interface LandingCTAProps {
   onDemoClick: () => void
+  loading: boolean
+  error: string | null
 }
 
-export default function LandingCTA({ onDemoClick }: LandingCTAProps) {
+export default function LandingCTA({ onDemoClick, loading, error }: LandingCTAProps) {
   return (
     <div className="w-full max-w-xl mx-auto text-center">
       <h2 className="text-3xl md:text-4xl font-90 tracking-tight text-foreground mb-4">Improve, one trade at a time</h2>
@@ -15,13 +17,16 @@ export default function LandingCTA({ onDemoClick }: LandingCTAProps) {
       </p>
 
       <button
+        type="button"
         onMouseEnter={preloadApplication}
         onFocus={preloadApplication}
         onClick={onDemoClick}
-        className="px-8 py-3 bg-primary text-primary-foreground rounded-md text-base font-130 hover:bg-primary-hover active:bg-primary-active transition-colors cursor-pointer"
+        disabled={loading}
+        className="px-8 py-3 bg-primary text-primary-foreground rounded-md text-base font-130 hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed cursor-pointer"
       >
-        Try Demo Now
+        {loading ? 'Opening demo…' : 'Try the demo'}
       </button>
+      {error && <p role="status" className="mt-3 text-sm text-secondary">{error}</p>}
 
       <p className="mt-4 text-sm text-secondary">No account required.</p>
       <p className="mt-1 text-xs text-muted">Limited to 3 demo trades.</p>

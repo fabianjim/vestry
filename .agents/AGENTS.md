@@ -53,6 +53,7 @@ Vestry is a portfolio journal for casual, reflective investors. It connects port
 
 - Use `services/api.ts` for requests, `services/queries.ts` for query keys/options, and `services/queryUpdates.ts` for invalidation. `Login.tsx` and `Portfolio.tsx` still call `fetch` directly; don't copy that.
 - Put reusable computation in `utils/` and stateful logic in `hooks/`, so chart transformations stay testable.
+- The landing page tells one story from static fixtures in `components/landing/landingStory.ts`; every section reads from it, and the landing page never calls authenticated APIs.
 - Design: dark-native and restrained.
   - Mostly achromatic with one cool-blue accent. Green and red are reserved for financial or status meaning.
   - Use the tokens in `src/index.css`, not hex values in components.
