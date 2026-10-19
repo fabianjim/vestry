@@ -16,7 +16,7 @@ Vestry is a portfolio journal for casual, reflective investors. It connects port
 - `apps/web`: React 19, TypeScript, Vite, Tailwind v4, React Query, Recharts, D3. Deployed on Vercel.
 - `services/api`: Spring Boot 3.5, Java 17, root package `me.vestry`, layered `controller → service → repository`. Deployed to AWS Elastic Beanstalk, PostgreSQL on Supabase.
 - Run from the root: `make dev`, `make test`, `make build`; or `docker compose up --build` (needs `.env` from `.env.example`). Backend: `./mvnw` in `services/api` (never a global `mvn`). Frontend: `npm test -- --run`, `npm run build`, `npm run lint` in `apps/web`.
-- `make dev` needs the ignored `services/api/src/main/resources/application-dev.properties` (template: `services/api/application.properties.example`). `make dev-ai` serves a mocked briefing from Vite and makes no AI calls.
+- `make dev` needs `services/api/src/main/resources/application-dev.properties` (template: `services/api/application.properties.example`). `make dev-ai` serves a mocked briefing from Vite and makes no AI calls.
 - Tests: JUnit 5, Mockito, H2 (backend) and Vitest (frontend). Add a regression test for bug fixes. Add only tests that protect a distinct behavior; avoid bloat.
 
 ## Invariants (high-risk; verify carefully when touched)
@@ -33,7 +33,7 @@ Vestry is a portfolio journal for casual, reflective investors. It connects port
 **Prices**
 - Prices are hourly by design: intraday fetches on the hour 10:00–16:00 and an EOD fetch at 16:30, weekdays, `America/New_York`, skipping market holidays.
 - SSE (`/api/events`) only signals "fetch completed, refresh". Do not add real-time prices or WebSockets.
-- `TrackedStock` is a global ticker registry. `holderCount` drives scheduled fetching, and a ticker is removed at zero. Watchlist items are not tracked.
+- `TrackedStock` is a global ticker registry. `holderCount` drives scheduled fetching, and a ticker is removed at zero. Watchlist items are not price tracked.
 
 **Portfolio math**
 - The transaction ledger, not current holdings, is the source of past ownership.
