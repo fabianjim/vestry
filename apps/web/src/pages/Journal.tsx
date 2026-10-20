@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { journalQueries } from '../services/queries'
 import { refreshJournal } from '../services/queryUpdates'
 import { JOURNAL_STYLES, journalBadge } from '../constants/journalStyles'
@@ -16,6 +16,8 @@ import TagPills from '../components/TagPills'
 import JournalDetailPanel from '../components/JournalDetailPanel'
 import JournalSourceQuote from '../components/JournalSourceQuote'
 import { useJournalSources } from '../hooks/useJournalSources'
+import { usePresenceList } from '../hooks/usePresenceList'
+import StackItem from '../components/StackItem'
 
 const EMPTY_ENTRIES: JournalEntry[] = []
 const EMPTY_TAGS: Tag[] = []
@@ -41,8 +43,10 @@ export default function JournalPage() {
   }, [searchParams])
 
   const client = useQueryClient()
-  const entriesQuery = useQuery(journalQueries.entries(filters))
+  // Keep the current list on screen while a new filter loads, so entries slide instead of blanking.
+  const entriesQuery = useQuery({ ...journalQueries.entries(filters), placeholderData: keepPreviousData })
   const entries = entriesQuery.data ?? EMPTY_ENTRIES
+  const presence = usePresenceList(entries)
   const sources = useJournalSources(entries)
   const tagsQuery = useQuery(journalQueries.tags())
   const allTags = tagsQuery.data ?? EMPTY_TAGS
@@ -239,98 +243,101 @@ export default function JournalPage() {
               <div className="text-muted">Loading entries...</div>
             )}
 
-            {entries.length === 0 && !loading && !entriesQuery.error && (
+            {presence.length === 0 && !loading && !entriesQuery.error && (
               <div className="text-muted italic">No journal entries match your filters.</div>
             )}
 
-            {entries.map((entry) => (
-              <div
-                key={entry.id}
-                onClick={() => !editingEntryId && setSelectedEntry(entry)}
-                className={`relative group p-4 bg-surface rounded-lg border border-border-subtle cursor-pointer hover:bg-surface-hover active:bg-surface-active transition-colors`}
-              >
-                <div className="flex justify-between items-start mb-1">
-                  <div className="flex items-center gap-2">
-                    <span className={journalBadge(entry.entryType)}>
-                      {JOURNAL_STYLES[entry.entryType].label}
-                    </span>
-                    {entry.ticker && (
-                      <span className="text-xs font-130 text-foreground">{entry.ticker}</span>
+            <div>
+              {presence.map(({ item: entry, status }) => (
+                <StackItem key={entry.id} show={status === 'shown'} gap="pb-3">
+                  <div
+                    onClick={() => !editingEntryId && setSelectedEntry(entry)}
+                    className={`relative group p-4 bg-surface rounded-lg border border-border-subtle cursor-pointer hover:bg-surface-hover active:bg-surface-active transition-colors`}
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className={journalBadge(entry.entryType)}>
+                          {JOURNAL_STYLES[entry.entryType].label}
+                        </span>
+                        {entry.ticker && (
+                          <span className="text-xs font-130 text-foreground">{entry.ticker}</span>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
+                    </div>
+                    {(entry.priceSnapshot != null || entry.entryType === 'REFLECTION') && (
+                      <div className="text-xs text-muted mb-1">
+                        Snapshot: {entry.priceSnapshot != null && entry.priceSnapshot > 0 ? `$${entry.priceSnapshot.toFixed(2)}` : '—'}
+                      </div>
+                    )}
+                    {entry.entryType === 'REFLECTION' && entry.sourceEntryId != null && (
+                      <JournalSourceQuote source={sources.get(entry.sourceEntryId)} />
+                    )}
+                    {editingEntryId === entry.id ? (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <TagInput
+                          value={editBody}
+                          onChange={setEditBody}
+                          rows={3}
+                          className="bg-transparent text-sm text-foreground border-none focus:ring-0 resize-none"
+                        />
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() => handleSaveEdit(entry.id)}
+                            disabled={loading}
+                            className="px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
+                          >
+                            {loading ? 'Saving…' : 'Save'}
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="px-3 py-1.5 bg-surface border border-border text-foreground text-xs rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        {editError && <div className="text-error text-xs mt-1">{editError}</div>}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-sm text-foreground whitespace-pre-wrap">{getDisplayBody(entry.body)}</div>
+                        <TagPills
+                          tags={entry.tags}
+                          onTagClick={(tag) => {
+                            const current = filters.tagIds || []
+                            if (!current.includes(tag.id)) {
+                              updateFilters({ ...filters, tagIds: [...current, tag.id] })
+                            }
+                          }}
+                        />
+                        <div className="absolute bottom-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleEditClick(entry)
+                            }}
+                            className="px-2.5 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors"
+                            title="Edit"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDelete(entry.id)
+                            }}
+                            className="px-2.5 py-1 text-xs text-error hover:text-error bg-surface border border-border rounded hover:bg-error/10 transition-colors"
+                            title="Delete"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </>
                     )}
                   </div>
-                  <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
-                </div>
-                {(entry.priceSnapshot != null || entry.entryType === 'REFLECTION') && (
-                  <div className="text-xs text-muted mb-1">
-                    Snapshot: {entry.priceSnapshot != null && entry.priceSnapshot > 0 ? `$${entry.priceSnapshot.toFixed(2)}` : '—'}
-                  </div>
-                )}
-                {entry.entryType === 'REFLECTION' && entry.sourceEntryId != null && (
-                  <JournalSourceQuote source={sources.get(entry.sourceEntryId)} />
-                )}
-                {editingEntryId === entry.id ? (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <TagInput
-                      value={editBody}
-                      onChange={setEditBody}
-                      rows={3}
-                      className="bg-transparent text-sm text-foreground border-none focus:ring-0 resize-none"
-                    />
-                    <div className="flex gap-2 mt-2">
-                      <button
-                        onClick={() => handleSaveEdit(entry.id)}
-                        disabled={loading}
-                        className="px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
-                      >
-                        {loading ? 'Saving…' : 'Save'}
-                      </button>
-                      <button
-                        onClick={handleCancelEdit}
-                        className="px-3 py-1.5 bg-surface border border-border text-foreground text-xs rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                    {editError && <div className="text-error text-xs mt-1">{editError}</div>}
-                  </div>
-                ) : (
-                  <>
-                    <div className="text-sm text-foreground whitespace-pre-wrap">{getDisplayBody(entry.body)}</div>
-                    <TagPills
-                      tags={entry.tags}
-                      onTagClick={(tag) => {
-                        const current = filters.tagIds || []
-                        if (!current.includes(tag.id)) {
-                          updateFilters({ ...filters, tagIds: [...current, tag.id] })
-                        }
-                      }}
-                    />
-                    <div className="absolute bottom-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleEditClick(entry)
-                        }}
-                        className="px-2.5 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors"
-                        title="Edit"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDelete(entry.id)
-                        }}
-                        className="px-2.5 py-1 text-xs text-error hover:text-error bg-surface border border-border rounded hover:bg-error/10 transition-colors"
-                        title="Delete"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
+                </StackItem>
+              ))}
+            </div>
           </div>
         </div>
       </div>

@@ -105,8 +105,9 @@ export default function JournalFilterBar({ filters, availableTags, onChange, cla
         ))}
       </div>
 
-      {availableTags.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+      {/* Clear filters shares the tag row and stays mounted, so toggling a filter never shifts the layout. */}
+      <div className="flex items-start gap-4">
+        <div className="flex flex-1 flex-wrap gap-2">
           {availableTags.map((tag) => (
             <button
               key={tag.id}
@@ -131,19 +132,14 @@ export default function JournalFilterBar({ filters, availableTags, onChange, cla
             </button>
           ))}
         </div>
-      )}
-
-      {hasActiveFilters && (
         <button
           type="button"
-          onClick={() =>
-            onChange({})
-          }
-          className="text-sm text-secondary hover:text-foreground underline"
+          onClick={() => onChange({})}
+          className={`ml-auto mr-8 shrink-0 py-0.5 text-sm text-secondary hover:text-foreground underline ${hasActiveFilters ? '' : 'invisible'}`}
         >
           Clear filters
         </button>
-      )}
+      </div>
     </div>
   )
 }

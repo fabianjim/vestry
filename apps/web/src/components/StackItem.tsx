@@ -2,9 +2,9 @@ import type { ReactNode } from 'react'
 
 /**
  * Grows in or collapses out so neighbouring cards slide instead of jumping.
- * Hero stack cards and Reflect journal cards share this motion.
+ * Shared by the landing stacks and the Journal page's filtered list.
  */
-export default function LandingStackItem({ show, children, gap = 'pb-2' }: {
+export default function StackItem({ show, children, gap = 'pb-2' }: {
   show: boolean
   children: ReactNode
   gap?: string

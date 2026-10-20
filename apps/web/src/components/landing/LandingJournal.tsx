@@ -8,7 +8,7 @@ import { matchesJournalFilters } from '../../utils/journalFilters'
 import { ChevronLeftIcon, ChevronRightIcon } from '../icons'
 import JournalSourceQuote from '../JournalSourceQuote'
 import LandingEntryCard from './LandingEntryCard'
-import LandingStackItem from './LandingStackItem'
+import StackItem from '../StackItem'
 import { JOURNAL_ENTRIES, JOURNAL_SCRIPT, JOURNAL_TAGS, SPY_BUY } from './landingStory'
 
 const FINAL_FILTER = JOURNAL_SCRIPT[JOURNAL_SCRIPT.length - 1]
@@ -130,7 +130,7 @@ export default function LandingJournal({ onSpyClick }: LandingJournalProps) {
             {JOURNAL_ENTRIES.map(entry => {
               const isSpy = entry.id === SPY_BUY.id
               return (
-                <LandingStackItem key={entry.id} show={matching.includes(entry)}>
+                <StackItem key={entry.id} show={matching.includes(entry)}>
                   <LandingEntryCard
                     entry={entry}
                     time={formatDateTime(entry.timestamp)}
@@ -143,7 +143,7 @@ export default function LandingJournal({ onSpyClick }: LandingJournalProps) {
                       <JournalSourceQuote source={SOURCES.get(entry.sourceEntryId)} />
                     )}
                   </LandingEntryCard>
-                </LandingStackItem>
+                </StackItem>
               )
             })}
           </div>

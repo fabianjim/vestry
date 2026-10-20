@@ -8,7 +8,7 @@ import { buildHeroTimeline, valueAtTime, type HeroFrame } from '../../utils/hero
 import { roundToMinute } from '../../utils/dateUtils'
 import { formatCompactCurrency } from '../../utils/formatUtils'
 import LandingEntryCard from './LandingEntryCard'
-import LandingStackItem from './LandingStackItem'
+import StackItem from '../StackItem'
 import { HERO_EVENTS, PORTFOLIO_AXIS_TICKS, PORTFOLIO_DAY, type PortfolioPoint } from './landingStory'
 
 interface LandingChartProps {
@@ -193,7 +193,7 @@ export default function LandingChart({ onBuyClick }: LandingChartProps) {
         className="mt-4 min-[1200px]:mt-0 min-[1200px]:absolute min-[1200px]:left-full min-[1200px]:top-0 min-[1200px]:ml-6 min-[1200px]:w-80"
       >
         {STACK.map(({ entry, index }) => (
-          <LandingStackItem key={entry.id} show={frame.visible > index}>
+          <StackItem key={entry.id} show={frame.visible > index}>
             <LandingEntryCard
               entry={entry}
               time={roundToMinute(entry.timestamp)}
@@ -202,7 +202,7 @@ export default function LandingChart({ onBuyClick }: LandingChartProps) {
               pulse={index === BUY_INDEX && pulse}
               onActivate={index === BUY_INDEX && frame.done ? openBuy : undefined}
             />
-          </LandingStackItem>
+          </StackItem>
         ))}
       </div>
     </div>
