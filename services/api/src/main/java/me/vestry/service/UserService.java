@@ -9,8 +9,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Pattern;
 
 @Service
@@ -22,6 +25,8 @@ public class UserService {
     // BCrypt ignores everything past 72 bytes.
     private static final int MAX_PASSWORD_BYTES = 72;
     private static final String USERNAME_TAKEN = "That username is taken.";
+    private static final int GOOGLE_USERNAME_BASE_LENGTH = 24;
+    private static final SecureRandom SECRETS = new SecureRandom();
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -71,6 +76,44 @@ public class UserService {
         });
         boolean matches = passwordEncoder.matches(password, user.map(User::getPassword).orElse(unknownUserHash));
         return user.isPresent() && matches ? user : Optional.empty();
+    }
+
+    /**
+     * Returns the account for this Google identity, creating it on first sign-in with a
+     * username taken from the email and a random password, so only Google can sign it in.
+     */
+    public User signInWithGoogle(String subject, String email) {
+        Optional<User> existing = userRepository.findByGoogleSubject(subject);
+        if (existing.isPresent()) return existing.get();
+
+        byte[] secret = new byte[32];
+        SECRETS.nextBytes(secret);
+        User user = new User(availableGoogleUsername(email),
+                passwordEncoder.encode(Base64.getEncoder().encodeToString(secret)));
+        user.setGoogleSubject(subject);
+        try {
+            return userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException e) {
+            // A concurrent first sign-in claimed the account or username; retrying finds or renames it.
+            throw new IllegalArgumentException("Google sign-in failed. Try again.");
+        }
+    }
+
+    static String googleUsernameBase(String email) {
+        String local = email == null ? "" : email.split("@", 2)[0];
+        String cleaned = local.replaceAll("[^A-Za-z0-9._-]", "");
+        return cleaned.length() > GOOGLE_USERNAME_BASE_LENGTH ? cleaned.substring(0, GOOGLE_USERNAME_BASE_LENGTH) : cleaned;
+    }
+
+    private String availableGoogleUsername(String email) {
+        String base = googleUsernameBase(email);
+        if (base.length() >= 3 && !userRepository.existsByUsernameIgnoreCase(base)) return base;
+        String prefix = base.isEmpty() ? "user" : base;
+        for (int attempt = 0; attempt < 20; attempt++) {
+            String candidate = prefix + ThreadLocalRandom.current().nextInt(1000, 10000);
+            if (!userRepository.existsByUsernameIgnoreCase(candidate)) return candidate;
+        }
+        throw new IllegalArgumentException("Google sign-in failed. Try again.");
     }
 
     public Optional<User> findByUsername(String username) {

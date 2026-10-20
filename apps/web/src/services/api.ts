@@ -237,6 +237,12 @@ export const authApi = {
   logout: () =>
     apiClient('/auth/logout', { method: 'POST' }),
 
+  googleConfig: (): Promise<{ clientId: string | null }> =>
+    apiClient('/auth/google/client-id'),
+
+  googleLogin: (accessToken: string) =>
+    apiClient('/auth/google', { method: 'POST', body: { accessToken } }),
+
   me: (signal?: AbortSignal): Promise<SessionUser> =>
     apiClient('/auth/me', { signal }),
 

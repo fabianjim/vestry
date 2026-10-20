@@ -13,6 +13,8 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     List<User> findByDemoTrue();
 
     Optional<User> findByUsername(String username);
+
+    Optional<User> findByGoogleSubject(String googleSubject);
     
     boolean existsByUsername(String username);
 

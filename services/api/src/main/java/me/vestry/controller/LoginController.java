@@ -1,6 +1,8 @@
 package me.vestry.controller;
 
 import me.vestry.model.User;
+import me.vestry.security.GoogleSignInVerifier;
+import me.vestry.security.GoogleSignInVerifier.GoogleIdentity;
 import me.vestry.service.DemoSessionResolver;
 import me.vestry.service.DemoSessionStore;
 import me.vestry.service.UserService;
@@ -28,11 +30,13 @@ public class LoginController {
     private final UserService userService;
     private final DemoSessionResolver demoSessionResolver;
     private final ServerProperties serverProperties;
+    private final GoogleSignInVerifier googleVerifier;
 
     public LoginController(UserService userService, DemoSessionResolver demoSessionResolver,
-                           ServerProperties serverProperties) {
+                           ServerProperties serverProperties, GoogleSignInVerifier googleVerifier) {
         this.userService = userService;
         this.demoSessionResolver = demoSessionResolver;
+        this.googleVerifier = googleVerifier;
         this.serverProperties = serverProperties;
     }
 
@@ -58,8 +62,33 @@ public class LoginController {
             return ResponseEntity.badRequest()
                     .body(new LoginResponse("Invalid username or password", null, null, false));
         }
-        User user = authenticated.get();
+        return startSession(authenticated.get(), httpRequest, response);
+    }
 
+    @GetMapping("/google/client-id")
+    public GoogleConfigResponse googleConfig() {
+        return new GoogleConfigResponse(googleVerifier.clientId());
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<LoginResponse> google(@RequestBody GoogleLoginRequest request,
+                                               HttpServletRequest httpRequest, HttpServletResponse response) {
+        if (!googleVerifier.enabled()) return ResponseEntity.notFound().build();
+        Optional<GoogleIdentity> identity = googleVerifier.verify(request.accessToken);
+        if (identity.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(new LoginResponse("Google sign-in failed. Try again.", null, null, false));
+        }
+        try {
+            User user = userService.signInWithGoogle(identity.get().subject(), identity.get().email());
+            return startSession(user, httpRequest, response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new LoginResponse(e.getMessage(), null, null, false));
+        }
+    }
+
+    private ResponseEntity<LoginResponse> startSession(User user, HttpServletRequest httpRequest,
+                                                       HttpServletResponse response) {
         String demoId = user.isDemo() ? demoSessionResolver.resume(user, httpRequest, response) : null;
         HttpSession previous = httpRequest.getSession(false);
         if (previous != null) previous.invalidate();
@@ -106,6 +135,12 @@ public class LoginController {
         public String username;
         public String password;
     }
+
+    public static class GoogleLoginRequest {
+        public String accessToken;
+    }
+
+    public record GoogleConfigResponse(String clientId) {}
 
     public record LoginResponse(String message, String username, Integer userId, boolean isDemo) {}
 

@@ -16,6 +16,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -157,5 +158,33 @@ class UserServiceTest {
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
                 () -> userService.registerUser(username, password));
         assertTrue(error.getMessage().contains(message), error.getMessage());
+    }
+
+    @Test
+    void googleSignInReturnsTheLinkedAccountOrCreatesOneFromTheEmail() {
+        User linked = new User("casey", "hash");
+        when(userRepository.findByGoogleSubject("g-1")).thenReturn(Optional.of(linked));
+        assertSame(linked, userService.signInWithGoogle("g-1", "someone@gmail.com"));
+        verify(userRepository, never()).saveAndFlush(any());
+
+        when(userRepository.findByGoogleSubject("g-2")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(anyString())).thenReturn("random-hash");
+        when(userRepository.saveAndFlush(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        User created = userService.signInWithGoogle("g-2", "casey.lee+vestry@gmail.com");
+        assertEquals("casey.leevestry", created.getUsername());
+        assertEquals("g-2", created.getGoogleSubject());
+        assertEquals("random-hash", created.getPassword());
+    }
+
+    @Test
+    void googleUsernamesGetDigitsWhenTakenOrTooShort() {
+        when(userRepository.findByGoogleSubject(anyString())).thenReturn(Optional.empty());
+        when(userRepository.saveAndFlush(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.existsByUsernameIgnoreCase("casey")).thenReturn(true);
+
+        assertTrue(userService.signInWithGoogle("g-3", "casey@gmail.com").getUsername().matches("casey\\d{4}"));
+        assertTrue(userService.signInWithGoogle("g-4", "jo@gmail.com").getUsername().matches("jo\\d{4}"));
+        assertTrue(userService.signInWithGoogle("g-5", null).getUsername().matches("user\\d{4}"));
+        assertEquals(24, UserService.googleUsernameBase("a".repeat(40) + "@gmail.com").length());
     }
 }

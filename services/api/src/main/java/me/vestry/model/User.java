@@ -21,6 +21,11 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    // Google's stable account ID for accounts created with Google sign-in.
+    @JsonIgnore
+    @Column(name = "google_subject", unique = true)
+    private String googleSubject;
+
     @Column(name = "is_demo", nullable = false)
     private boolean demo = false;
 
@@ -75,6 +80,14 @@ public class User {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getGoogleSubject() {
+        return googleSubject;
+    }
+
+    public void setGoogleSubject(String googleSubject) {
+        this.googleSubject = googleSubject;
     }
 
     public boolean isDemo() {

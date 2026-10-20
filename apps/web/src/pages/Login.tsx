@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '../services/api'
 import { useDemoLogin } from '../hooks/useDemoLogin'
+import GoogleSignInButton from '../components/GoogleSignInButton'
 import { preloadApplication } from '../utils/loadApplication'
 import { redirectAfterLogin } from '../utils/redirectAfterLogin'
 import { signIn, signInErrorMessage, type AuthMode } from '../utils/signIn'
@@ -20,6 +21,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [googleClientId, setGoogleClientId] = useState<string | null>(null)
 
   const isRegister = mode === 'register'
 
@@ -35,6 +37,15 @@ export default function Login() {
       .catch(() => {})
     return () => { active = false }
   }, [navigate])
+
+  useEffect(() => {
+    let active = true
+    // The button appears only when the server has a Google client ID configured.
+    authApi.googleConfig()
+      .then(config => { if (active) setGoogleClientId(config.clientId) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
 
   const switchMode = () => {
     setMode(isRegister ? 'login' : 'register')
@@ -59,6 +70,20 @@ export default function Login() {
     setLoading(true)
     try {
       await signIn(mode, username, password, honeypot)
+      await redirectAfterLogin(navigate)
+    } catch (failure) {
+      setError(signInErrorMessage(failure))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGoogle = async (accessToken: string) => {
+    setError('')
+    preloadApplication()
+    setLoading(true)
+    try {
+      await authApi.googleLogin(accessToken)
       await redirectAfterLogin(navigate)
     } catch (failure) {
       setError(signInErrorMessage(failure))
@@ -175,6 +200,13 @@ export default function Login() {
           or
           <span className="h-px flex-1 bg-border-subtle" />
         </div>
+
+        {googleClientId && (
+          <div className="mb-3">
+            <GoogleSignInButton clientId={googleClientId} disabled={busy}
+              onAccessToken={(accessToken) => void handleGoogle(accessToken)} />
+          </div>
+        )}
 
         <button
           type="button"

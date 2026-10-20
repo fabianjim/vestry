@@ -7,6 +7,7 @@ import me.vestry.model.JournalEntry;
 import me.vestry.model.Portfolio;
 import me.vestry.model.User;
 import me.vestry.repository.UserRepository;
+import me.vestry.security.GoogleSignInVerifier;
 import me.vestry.security.SecurityConfig;
 import me.vestry.service.DemoSessionResolver;
 import me.vestry.service.DemoSessionService;
@@ -51,6 +52,7 @@ class LoginControllerTest {
     @MockitoBean private PortfolioService portfolios;
     @MockitoBean private TransactionService transactions;
     @MockitoBean private NasdaqMetadataService metadata;
+    @MockitoBean private GoogleSignInVerifier google;
     private User demoUser;
 
     @Test
@@ -225,6 +227,29 @@ class LoginControllerTest {
                         .content("{\"username\":\"botty\",\"password\":\"longenough\",\"website\":\"http://spam\"}"))
                 .andExpect(status().isBadRequest());
         verify(users, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void googleSignInStartsASessionForTheVerifiedAccountAndIsOffWithoutAClientId() throws Exception {
+        var request = post("/api/auth/google").contentType(MediaType.APPLICATION_JSON);
+        mvc.perform(request.content("{\"accessToken\":\"token\"}")).andExpect(status().isNotFound());
+
+        when(google.enabled()).thenReturn(true);
+        when(google.clientId()).thenReturn("vestry.apps.googleusercontent.com");
+        mvc.perform(get("/api/auth/google/client-id"))
+                .andExpect(jsonPath("clientId").value("vestry.apps.googleusercontent.com"));
+        mvc.perform(request.content("{\"accessToken\":\"forged\"}")).andExpect(status().isBadRequest());
+        verify(users, never()).saveAndFlush(any());
+
+        when(google.verify("token")).thenReturn(Optional.of(
+                new GoogleSignInVerifier.GoogleIdentity("google-123", "casey.lee@gmail.com")));
+        when(users.saveAndFlush(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        MvcResult signedIn = mvc.perform(request.content("{\"accessToken\":\"token\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("username").value("casey.lee"))
+                .andReturn();
+        mvc.perform(get("/api/auth/me").session(session(signedIn)))
+                .andExpect(jsonPath("username").value("casey.lee"));
     }
 
     private MvcResult login(String username, MockHttpSession session, Cookie cookie) throws Exception {
