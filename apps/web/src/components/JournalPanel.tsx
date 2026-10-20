@@ -257,13 +257,13 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
                     <button
                       onClick={() => handleSaveEdit(entry.id)}
                       disabled={loading}
-                      className="px-2 py-1 bg-primary text-primary-foreground text-xs rounded hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
+                      className="px-2 py-1 bg-primary text-primary-foreground text-xs rounded hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed pointer-coarse:min-h-[40px] pointer-coarse:px-3"
                     >
                       Save
                     </button>
                     <button
                       onClick={handleCancelEdit}
-                      className="px-2 py-1 bg-surface border border-border text-foreground text-xs rounded hover:bg-surface-hover active:bg-surface-active transition-colors"
+                      className="px-2 py-1 bg-surface border border-border text-foreground text-xs rounded hover:bg-surface-hover active:bg-surface-active transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
                     >
                       Cancel
                     </button>
@@ -276,14 +276,14 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
                 <>
                   <div className="text-sm text-foreground whitespace-pre-wrap">{getDisplayBody(entry.body)}</div>
                   <TagPills tags={entry.tags} />
-                  <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 pointer-coarse:static pointer-coarse:mt-3 pointer-coarse:justify-end transition-opacity">
                     {onViewOnChart && (entry.entryType === 'BUY' || entry.entryType === 'SELL') && isTradingHours(entry.timestamp) && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
                           onViewOnChart?.(entry)
                         }}
-                        className="px-2 py-1 text-xs text-foreground bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors"
+                        className="px-2 py-1 text-xs text-foreground bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
                         title="View on chart"
                       >
                         View
@@ -294,7 +294,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
                         e.stopPropagation()
                         handleEditClick(entry)
                       }}
-                      className="px-2 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors"
+                      className="px-2 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
                       title="Edit"
                     >
                       Edit
@@ -304,7 +304,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
                         e.stopPropagation()
                         handleDeleteClick(entry.id)
                       }}
-                      className="px-2 py-1 text-xs text-error hover:text-error bg-surface border border-border rounded hover:bg-error/10 transition-colors"
+                      className="px-2 py-1 text-xs text-error hover:text-error bg-surface border border-border rounded hover:bg-error/10 transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
                       title="Delete"
                     >
                       Delete
@@ -327,7 +327,7 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
             }
           }}
         >
-          <div className="bg-elevated p-6 rounded-lg shadow-floating w-11/12 max-w-sm border border-border">
+          <div className="bg-elevated p-5 md:p-6 max-h-[90dvh] overflow-y-auto rounded-lg shadow-floating w-11/12 max-w-sm border border-border">
             <h3 className="text-lg font-130 mt-0 mb-4">Delete Journal Entry</h3>
             <p className="text-secondary mb-6">Are you sure you want to delete this journal entry? This action cannot be undone. Any linked reflections will become insights and lose their comparison with this entry.</p>
             <div className="flex justify-end gap-2">

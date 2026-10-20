@@ -117,7 +117,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
   }, [snapshot])
 
   const renderMetadata = () => (
-    <div className="space-y-2">
+    <div className="space-y-2 break-words">
       <div className="text-sm text-muted">
         <span className="font-130">{metadata?.etf ? 'Asset Class' : 'Sector'}:</span>{' '}
         {metadata?.sector || '-'}
@@ -159,12 +159,12 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
 
     return (
       <div className="space-y-3">
-        <div className="flex justify-between text-sm">
+        <div className="flex max-md:flex-wrap max-md:gap-2 justify-between text-sm">
           <span className="text-muted">Current Price</span>
           <span className="text-foreground">{formatCurrency(snapshot.currentPrice)}</span>
         </div>
         {dayChange && (
-          <div className="flex justify-between text-sm">
+          <div className="flex max-md:flex-wrap max-md:gap-2 justify-between text-sm">
             <span className="text-muted">Day Change</span>
             <span className={dayChange.diff >= 0 ? 'text-gain' : 'text-loss'}>
               {formatSignedCurrencyWithPercent(dayChange.diff, dayChange.percent)}
@@ -172,7 +172,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
           </div>
         )}
         {trackingChange && (
-          <div className="flex justify-between text-sm">
+          <div className="flex max-md:flex-wrap max-md:gap-2 justify-between text-sm">
             <span className="text-muted">Price change since tracking</span>
             <span className={trackingChange.diff >= 0 ? 'text-gain' : 'text-loss'}>
               {formatSignedCurrencyWithPercent(trackingChange.diff, trackingChange.percent)}
@@ -337,25 +337,25 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
           <div className="text-sm text-muted">No position data available.</div>
         ) : (
           <div className="space-y-3">
-            <div className="flex justify-between gap-3 text-sm">
+            <div className="flex max-md:flex-wrap justify-between gap-3 text-sm">
               <span className="text-muted">Shares</span>
               <span className="text-foreground">{position.shares.toLocaleString('en-US', { maximumFractionDigits: 9 })}</span>
             </div>
-            <div className="flex justify-between gap-3 text-sm">
+            <div className="flex max-md:flex-wrap justify-between gap-3 text-sm">
               <span className="text-muted">Market value</span>
               <span className="text-foreground">{position.marketValue == null ? '—' : formatCurrency(position.marketValue)}</span>
             </div>
-            <div className="flex justify-between gap-3 text-sm">
+            <div className="flex max-md:flex-wrap justify-between gap-3 text-sm">
               <span className="text-muted">Average cost</span>
               <span className="text-foreground">{position.averageCost == null ? '—' : formatCurrency(position.averageCost)}</span>
             </div>
-            <div className="flex justify-between gap-3 text-sm">
+            <div className="flex max-md:flex-wrap justify-between gap-3 text-sm">
               <span className="text-muted">Unrealized gain/loss</span>
               <span className={position.unrealizedGainLoss == null || position.unrealizedGainLoss === 0 ? 'text-foreground' : position.unrealizedGainLoss > 0 ? 'text-gain' : 'text-loss'}>
                 {position.unrealizedGainLoss == null || position.unrealizedPercent == null ? '—' : formatSignedCurrencyWithPercent(position.unrealizedGainLoss, position.unrealizedPercent)}
               </span>
             </div>
-            <div className="flex justify-between gap-3 text-sm">
+            <div className="flex max-md:flex-wrap justify-between gap-3 text-sm">
               <span className="text-muted">Realized gain/loss</span>
               <span className={position.realizedGainLoss === 0 ? 'text-foreground' : position.realizedGainLoss > 0 ? 'text-gain' : 'text-loss'}>
                 {formatSignedCurrencyWithPercent(position.realizedGainLoss, position.realizedPercent)}
@@ -370,12 +370,12 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
   )
 
   return (
-    <div className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-elevated border-l border-border shadow-floating z-[1200] p-6 overflow-y-auto [scrollbar-gutter:stable]">
-      <div className="flex justify-between items-center mb-5">
-        <h2 className="text-2xl font-130 m-0">{ticker}</h2>
+    <div className="fixed top-0 right-0 bottom-0 w-full md:max-w-md bg-elevated border-l border-border shadow-floating z-[1200] p-4 md:p-6 overflow-y-auto [scrollbar-gutter:stable]">
+      <div className="flex justify-between items-center gap-3 mb-5 max-md:sticky max-md:top-0 max-md:z-20 max-md:-mx-4 max-md:-mt-4 max-md:px-4 max-md:pt-4 max-md:pb-4 max-md:bg-elevated max-md:border-b max-md:border-border">
+        <h2 className="min-w-0 break-words text-2xl font-130 m-0">{ticker}</h2>
         <button
           onClick={onClose}
-          className="px-3 py-1.5 bg-elevated text-foreground rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors"
+          className="shrink-0 pointer-coarse:min-h-[40px] px-3 py-1.5 bg-elevated text-foreground rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors"
         >
           Close
         </button>
@@ -425,7 +425,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
 
       {!isWatchlist && (
         <div className="mb-6">
-          <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="flex max-md:flex-wrap items-center justify-between gap-3 mb-3">
             <h4 className="text-lg font-130">Price History</h4>
             <PriceHistoryRangeSelector value={historyRange} onChange={setHistoryRange} />
           </div>
@@ -488,7 +488,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                 onClick={() => onEntryClick?.(entry)}
                 className="p-3 rounded-md transition-colors bg-surface border border-border cursor-pointer hover:bg-surface-hover active:bg-surface-active"
               >
-                <div className="flex justify-between mb-1">
+                <div className="flex max-md:flex-wrap max-md:gap-2 justify-between mb-1">
                   <span className={journalBadge(entry.entryType)}>
                     {JOURNAL_STYLES[entry.entryType].label}
                   </span>
@@ -499,7 +499,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                     Snapshot: ${entry.priceSnapshot.toFixed(2)}
                   </div>
                 )}
-                <div className="text-sm text-foreground whitespace-pre-wrap">{entry.body}</div>
+                <div className="text-sm text-foreground whitespace-pre-wrap break-words">{entry.body}</div>
               </div>
             ))}
           </div>

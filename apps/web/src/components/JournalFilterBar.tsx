@@ -62,22 +62,22 @@ export default function JournalFilterBar({ filters, availableTags, onChange, cla
 
       <div className="space-y-1.5">
         <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-muted whitespace-nowrap">From:</label>
+          <div className="flex flex-1 md:flex-initial min-w-0 items-center gap-2">
+            <label className="text-sm text-muted whitespace-nowrap w-10 shrink-0 md:w-auto">From:</label>
             <input
               type="date"
               value={filterDateKey(filters.from)}
               onChange={(e) => update({ dates: undefined, from: e.target.value || undefined })}
-              className="px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              className="min-w-0 flex-1 md:flex-none px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-muted whitespace-nowrap">To:</label>
+          <div className="flex flex-1 md:flex-initial min-w-0 items-center gap-2">
+            <label className="text-sm text-muted whitespace-nowrap w-10 shrink-0 md:w-auto">To:</label>
             <input
               type="date"
               value={filterDateKey(filters.to)}
               onChange={(e) => update({ dates: undefined, to: e.target.value || undefined })}
-              className="px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              className="min-w-0 flex-1 md:flex-none px-2 py-2 bg-background border border-border-control rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
             />
           </div>
         </div>
@@ -94,7 +94,7 @@ export default function JournalFilterBar({ filters, availableTags, onChange, cla
             type="button"
             onClick={() => toggleType(type.value)}
             aria-pressed={filters.types?.includes(type.value) ?? false}
-            className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+            className={`px-2.5 py-1 pointer-coarse:min-h-[40px] text-xs rounded-md border transition-colors ${
               filters.types?.includes(type.value)
                 ? `${JOURNAL_STYLES[type.value].badge} ring-1 ring-primary`
                 : 'bg-surface-hover border-border text-secondary hover:text-foreground'
@@ -113,7 +113,7 @@ export default function JournalFilterBar({ filters, availableTags, onChange, cla
               key={tag.id}
               type="button"
               onClick={() => toggleTag(tag.id)}
-              className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+              className={`px-2.5 py-1 pointer-coarse:min-h-[40px] text-xs rounded-full border transition-colors ${
                 filters.tagIds?.includes(tag.id)
                   ? 'text-foreground'
                   : 'bg-surface-hover text-secondary hover:text-foreground'
@@ -135,7 +135,7 @@ export default function JournalFilterBar({ filters, availableTags, onChange, cla
         <button
           type="button"
           onClick={() => onChange({})}
-          className={`ml-auto mr-8 shrink-0 py-0.5 text-sm text-secondary hover:text-foreground underline ${hasActiveFilters ? '' : 'invisible'}`}
+          className={`ml-auto md:mr-8 shrink-0 pointer-coarse:min-h-[40px] py-0.5 text-sm text-secondary hover:text-foreground underline ${hasActiveFilters ? '' : 'invisible'}`}
         >
           Clear filters
         </button>

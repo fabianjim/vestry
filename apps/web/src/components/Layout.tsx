@@ -92,10 +92,12 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
   }
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-background text-foreground">
+    // Phones scroll the document so Safari's toolbar collapse and tap-to-top work;
+    // wider screens keep docked sidebars beside an inner scroll area.
+    <div className="flex min-h-dvh flex-col bg-background text-foreground md:h-dvh md:flex-row md:overflow-hidden">
       {/* Sidebar */}
       <aside
-        className={`shrink-0 overflow-y-auto flex flex-col border-r border-border-subtle bg-background-sidebar transition-all duration-300 ${
+        className={`hidden shrink-0 overflow-y-auto md:flex flex-col border-r border-border-subtle bg-background-sidebar transition-all duration-300 ${
           isOpen ? 'w-44' : 'w-16'
         }`}
       >
@@ -161,10 +163,22 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
         </div>
       </aside>
 
+      {/* Phone header */}
+      <header className="sticky top-0 z-40 flex h-12 shrink-0 items-center justify-between border-b border-border-subtle bg-background-sidebar px-3 md:hidden">
+        <img src="/logo.svg" alt="Vestry" width={32} height={32} />
+        <button
+          onClick={handleLogout}
+          className="flex h-10 items-center gap-2 rounded-md px-3 text-sm font-130 text-secondary hover:bg-surface-hover active:bg-surface-active hover:text-foreground transition-colors"
+        >
+          <LogoutIcon className="w-5 h-5" />
+          Logout
+        </button>
+      </header>
+
       {/* Main Content */}
-      <main className="min-w-0 flex-1 flex flex-col">
+      <main className="min-w-0 flex-1 flex flex-col pb-14 md:pb-0">
         {isDemo && (
-          <div className={`shrink-0 z-30 px-6 py-2 text-sm font-130 ${
+          <div className={`shrink-0 z-30 px-4 md:px-6 py-2 text-sm font-130 ${
             remainingTrades === 0
               ? 'bg-error-soft text-error border-b border-error-border'
               : 'bg-primary-soft text-primary border-b border-primary/20'
@@ -172,18 +186,18 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
             Demo Mode — {remainingTrades} of 3 trades remaining. Changes are not saved.
           </div>
         )}
-        <div className="min-h-0 flex-1 flex">
-          <div className="min-w-0 flex-1 overflow-auto pl-6 flex flex-col">
+        <div className="md:min-h-0 flex-1 flex">
+          <div className="min-w-0 flex-1 px-1 md:overflow-auto md:px-0 md:pl-6 flex flex-col">
             <div className="flex-1">
               <ViewStateProvider>
                 <Outlet context={{ isDemo, remainingTrades, refreshDemoStatus, priceRevision } as LayoutContext} />
               </ViewStateProvider>
             </div>
-            <footer className="py-3 px-6 border-t border-border flex flex-col items-center gap-3 text-sm text-muted">
+            <footer className="py-3 px-6 text-center border-t border-border flex flex-col items-center gap-3 text-sm text-muted">
               <p className="font-90 text-secondary">
                 Contributions are welcomed and encouraged. For informational purposes only, not financial advice.
               </p>
-              <div className="flex items-center gap-6">
+              <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
                 {footerItems.map((item) => {
                   const Icon = item.icon
                   return (
@@ -204,6 +218,29 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
           </div>
         </div>
       </main>
+
+      {/* Phone tab bar */}
+      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-40 grid h-14 grid-cols-4 border-t border-border-subtle bg-background-sidebar md:hidden">
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.path
+          const Icon = item.icon
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              aria-current={isActive ? 'page' : undefined}
+              className={`flex flex-col items-center justify-center gap-0.5 text-xs font-130 transition-colors ${
+                isActive ? 'text-foreground' : 'text-muted active:text-foreground'
+              }`}
+            >
+              <span className={`rounded-full px-4 py-0.5 transition-colors ${isActive ? 'bg-surface-active' : ''}`}>
+                <Icon className="w-5 h-5" />
+              </span>
+              {item.label}
+            </Link>
+          )
+        })}
+      </nav>
     </div>
   )
 }

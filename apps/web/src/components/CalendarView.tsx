@@ -130,9 +130,10 @@ export default function CalendarView({ onSelectionChange, filters = {}, classNam
         <div className="text-sm text-muted">Loading calendar...</div>
       )}
 
+      {/* Touch: vertical swipes scroll the page (the browser cancels the gesture); taps and sideways drags select. */}
       <div
         ref={gridRef}
-        className="grid grid-cols-7 gap-y-1 text-center select-none touch-none"
+        className="grid grid-cols-7 gap-y-1 text-center select-none touch-pan-y"
         onPointerMove={moveSelection}
         onPointerUp={finishSelection}
         onPointerCancel={() => endGesture(false)}

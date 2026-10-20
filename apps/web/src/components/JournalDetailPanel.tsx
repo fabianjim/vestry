@@ -148,12 +148,12 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
   return (
     <div
       ref={containerRef}
-      className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-elevated border-l border-border shadow-floating z-[1200] p-6 overflow-y-auto"
+      className="fixed top-0 right-0 bottom-0 w-full md:max-w-md bg-elevated border-l border-border shadow-floating z-[1200] p-4 md:p-6 overflow-y-auto"
     >
       {/* Header */}
-      <div className="flex justify-between items-start mb-5">
-        <div>
-          <h2 className="text-2xl font-130 m-0">{entry.ticker || 'Journal Entry'}</h2>
+      <div className="flex justify-between items-start gap-3 mb-5 max-md:sticky max-md:top-0 max-md:z-20 max-md:-mx-4 max-md:-mt-4 max-md:px-4 max-md:pt-4 max-md:pb-4 max-md:bg-elevated max-md:border-b max-md:border-border">
+        <div className="min-w-0">
+          <h2 className="min-w-0 break-words text-2xl font-130 m-0">{entry.ticker || 'Journal Entry'}</h2>
           <span
             className={journalBadge(entry.entryType)}
           >
@@ -163,7 +163,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
         <button
           onClick={onClose}
           disabled={saving}
-          className="px-3 py-1.5 bg-elevated text-foreground rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors"
+          className="shrink-0 pointer-coarse:min-h-[40px] px-3 py-1.5 bg-elevated text-foreground rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors"
         >
           Close
         </button>
@@ -208,7 +208,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
       {/* Price History Chart */}
       {entry.ticker && (
         <div className="mb-6">
-          <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="flex max-md:flex-wrap items-center justify-between gap-3 mb-3">
             <h4 className="text-lg font-130">Price History</h4>
             <PriceHistoryRangeSelector value={historyRange} onChange={setHistoryRange} />
           </div>
@@ -288,15 +288,15 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
         <div className="mb-6 p-4 bg-surface-hover rounded-lg border border-border">
           <h4 className="text-lg font-130 mb-3">Entry to reflection</h4>
           <div className="space-y-2">
-            <div className="flex justify-between gap-3 text-sm">
+            <div className="flex max-md:flex-wrap justify-between gap-3 text-sm">
               <span className="text-muted">Original snapshot</span>
               <span>{sourceEntry?.priceSnapshot != null && sourceEntry.priceSnapshot > 0 ? formatCurrency(sourceEntry.priceSnapshot) : '—'}</span>
             </div>
-            <div className="flex justify-between gap-3 text-sm">
+            <div className="flex max-md:flex-wrap justify-between gap-3 text-sm">
               <span className="text-muted">Reflection snapshot</span>
               <span>{entry.priceSnapshot != null && entry.priceSnapshot > 0 ? formatCurrency(entry.priceSnapshot) : '—'}</span>
             </div>
-            <div className="flex justify-between gap-3 text-sm">
+            <div className="flex max-md:flex-wrap justify-between gap-3 text-sm">
               <span className="text-muted">Price change</span>
               <span className={valueColor(comparison?.diff)}>
                 {comparison ? formatSignedCurrencyWithPercent(comparison.diff, comparison.percent) : '—'}
@@ -312,11 +312,11 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
           <h4 className="text-lg font-130 mb-3">{entry.entryType === 'REFLECTION' ? 'Since reflection' : 'Performance'}</h4>
 
           <div className="space-y-2">
-            <div className="flex justify-between text-sm">
+            <div className="flex max-md:flex-wrap max-md:gap-2 justify-between text-sm">
               <span className="text-muted">Latest price</span>
               <span className="text-foreground">{latestPrice == null ? '—' : formatCurrency(latestPrice)}</span>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="flex max-md:flex-wrap max-md:gap-2 justify-between text-sm">
               <span className="text-muted">{priceChangeLabel}</span>
               <span className={valueColor(priceChange?.diff)}>
                 {priceChange ? formatSignedCurrencyWithPercent(priceChange.diff, priceChange.percent) : '—'}
@@ -329,7 +329,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
               {(['lowest', 'highest'] as const).map((key) => {
                 const point = recordedRange?.[key]
                 return (
-                <div key={key} className="flex justify-between text-sm">
+                <div key={key} className="flex max-md:flex-wrap max-md:gap-2 justify-between text-sm">
                   <span className="text-muted">{key === 'lowest' ? 'Lowest recorded price' : 'Highest recorded price'}</span>
                   <span className="text-foreground text-right">
                     {point ? formatCurrency(point.price) : '—'}
@@ -345,7 +345,7 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
 
           {entry.entryType === 'SELL' && (
             <div className="mt-4 pt-4 border-t border-border space-y-2">
-              <div className="flex justify-between text-sm">
+              <div className="flex max-md:flex-wrap max-md:gap-2 justify-between text-sm">
                 <span className="text-muted">Realized gain/loss</span>
                 <span className={valueColor(realized?.realizedPnL)}>
                   {realized

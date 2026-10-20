@@ -310,13 +310,13 @@ export default function JournalPage() {
                             }
                           }}
                         />
-                        <div className="absolute bottom-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute bottom-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 pointer-coarse:static pointer-coarse:mt-3 pointer-coarse:justify-end transition-opacity">
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
                               handleEditClick(entry)
                             }}
-                            className="px-2.5 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors"
+                            className="px-2.5 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
                             title="Edit"
                           >
                             Edit
@@ -326,7 +326,7 @@ export default function JournalPage() {
                               e.stopPropagation()
                               handleDelete(entry.id)
                             }}
-                            className="px-2.5 py-1 text-xs text-error hover:text-error bg-surface border border-border rounded hover:bg-error/10 transition-colors"
+                            className="px-2.5 py-1 text-xs text-error hover:text-error bg-surface border border-border rounded hover:bg-error/10 transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
                             title="Delete"
                           >
                             Delete

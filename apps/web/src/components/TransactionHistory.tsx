@@ -7,13 +7,18 @@ import { formatDateTime, isInMarketDateRange, roundToMinute } from '../utils/dat
 import { exportToCSV } from '../utils/exportUtils'
 import { FunnelIcon, ArrowDownTrayIcon } from './icons'
 import { formatSignedCurrencyWithPercent } from '../utils/formatUtils'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 
 const EMPTY_TRANSACTIONS: Transaction[] = []
 
+// Table headers anchor dropdowns by their right edge; on phones they span the screen below the chips.
 interface DropdownPosition {
   top: number
-  right: number
+  left?: number
+  right?: number
 }
+
+type Filter = 'date' | 'type' | 'ticker'
 
 export default function TransactionHistory() {
   const transactionsQuery = useQuery(portfolioQueries.transactions())
@@ -22,13 +27,14 @@ export default function TransactionHistory() {
   const pnlSummary = pnlQuery.data
   const loading = transactionsQuery.isPending
   const error = transactionsQuery.error?.message || pnlQuery.error?.message
+  const showTable = useMediaQuery('(min-width: 48rem)')
 
   // Filter state
   const [dateFrom, setDateFrom] = useState<string>('')
   const [dateTo, setDateTo] = useState<string>('')
   const [selectedTypes, setSelectedTypes] = useState<Set<'BUY' | 'SELL'>>(new Set())
   const [selectedTickers, setSelectedTickers] = useState<Set<string>>(new Set())
-  const [openFilter, setOpenFilter] = useState<'date' | 'type' | 'ticker' | null>(null)
+  const [openFilter, setOpenFilter] = useState<Filter | null>(null)
   const [dropdownPos, setDropdownPos] = useState<DropdownPosition>({ top: 0, right: 0 })
 
   // Refs for buttons and dropdown containers
@@ -40,21 +46,22 @@ export default function TransactionHistory() {
   const tickerDropdownRef = useRef<HTMLDivElement>(null)
 
   // Calculate dropdown position when opening
-  const calculatePosition = useCallback((btnRef: React.RefObject<HTMLButtonElement | null>) => {
+  const calculatePosition = useCallback((btnRef: React.RefObject<HTMLButtonElement | null>): DropdownPosition => {
     if (!btnRef.current) return { top: 0, right: 0 }
     const rect = btnRef.current.getBoundingClientRect()
+    if (!showTable) return { top: rect.bottom + 4, left: 8, right: 8 }
     return {
       top: rect.bottom + 4,
       right: window.innerWidth - rect.right,
     }
-  }, [])
+  }, [showTable])
 
-  const handleOpenFilter = (filter: 'date' | 'type' | 'ticker') => {
+  const handleOpenFilter = (filter: Filter) => {
     if (openFilter === filter) {
       setOpenFilter(null)
       return
     }
-    let pos = { top: 0, right: 0 }
+    let pos: DropdownPosition = { top: 0, right: 0 }
     switch (filter) {
       case 'date':
         pos = calculatePosition(dateFilterBtnRef)
@@ -72,7 +79,7 @@ export default function TransactionHistory() {
 
   // Close dropdowns on click outside (including clicks inside dropdowns)
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: PointerEvent) => {
       const target = e.target as Node
       const isInDropdown =
         (dateDropdownRef.current && dateDropdownRef.current.contains(target)) ||
@@ -87,8 +94,8 @@ export default function TransactionHistory() {
         setOpenFilter(null)
       }
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('pointerdown', handleClickOutside)
+    return () => document.removeEventListener('pointerdown', handleClickOutside)
   }, [])
 
   // Close dropdowns on Escape key
@@ -106,7 +113,7 @@ export default function TransactionHistory() {
   useEffect(() => {
     const handleResize = () => {
       if (!openFilter) return
-      let pos = { top: 0, right: 0 }
+      let pos: DropdownPosition = { top: 0, right: 0 }
       switch (openFilter) {
         case 'date':
           pos = calculatePosition(dateFilterBtnRef)
@@ -223,11 +230,64 @@ export default function TransactionHistory() {
         </div>
       )}
 
-      <div className="overflow-x-auto relative group">
+      {!showTable && <>
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          {([
+            ['date', 'Date', dateFilterBtnRef, Boolean(dateFrom || dateTo)],
+            ['type', 'Type', typeFilterBtnRef, selectedTypes.size > 0],
+            ['ticker', 'Ticker', tickerFilterBtnRef, selectedTickers.size > 0],
+          ] as const).map(([filter, label, ref, active]) => (
+            <button
+              key={filter}
+              ref={ref}
+              onClick={() => handleOpenFilter(filter)}
+              aria-expanded={openFilter === filter}
+              className={`flex h-10 items-center gap-1.5 rounded-md border px-3 text-sm transition-colors ${
+                active || openFilter === filter
+                  ? 'border-primary-border bg-primary-soft text-primary'
+                  : 'border-border bg-surface text-secondary active:bg-surface-active'
+              }`}
+            >
+              <FunnelIcon className="w-3.5 h-3.5" />
+              {label}
+            </button>
+          ))}
+          <button
+            onClick={handleExport}
+            className="ml-auto flex h-10 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm text-secondary active:bg-surface-active"
+            aria-label="Export filtered selection to CSV"
+          >
+            <ArrowDownTrayIcon className="w-4 h-4" />
+            CSV
+          </button>
+        </div>
+        <ul className="space-y-2">
+          {filteredTransactions.map((t) => (
+            <li key={t.id} className="p-3 bg-surface rounded-lg border border-border text-sm">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="flex items-baseline gap-2">
+                  <span className="font-130 text-foreground">{t.ticker}</span>
+                  <span className={`text-xs font-130 ${t.type === 'BUY' ? 'text-buy' : 'text-sell'}`}>{t.type}</span>
+                </span>
+                <span className="font-130 text-foreground tabular-nums">${t.totalValue.toFixed(2)}</span>
+              </div>
+              <div className="mt-1 flex flex-wrap justify-between gap-x-3 text-xs text-muted tabular-nums">
+                <span>{formatDateTime(t.timestamp)}</span>
+                <span>{t.shares} × ${t.price.toFixed(2)}</span>
+              </div>
+            </li>
+          ))}
+          {filteredTransactions.length === 0 && (
+            <li className="p-4 text-center text-muted italic">No transactions match the selected filters</li>
+          )}
+        </ul>
+      </>}
+
+      {showTable && <div className="overflow-x-auto relative group">
         <button
           onClick={handleExport}
           title="Export to CSV"
-          className="absolute top-2 right-2 z-10 p-1.5 rounded-md bg-surface-hover border border-border text-secondary opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground cursor-pointer"
+          className="absolute top-2 right-2 z-10 p-1.5 rounded-md bg-surface-hover border border-border text-secondary opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 transition-opacity hover:text-foreground cursor-pointer"
           aria-label="Export filtered selection to CSV"
         >
           <ArrowDownTrayIcon className="w-4 h-4" />
@@ -245,7 +305,7 @@ export default function TransactionHistory() {
                       className={`p-1 rounded transition-opacity ${
                         openFilter === 'date' || dateFrom || dateTo
                           ? 'opacity-100 text-primary'
-                          : 'opacity-0 group-hover:opacity-100 text-muted hover:text-foreground'
+                          : 'opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 text-muted hover:text-foreground'
                       }`}
                       title="Filter by date"
                     >
@@ -264,7 +324,7 @@ export default function TransactionHistory() {
                       className={`p-1 rounded transition-opacity ${
                         openFilter === 'type' || selectedTypes.size > 0
                           ? 'opacity-100 text-primary'
-                          : 'opacity-0 group-hover:opacity-100 text-muted hover:text-foreground'
+                          : 'opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 text-muted hover:text-foreground'
                       }`}
                       title="Filter by type"
                     >
@@ -283,7 +343,7 @@ export default function TransactionHistory() {
                       className={`p-1 rounded transition-opacity ${
                         openFilter === 'ticker' || selectedTickers.size > 0
                           ? 'opacity-100 text-primary'
-                          : 'opacity-0 group-hover:opacity-100 text-muted hover:text-foreground'
+                          : 'opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 text-muted hover:text-foreground'
                       }`}
                       title="Filter by ticker"
                     >
@@ -329,7 +389,7 @@ export default function TransactionHistory() {
             )}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {/* Dropdowns rendered via portal to escape overflow containers */}
       {openFilter === 'date' && createPortal(
@@ -338,9 +398,8 @@ export default function TransactionHistory() {
           className="bg-background/35 backdrop-blur-xl border border-foreground/5 rounded-xl shadow-sm shadow-background/20 p-3 z-50"
           style={{
             position: 'fixed',
-            top: dropdownPos.top,
-            right: dropdownPos.right,
-            width: '16rem',
+            ...dropdownPos,
+            width: showTable ? '16rem' : undefined,
           }}
         >
           <div className="text-sm font-130 text-foreground mb-2">Filter by Date</div>
@@ -382,9 +441,8 @@ export default function TransactionHistory() {
           className="bg-background/35 backdrop-blur-xl border border-foreground/5 rounded-xl shadow-sm shadow-background/20 p-3 z-50"
           style={{
             position: 'fixed',
-            top: dropdownPos.top,
-            right: dropdownPos.right,
-            width: '12rem',
+            ...dropdownPos,
+            width: showTable ? '12rem' : undefined,
           }}
         >
           <div className="text-sm font-130 text-foreground mb-2">Filter by Type</div>
@@ -419,9 +477,8 @@ export default function TransactionHistory() {
           className="bg-background/35 backdrop-blur-xl border border-foreground/5 rounded-xl shadow-sm shadow-background/20 p-3 z-50"
           style={{
             position: 'fixed',
-            top: dropdownPos.top,
-            right: dropdownPos.right,
-            width: '14rem',
+            ...dropdownPos,
+            width: showTable ? '14rem' : undefined,
           }}
         >
           <div className="text-sm font-130 text-foreground mb-2">Filter by Ticker</div>

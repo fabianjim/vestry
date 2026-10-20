@@ -111,18 +111,18 @@ export default function WatchlistPanel({ isOpen = true, onCountChange, onBuyClic
               >
                 <div className="grid grid-cols-[1fr_auto] gap-x-2">
                   <div className="text-base font-130 text-foreground">{item.ticker}</div>
-                  <div className="flex gap-2 justify-self-end self-start opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex gap-2 justify-self-end self-start opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 transition-opacity">
                   <button
                     onClick={() => onBuyClick?.(item.ticker)}
                     disabled={loading}
-                    className="px-2.5 py-1 bg-buy text-primary-foreground text-xs rounded hover:bg-buy-hover transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
+                    className="px-2.5 py-1 bg-buy text-primary-foreground text-xs rounded hover:bg-buy-hover transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed pointer-coarse:min-h-[40px] pointer-coarse:px-3"
                   >
                     Buy
                   </button>
                   <button
                     onClick={() => handleRemove(item.ticker)}
                     disabled={loading}
-                    className="px-2.5 py-1 bg-sell text-primary-foreground text-xs rounded hover:bg-sell-hover transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
+                    className="px-2.5 py-1 bg-sell text-primary-foreground text-xs rounded hover:bg-sell-hover transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed pointer-coarse:min-h-[40px] pointer-coarse:px-3"
                   >
                     Remove
                   </button>

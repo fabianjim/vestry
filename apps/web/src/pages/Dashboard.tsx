@@ -21,12 +21,14 @@ import DashboardSummary from '../components/DashboardSummary'
 import DashboardDigest from '../components/DashboardDigest'
 import { useDigest } from '../hooks/useDigest'
 import { useDashboardLayout } from '../hooks/useDashboardLayout'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 
 export default function Dashboard() {
   const queryClient = useQueryClient()
   const { isDemo, refreshDemoStatus } = useOutletContext<LayoutContext>()
   const preferences = useDashboardLayout()
   const { layout } = preferences
+  const sidebarDocked = useMediaQuery('(min-width: 64rem)')
   const briefingVisible = Boolean(preferences.query.data) && layout.showBriefing
   const briefing = useDigest(briefingVisible)
   const explorePerformance = () => {
@@ -276,10 +278,25 @@ export default function Dashboard() {
     }
   }
 
+  const portfolioSidebar = (
+    <RightSidebar
+      holdings={results}
+      loading={loading || holdingsQuery.isPending}
+      isDemo={isDemo}
+      inline={!sidebarDocked}
+      onBuyClick={openBuyModal}
+      onSellClick={() => setShowSellModal(true)}
+      onHoldingClick={(ticker) => {
+        setSelectedTicker(ticker)
+        setSelectedJournalEntry(null)
+      }}
+    />
+  )
+
   return (
     <div className="flex min-h-screen gap-6"> {/* if modifying sidebar gap also update Layout.tsx */}
       {/* Main Content */}
-      <div className="flex-1 max-w-6xl mx-auto mt-6 px-3">
+      <div className="min-w-0 flex-1 max-w-6xl mx-auto mt-4 md:mt-6 px-3">
 
       {briefing.available && <BriefingBar expanded={layout.showBriefing}
         disabled={!preferences.query.data || preferences.save.isPending}
@@ -304,8 +321,10 @@ export default function Dashboard() {
 
       {(error || queryError) && <div className="text-error mt-2 mb-4">{error || queryError}</div>}
 
+      {!sidebarDocked && portfolioSidebar}
+
       {/* Portfolio History Chart */}
-      <div id="portfolio-performance" tabIndex={-1} className="mb-8">
+      <div id="portfolio-performance" tabIndex={-1} className="mb-8 scroll-mt-16 md:scroll-mt-0">
         <h3 className="text-xl font-130 mb-4">Portfolio Performance</h3>
         <PortfolioChart
           ref={portfolioChartRef}
@@ -345,7 +364,7 @@ export default function Dashboard() {
       {/* Add Stock Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-overlay flex justify-center items-center z-50">
-          <div className="bg-elevated p-6 rounded-lg shadow-floating w-11/12 max-w-md border border-border">
+          <div className="bg-elevated p-5 md:p-6 rounded-lg shadow-floating w-11/12 max-w-md max-h-[90dvh] overflow-y-auto border border-border">
             <h3 className="text-xl font-130 mt-0 mb-4">Buy Stock</h3>
             <div className="mb-4">
               <label className="block mb-1 text-secondary">Ticker Symbol</label>
@@ -386,7 +405,7 @@ export default function Dashboard() {
             {manualExpanded && (
               <div className="mb-4 p-3 bg-surface-hover border border-border rounded-md">
                 <div className="flex items-center gap-2">
-                  <div className="flex-1">
+                  <div className="min-w-0 flex-1">
                     <label className="block text-xs text-muted mb-1">Hour</label>
                     <input
                       type="text"
@@ -396,7 +415,7 @@ export default function Dashboard() {
                     />
                   </div>
                   <span className="text-muted pt-5">:</span>
-                  <div className="flex-1">
+                  <div className="min-w-0 flex-1">
                     <label className="block text-xs text-muted mb-1">Minutes</label>
                     <input
                       type="text"
@@ -409,7 +428,7 @@ export default function Dashboard() {
                       className="w-full px-2 py-1.5 bg-surface border border-border-control rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
-                  <div className="flex-[2]">
+                  <div className="min-w-0 flex-[2]">
                     <label className="block text-xs text-muted mb-1">Price / Share</label>
                     <input
                       type="number"
@@ -435,7 +454,7 @@ export default function Dashboard() {
               </div>
             )}
 
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {error && <span className="text-error text-sm mr-auto">{error}</span>}
               <button onClick={() => {
                 setShowAddModal(false)
@@ -461,7 +480,7 @@ export default function Dashboard() {
       {/* Sell Stock Modal */}
       {showSellModal && (
         <div className="fixed inset-0 bg-overlay flex justify-center items-center z-50">
-          <div className="bg-elevated p-6 rounded-lg shadow-floating w-11/12 max-w-md border border-border">
+          <div className="bg-elevated p-5 md:p-6 rounded-lg shadow-floating w-11/12 max-w-md max-h-[90dvh] overflow-y-auto border border-border">
             <h3 className="text-xl font-130 mt-0 mb-4">Sell Stock</h3>
             
             {!sellTicker && (
@@ -528,7 +547,7 @@ export default function Dashboard() {
             {manualExpanded && (
               <div className="mb-4 p-3 bg-surface-hover border border-border rounded-md">
                 <div className="flex items-center gap-2">
-                  <div className="flex-1">
+                  <div className="min-w-0 flex-1">
                     <label className="block text-xs text-muted mb-1">Hour</label>
                     <input
                       type="text"
@@ -538,7 +557,7 @@ export default function Dashboard() {
                     />
                   </div>
                   <span className="text-muted pt-5">:</span>
-                  <div className="flex-1">
+                  <div className="min-w-0 flex-1">
                     <label className="block text-xs text-muted mb-1">Minutes</label>
                     <input
                       type="text"
@@ -551,7 +570,7 @@ export default function Dashboard() {
                       className="w-full px-2 py-1.5 bg-surface border border-border-control rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
-                  <div className="flex-[2]">
+                  <div className="min-w-0 flex-[2]">
                     <label className="block text-xs text-muted mb-1">Price / Share</label>
                     <input
                       type="number"
@@ -577,7 +596,7 @@ export default function Dashboard() {
               </div>
             )}
             
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {error && <span className="text-error text-sm mr-auto">{error}</span>}
               <button onClick={closeSellModal} className="px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors">
                 Cancel
@@ -608,17 +627,7 @@ export default function Dashboard() {
       </div>
 
       {/* Right Sidebar */}
-      <RightSidebar
-        holdings={results}
-        loading={loading || holdingsQuery.isPending}
-        isDemo={isDemo}
-        onBuyClick={openBuyModal}
-        onSellClick={() => setShowSellModal(true)}
-        onHoldingClick={(ticker) => {
-          setSelectedTicker(ticker)
-          setSelectedJournalEntry(null)
-        }}
-      />
+      {sidebarDocked && portfolioSidebar}
 
       {/* Node Detail Panel */}
       {selectedTicker && selectedHolding && (

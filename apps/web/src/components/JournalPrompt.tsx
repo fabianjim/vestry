@@ -25,7 +25,7 @@ export default function JournalPrompt({ isOpen, onClose, onSubmit, ticker, trade
 
   return (
     <div className="fixed inset-0 bg-overlay flex justify-center items-center z-[1100]">
-      <div className="bg-elevated p-6 rounded-lg shadow-floating w-11/12 max-w-sm border border-border">
+      <div className="bg-elevated p-5 md:p-6 max-h-[90dvh] overflow-y-auto rounded-lg shadow-floating w-11/12 max-w-sm border border-border">
         <h3 className="text-xl font-130 mt-0 mb-2 text-foreground">
           Journal this {tradeType === 'BUY' ? 'purchase' : 'sale'}?
         </h3>
