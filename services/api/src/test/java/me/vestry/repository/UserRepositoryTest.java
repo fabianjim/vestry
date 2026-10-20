@@ -50,6 +50,11 @@ class UserRepositoryTest {
 
         //non-existent user
         assertFalse(userRepository.existsByUsername("bob"));
+
+        // registration and login compare names ignoring case
+        assertFalse(userRepository.existsByUsername("ALICE"));
+        assertTrue(userRepository.existsByUsernameIgnoreCase("ALICE"));
+        assertEquals(1, userRepository.findAllByUsernameIgnoreCase("Alice").size());
     }
 
     @Test

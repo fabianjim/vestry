@@ -13,6 +13,7 @@ import me.vestry.service.DemoSessionService;
 import me.vestry.service.DemoSessionStore;
 import me.vestry.service.PortfolioService;
 import me.vestry.service.TransactionService;
+import me.vestry.service.UserService;
 import me.vestry.service.NasdaqMetadataService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,7 +39,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest({LoginController.class, PortfolioController.class})
-@Import({SecurityConfig.class, DemoSessionResolver.class, DemoSessionStore.class})
+@Import({SecurityConfig.class, DemoSessionResolver.class, DemoSessionStore.class, UserService.class})
 @EnableConfigurationProperties(ServerProperties.class)
 @ActiveProfiles("prod")
 class LoginControllerTest {
@@ -198,6 +199,24 @@ class LoginControllerTest {
                         .andExpect(jsonPath("authenticated").value(false));
             }
         }
+    }
+
+    @Test
+    void registrationReportsRuleFailuresAndAcceptsAValidAccount() throws Exception {
+        when(users.saveAndFlush(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"casey\",\"password\":\"short\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("message").value("Passwords need at least 8 characters."));
+        verify(users, never()).saveAndFlush(any());
+
+        mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"casey\",\"password\":\"longenough\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("username").value("casey"));
+        var saved = org.mockito.ArgumentCaptor.forClass(User.class);
+        verify(users).saveAndFlush(saved.capture());
+        assertTrue(encoder.matches("longenough", saved.getValue().getPassword()));
     }
 
     private MvcResult login(String username, MockHttpSession session, Cookie cookie) throws Exception {

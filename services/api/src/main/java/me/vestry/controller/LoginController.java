@@ -1,9 +1,9 @@
 package me.vestry.controller;
 
 import me.vestry.model.User;
-import me.vestry.repository.UserRepository;
 import me.vestry.service.DemoSessionResolver;
 import me.vestry.service.DemoSessionStore;
+import me.vestry.service.UserService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -14,7 +14,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.web.bind.annotation.*;
@@ -26,49 +25,36 @@ import java.util.Optional;
 @RequestMapping("/api/auth")
 public class LoginController {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final UserService userService;
     private final DemoSessionResolver demoSessionResolver;
     private final ServerProperties serverProperties;
 
-    public LoginController(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                           DemoSessionResolver demoSessionResolver, ServerProperties serverProperties) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
+    public LoginController(UserService userService, DemoSessionResolver demoSessionResolver,
+                           ServerProperties serverProperties) {
+        this.userService = userService;
         this.demoSessionResolver = demoSessionResolver;
         this.serverProperties = serverProperties;
     }
 
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> register(@RequestBody RegisterRequest request) {
-        if (userRepository.existsByUsername(request.username)) {
-            return ResponseEntity.badRequest()
-                    .body(new RegisterResponse("This user already exists", null));
+        try {
+            User user = userService.registerUser(request.username, request.password);
+            return ResponseEntity.ok(new RegisterResponse("User created successfully", user.getUsername()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new RegisterResponse(e.getMessage(), null));
         }
-
-        String hashedPassword = passwordEncoder.encode(request.password);
-        User user = new User(request.username, hashedPassword);
-        userRepository.save(user);
-
-        return ResponseEntity.ok(
-                new RegisterResponse("User created successfully", user.getUsername())
-        );
     }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request,
                                               HttpServletRequest httpRequest, HttpServletResponse response) {
-        Optional<User> foundUser = userRepository.findByUsername(request.username);
-
-        if (foundUser.isEmpty()) {
+        Optional<User> authenticated = userService.authenticate(request.username, request.password);
+        if (authenticated.isEmpty()) {
             return ResponseEntity.badRequest()
                     .body(new LoginResponse("Invalid username or password", null, null, false));
         }
-        User user = foundUser.get();
-        if (!passwordEncoder.matches(request.password, user.getPassword())) {
-            return ResponseEntity.badRequest()
-                    .body(new LoginResponse("Invalid username or password", null, null, false));
-        }
+        User user = authenticated.get();
 
         String demoId = user.isDemo() ? demoSessionResolver.resume(user, httpRequest, response) : null;
         HttpSession previous = httpRequest.getSession(false);
@@ -84,7 +70,6 @@ public class LoginController {
         SecurityContextHolder.setContext(context);
         new HttpSessionSecurityContextRepository().saveContext(context, httpRequest, response);
 
-        System.out.println("User " + user.getUsername() + " " + user.getId() + " logged in successfully.");
         return ResponseEntity.ok(
                 new LoginResponse("Login successful", user.getUsername(), user.getId(), user.isDemo())
         );
@@ -107,15 +92,6 @@ public class LoginController {
         );
     }
 
-    /*@PostMapping("/logout")
-    public ResponseEntity<LoginResponse> logout() {
-        SecurityContextHolder.clearContext();
-        return ResponseEntity.ok(
-                new LoginResponse("Logout successful", null, null)
-        );
-    }*/
-
-
     public static class RegisterRequest {
         public String username;
         public String password;
@@ -124,7 +100,7 @@ public class LoginController {
     public static class LoginRequest {
         public String username;
         public String password;
-    } 
+    }
 
     public record LoginResponse(String message, String username, Integer userId, boolean isDemo) {}
 
