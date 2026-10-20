@@ -61,3 +61,8 @@ Vestry is a portfolio journal for casual, reflective investors. It connects port
   - Motion should clarify state, never create urgency.
   - For dropdowns, reuse `GlassSelect` or the existing glass styling in `SectorBreakdown.tsx`/`TransactionHistory.tsx`.
 - Do not add another charting library alongside Recharts and D3.
+- Mobile (responsive web only, no PWA):
+  - Below `md` the shell swaps sidebars for a top bar and bottom tab bar, and the document scrolls; from `md` up, `Layout` scrolls an inner pane. The Dashboard sidebar renders inline below `lg`.
+  - Tailwind v4 `hover:` never fires on touch, so pair hover-only reveals with `pointer-coarse:`. Use `useMediaQuery` only when the rendered tree must differ.
+  - Touch gestures are deliberate: one finger scrolls the page over the relationship graph (two fingers pan and zoom) and over the journal calendar (taps and sideways drags select).
+  - `npm run test:e2e` (Playwright, `apps/web/e2e`) checks overflow at phone, tablet and desktop widths and the phone gestures. Workspace pages sign in to the demo account through the local API and skip without it.

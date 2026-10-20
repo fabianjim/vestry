@@ -11,6 +11,7 @@ import ConcentrationCard from '../components/ConcentrationCard'
 import PositionSizeReturnCard from '../components/PositionSizeReturnCard'
 import HoldingsCardHeader from '../components/HoldingsCardHeader'
 import { HOLDINGS_CARDS } from '../utils/holdingsLayout'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 
 const TOGGLES: { key: keyof GraphSettings; label: string }[] = [
   { key: 'groupBySector', label: 'Group by Sector' },
@@ -26,6 +27,8 @@ export default function Analysis() {
   const { holdings, isPending, nodes, edges, sectorData, holdingsValueData, error, getMetadata, getTrackingStartDate, getStockSnapshot } =
     useHoldingGraphData()
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
+  // A portrait canvas keeps labels readable on phones instead of shrinking the desktop layout.
+  const compactGraph = !useMediaQuery('(min-width: 48rem)')
 
   const { appliedSettings: [appliedSettings, setAppliedSettings] } = useViewState()
 
@@ -78,7 +81,7 @@ export default function Analysis() {
                 <span className="text-sm text-muted">Watchlist</span>
               </div>
 
-              <div className="ml-auto flex items-center justify-end gap-3 flex-wrap">
+              <div className="md:ml-auto flex items-center md:justify-end gap-3 flex-wrap">
                 {TOGGLES.map((toggle) => (
                   <label key={toggle.key} className="flex items-center gap-2 text-sm text-muted cursor-pointer">
                     <input
@@ -100,10 +103,12 @@ export default function Analysis() {
               edges={filteredEdges}
               groupBySector={appliedSettings.groupBySector}
               onNodeClick={(ticker) => setSelectedTicker(ticker)}
-              width={size === 1 ? 500 : 1000}
-              height={size === 1 ? 400 : 550}
+              width={compactGraph ? 360 : size === 1 ? 500 : 1000}
+              height={compactGraph ? 380 : size === 1 ? 400 : 550}
+              compact={compactGraph}
               embedded
             /> : <p className="text-sm text-muted py-6">No holdings or watchlist items match these settings.</p>}
+            {filteredNodes.length > 0 && <p className="hidden pointer-coarse:block mt-2 text-xs text-muted">Drag a holding to move it. Use two fingers to pan or zoom.</p>}
           </div>
         }
       }}</HoldingsGrid>

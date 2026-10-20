@@ -395,11 +395,11 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
   return (
     <div
       ref={containerRef}
-      className="bg-surface p-5 rounded-lg border border-border"
+      className="bg-surface p-4 md:p-5 rounded-lg border border-border"
     >
       {error && <div className="text-error mb-4">{error}</div>}
-      <div className="flex justify-between items-center mb-5">
-        <div>
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
+        <div className="flex shrink-0">
           <button
             onClick={() => {
               setViewMode('hourly')

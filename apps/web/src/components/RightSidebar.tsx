@@ -56,10 +56,13 @@ interface RightSidebarProps {
   onBuyClick: (ticker?: string) => void
   onSellClick: () => void
   onHoldingClick?: (ticker: string) => void
+  /** Render as an always-expanded section in the page flow (narrow screens). */
+  inline?: boolean
 }
 
-export default function RightSidebar({ holdings, loading, isDemo, onBuyClick, onSellClick, onHoldingClick }: RightSidebarProps) {
-  const [isOpen, setIsOpen] = useState(() => window.innerWidth >= 768)
+export default function RightSidebar({ holdings, loading, isDemo, onBuyClick, onSellClick, onHoldingClick, inline = false }: RightSidebarProps) {
+  const [expanded, setIsOpen] = useState(() => window.innerWidth >= 768)
+  const isOpen = inline || expanded
   const [userManuallyClosed, setUserManuallyClosed] = useState(false)
   const [watchlistCount, setWatchlistCount] = useState(0)
 
@@ -76,15 +79,17 @@ export default function RightSidebar({ holdings, loading, isDemo, onBuyClick, on
   return (
     <aside
       // Demo banner: 1.25rem line height + 1rem vertical padding + 1px border.
-      className={`sticky top-0 self-start flex flex-col overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 border-l border-border-subtle bg-background-sidebar rounded-b-lg transition-all duration-300 ${
+      className={`flex flex-col [&>*]:shrink-0 bg-background-sidebar ${inline
+        ? 'mb-8 rounded-lg border border-border'
+        : `sticky top-0 self-start overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-l border-border-subtle rounded-b-lg transition-all duration-300 ${
           isDemo ? 'max-h-[calc(100dvh-2.25rem-1px)]' : 'max-h-dvh'
         } ${
           isOpen ? 'w-80' : 'w-36'
-        }`}
+        }`}`}
     >
       {/* Toggle */}
       <div className="flex items-center gap-2 p-3 border-b border-border">
-        <button
+        {!inline && <button
           onClick={() => {
             const next = !isOpen
             setIsOpen(next)
@@ -98,7 +103,7 @@ export default function RightSidebar({ holdings, loading, isDemo, onBuyClick, on
           ) : (
             <ChevronDoubleLeftIcon className="w-4 h-4" />
           )}
-        </button>
+        </button>}
         {isOpen && (
           <>
             <span className="flex h-7 flex-1 items-center justify-center text-md leading-none font-130">Portfolio</span>
@@ -137,7 +142,7 @@ export default function RightSidebar({ holdings, loading, isDemo, onBuyClick, on
         {holdings.length === 0 ? (
           <div className={`text-muted ${isOpen ? 'p-4 text-sm' : 'p-2 text-xs'}`}>No holdings yet</div>
         ) : (
-          <div className={isOpen ? 'p-2' : 'p-1'}>
+          <div className={inline ? 'p-2 grid sm:grid-cols-2 gap-x-1' : isOpen ? 'p-2' : 'p-1'}>
             {holdings.map(holding => {
               const currentPrice = holding.stockData?.stock?.currentPrice ?? 0
               const prevClose = holding.stockData?.stock?.prevClose ?? currentPrice

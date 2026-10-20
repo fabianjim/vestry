@@ -197,6 +197,8 @@ type HoldingGraphProps = {
   width?: number
   height?: number
   embedded?: boolean
+  /** Phone layout: shorter links and a pull toward the center keep nodes inside a small canvas. */
+  compact?: boolean
 }
 
 export default function HoldingGraph({
@@ -207,6 +209,7 @@ export default function HoldingGraph({
   width = 800,
   height = 500,
   embedded = false,
+  compact = false,
 }: HoldingGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const onNodeClickRef = useRef(onNodeClick)
@@ -258,7 +261,10 @@ export default function HoldingGraph({
       const zoom = d3
         .zoom<SVGSVGElement, unknown>()
         .scaleExtent([0.5, 4])
-        .filter(event => event.type === 'wheel' ? event.metaKey : !event.ctrlKey && !event.button)
+        // One finger scrolls the page (nodes still drag); two fingers pan and pinch the graph.
+        .filter(event => event.type === 'wheel' ? event.metaKey
+          : event.type === 'touchstart' ? event.touches.length > 1
+          : !event.ctrlKey && !event.button)
         .on('zoom', (event) => {
           g.attr('transform', event.transform.toString())
         })
@@ -280,12 +286,18 @@ export default function HoldingGraph({
           d3
             .forceLink<GraphNode, GraphEdge>(edgesCopy)
             .id((d) => d.id)
-            .distance(150)
+            .distance(compact ? 90 : 150)
             .strength((d) => d.strength * 0.015)
         )
         .force('charge', d3.forceManyBody<GraphNode>().strength(-80).distanceMax(200))
         .force('collision', d3.forceCollide<GraphNode>().radius((d) => d.radius + 10))
         .force('sector', createSectorGroupingForce(width, height, () => groupBySectorRef.current))
+
+      if (compact) {
+        simulation
+          .force('x', d3.forceX<GraphNode>(centerX).strength(0.06))
+          .force('y', d3.forceY<GraphNode>(centerY).strength(0.06))
+      }
 
       simulationRef.current = simulation
 
@@ -403,7 +415,7 @@ export default function HoldingGraph({
     } else {
       simulation.alpha(0.1).restart()
     }
-  }, [nodes, edges, width, height, groupBySector])
+  }, [nodes, edges, width, height, groupBySector, compact])
 
   return (
     <svg
@@ -411,7 +423,7 @@ export default function HoldingGraph({
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
-      className={`w-full h-auto rounded-lg bg-surface ${embedded ? '' : 'border border-border'}`}
+      className={`w-full h-auto touch-pan-y rounded-lg bg-surface ${embedded ? '' : 'border border-border'}`}
       style={{ aspectRatio: `${width} / ${height}` }}
     />
   )

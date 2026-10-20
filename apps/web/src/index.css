@@ -180,6 +180,13 @@ body {
   min-height: 100vh;
 }
 
+/* iOS zooms into fields under 16px on focus. Unlayered, so this outranks text-* utilities. */
+@media (pointer: coarse) {
+  input, select, textarea {
+    font-size: 16px;
+  }
+}
+
 /* Focus styles */
 *:focus-visible {
   outline: 2px solid var(--color-primary);

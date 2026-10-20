@@ -23,7 +23,7 @@ export default function DashboardSummary({ metrics, holdings, pnl, ready, onMetr
       const metric = values[id]
       const color = metric.format !== 'change' || metric.value == null || metric.value === 0 ? 'text-foreground'
         : metric.value > 0 ? 'text-gain-emphasis' : 'text-loss-emphasis'
-      return <div key={index} className="p-4 bg-surface rounded-lg border border-border">
+      return <div key={index} className="p-3 md:p-4 bg-surface rounded-lg border border-border">
         <div className="flex items-center gap-1 text-sm text-muted [&_button:disabled]:opacity-100">
           <GlassSelect label={`Choose ${['left', 'middle', 'right'][index]} summary metric`} value={id} disabled={disabled}
             onChange={value => onMetricChange(index, value)}
@@ -32,7 +32,7 @@ export default function DashboardSummary({ metrics, holdings, pnl, ready, onMetr
             }))} />
           {metric.detail && <span> {metric.detail}</span>}
         </div>
-        <div className={`text-2xl font-130 tabular-nums ${color}`}>{display(metric)}</div>
+        <div className={`text-xl md:text-2xl font-130 tabular-nums ${color}`}>{display(metric)}</div>
       </div>
     })}
   </div>
