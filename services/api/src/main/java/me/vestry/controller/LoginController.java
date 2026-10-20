@@ -38,6 +38,10 @@ public class LoginController {
 
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> register(@RequestBody RegisterRequest request) {
+        // People never see the honeypot field; scripts that fill every input do.
+        if (request.website != null && !request.website.isBlank()) {
+            return ResponseEntity.badRequest().body(new RegisterResponse("Registration failed.", null));
+        }
         try {
             User user = userService.registerUser(request.username, request.password);
             return ResponseEntity.ok(new RegisterResponse("User created successfully", user.getUsername()));
@@ -95,6 +99,7 @@ public class LoginController {
     public static class RegisterRequest {
         public String username;
         public String password;
+        public String website;
     }
 
     public static class LoginRequest {

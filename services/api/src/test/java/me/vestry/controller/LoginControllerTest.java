@@ -219,6 +219,14 @@ class LoginControllerTest {
         assertTrue(encoder.matches("longenough", saved.getValue().getPassword()));
     }
 
+    @Test
+    void honeypotRegistrationsAreRejectedWithoutSaving() throws Exception {
+        mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"botty\",\"password\":\"longenough\",\"website\":\"http://spam\"}"))
+                .andExpect(status().isBadRequest());
+        verify(users, never()).saveAndFlush(any());
+    }
+
     private MvcResult login(String username, MockHttpSession session, Cookie cookie) throws Exception {
         var request = post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"username\":\"" + username + "\",\"password\":\"password\"}");

@@ -231,8 +231,8 @@ export const authApi = {
   login: (username: string, password: string) =>
     apiClient('/auth/login', { method: 'POST', body: { username, password } }),
 
-  register: (username: string, password: string) =>
-    apiClient('/auth/register', { method: 'POST', body: { username, password } }),
+  register: (username: string, password: string, website = '') =>
+    apiClient('/auth/register', { method: 'POST', body: { username, password, website } }),
 
   logout: () =>
     apiClient('/auth/logout', { method: 'POST' }),

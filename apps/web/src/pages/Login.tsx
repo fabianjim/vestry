@@ -16,6 +16,7 @@ export default function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [honeypot, setHoneypot] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -57,7 +58,7 @@ export default function Login() {
     preloadApplication()
     setLoading(true)
     try {
-      await signIn(mode, username, password)
+      await signIn(mode, username, password, honeypot)
       await redirectAfterLogin(navigate)
     } catch (failure) {
       setError(signInErrorMessage(failure))
@@ -128,6 +129,21 @@ export default function Login() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className={inputClass}
+              />
+            </div>
+          )}
+
+          {isRegister && (
+            // Hidden from people and assistive tech; scripts that fill every field get rejected.
+            <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
+              <label htmlFor="website">Website</label>
+              <input
+                id="website"
+                name="website"
+                tabIndex={-1}
+                autoComplete="off"
+                value={honeypot}
+                onChange={(e) => setHoneypot(e.target.value)}
               />
             </div>
           )}

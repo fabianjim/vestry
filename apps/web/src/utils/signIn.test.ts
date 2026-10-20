@@ -11,7 +11,7 @@ beforeEach(() => vi.resetAllMocks())
 
 it('signs a new account in after registering, and never signs in when registration fails', async () => {
   await signIn('register', 'casey', 'secret')
-  expect(authApi.register).toHaveBeenCalledWith('casey', 'secret')
+  expect(authApi.register).toHaveBeenCalledWith('casey', 'secret', '')
   expect(authApi.login).toHaveBeenCalledWith('casey', 'secret')
 
   vi.mocked(authApi.login).mockClear()

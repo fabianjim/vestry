@@ -3,8 +3,8 @@ import { ApiError, authApi } from '../services/api'
 export type AuthMode = 'login' | 'register'
 
 /** Registering also signs in, so a new account goes straight to onboarding. */
-export async function signIn(mode: AuthMode, username: string, password: string) {
-  if (mode === 'register') await authApi.register(username, password)
+export async function signIn(mode: AuthMode, username: string, password: string, honeypot = '') {
+  if (mode === 'register') await authApi.register(username, password, honeypot)
   await authApi.login(username, password)
 }
 
