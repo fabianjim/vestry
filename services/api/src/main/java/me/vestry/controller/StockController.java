@@ -12,6 +12,7 @@ import me.vestry.service.DemoSessionService;
 import me.vestry.service.PortfolioService;
 import me.vestry.service.StockService;
 import me.vestry.service.MarketScheduleService;
+import me.vestry.service.NasdaqMetadataService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,24 +25,42 @@ import java.util.Optional;
 @RequestMapping("/api/stock")
 public class StockController {
 
+    private static final int SEARCH_LIMIT = 8;
+
     private final MarketScheduleService marketSchedule;
     private final StockService stockService;
     private final PortfolioService portfolioService;
     private final TrackedStockRepository trackedStockRepository;
     private final DemoSessionResolver demoSessionResolver;
     private final DemoSessionService demoSessionService;
+    private final NasdaqMetadataService metadataService;
 
     public StockController(StockService stockService, PortfolioService portfolioService,
                           TrackedStockRepository trackedStockRepository,
                           DemoSessionResolver demoSessionResolver,
-                          DemoSessionService demoSessionService, MarketScheduleService marketSchedule) {
+                          DemoSessionService demoSessionService, MarketScheduleService marketSchedule,
+                          NasdaqMetadataService metadataService) {
         this.marketSchedule = marketSchedule;
         this.stockService = stockService;
         this.portfolioService = portfolioService;
         this.trackedStockRepository = trackedStockRepository;
         this.demoSessionResolver = demoSessionResolver;
         this.demoSessionService = demoSessionService;
+        this.metadataService = metadataService;
     }
+
+    // Suggests tickers from the bundled stock and ETF lists; it never calls the price feed.
+    @GetMapping("/search")
+    public List<TickerMatch> search(@RequestParam("q") String query) {
+        if (query.length() > 40) return List.of();
+        return metadataService.search(query, SEARCH_LIMIT).stream()
+                .map(metadata -> new TickerMatch(metadata.getTicker(),
+                        metadata.getName() == null ? null : metadata.getName().replaceFirst("\\s*Common Stock$", ""),
+                        metadata.isEtf()))
+                .toList();
+    }
+
+    public record TickerMatch(String ticker, String name, boolean etf) {}
 
     // initial manual fetch from the frontend before routine fetches
     @GetMapping("/fetch/initial")

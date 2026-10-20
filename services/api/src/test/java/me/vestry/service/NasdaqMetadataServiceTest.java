@@ -8,6 +8,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -64,5 +65,27 @@ public class NasdaqMetadataServiceTest {
 
         assertFalse(result.isPresent());
         verify(etfMetadataService).lookupMetadata(ticker);
+    }
+
+    @Test
+    void searchRanksExactTickerThenPrefixesByMarketCapAndSkipsUnpriceableTickers() {
+        StockMetadata spy = new StockMetadata();
+        spy.setTicker("SPY");
+        spy.setName("SPDR S&P 500");
+        spy.setEtf(true);
+        when(etfMetadataService.allMetadata()).thenReturn(List.of(spy));
+
+        assertEquals("AAPL", nasdaqMetadataService.search("aapl", 8).get(0).getTicker());
+        assertEquals("AAPL", nasdaqMetadataService.search("Apple", 8).get(0).getTicker());
+        assertTrue(nasdaqMetadataService.search("SPY", 8).get(0).isEtf());
+
+        List<StockMetadata> brk = nasdaqMetadataService.search("BRK", 8);
+        assertFalse(brk.isEmpty());
+        assertTrue(brk.stream().noneMatch(metadata -> metadata.getTicker().contains("/")));
+
+        List<StockMetadata> broad = nasdaqMetadataService.search("A", 8);
+        assertEquals(8, broad.size());
+        assertTrue(broad.get(1).getMarketCap() >= broad.get(2).getMarketCap());
+        assertTrue(nasdaqMetadataService.search("  ", 8).isEmpty());
     }
 }

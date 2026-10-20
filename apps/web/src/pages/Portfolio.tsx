@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiError, authApi, portfolioApi } from '../services/api'
 import LoadingScreen from '../components/LoadingScreen'
+import TickerCombobox from '../components/TickerCombobox'
 import { XMarkIcon } from '../components/icons'
 import {
   MAX_HOLDINGS,
@@ -138,20 +139,20 @@ export default function Portfolio() {
               return (
                 <li key={row.id}>
                   <div className="grid grid-cols-[1fr_1fr_2.5rem] gap-2">
-                    <input
-                      aria-label={`Ticker ${index + 1}`}
-                      aria-invalid={Boolean(rowError)}
-                      aria-describedby={describedBy}
-                      placeholder="AAPL"
+                    <TickerCombobox
+                      label={`Ticker ${index + 1}`}
+                      invalid={Boolean(rowError)}
+                      describedBy={describedBy}
                       value={row.ticker}
-                      onChange={(e) => updateRow(row.id, { ticker: e.target.value.toUpperCase() })}
-                      maxLength={10}
-                      autoCapitalize="characters"
-                      autoComplete="off"
-                      spellCheck={false}
+                      onChange={(ticker) => updateRow(row.id, { ticker })}
+                      onSelect={(ticker) => {
+                        updateRow(row.id, { ticker })
+                        document.getElementById(`shares-${row.id}`)?.focus()
+                      }}
                       className={`${inputClass} ${rowError ? 'border-error-border' : 'border-border-control'}`}
                     />
                     <input
+                      id={`shares-${row.id}`}
                       aria-label={`Shares ${index + 1}`}
                       aria-invalid={Boolean(rowError)}
                       aria-describedby={describedBy}

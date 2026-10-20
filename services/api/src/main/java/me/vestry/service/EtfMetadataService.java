@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -105,5 +106,9 @@ public class EtfMetadataService {
 
     public Optional<StockMetadata> lookupMetadata(String ticker) {
         return Optional.ofNullable(etfCache.get(ticker));
+    }
+
+    public Collection<StockMetadata> allMetadata() {
+        return etfCache.values();
     }
 }

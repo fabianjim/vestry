@@ -1,6 +1,6 @@
 import { marketDayBoundary } from '../utils/calendarSelection'
 import type { Holding, PortfolioHistoryPoint } from '../types/portfolio'
-import type { StockData, StockHistoryPoint } from '../types/stock'
+import type { StockData, StockHistoryPoint, TickerMatch } from '../types/stock'
 import type { PnLSummary, Transaction } from '../types/transaction'
 import type { WatchlistItem } from '../types/watchlist'
 import type { HoldingsLayout } from '../utils/holdingsLayout'
@@ -145,6 +145,9 @@ export const stockApi = {
 
   fetchInitial: () =>
     apiClient('/stock/fetch/initial'),
+
+  searchTickers: (query: string, signal?: AbortSignal): Promise<TickerMatch[]> =>
+    apiClient(`/stock/search?q=${encodeURIComponent(query)}`, { signal }),
 
   getStockData: (ticker: string, signal?: AbortSignal): Promise<StockData> =>
     apiClient(`/stock/data/${ticker}`, { signal }),
