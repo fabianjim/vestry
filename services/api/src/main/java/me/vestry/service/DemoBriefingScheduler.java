@@ -14,7 +14,9 @@ public class DemoBriefingScheduler {
     private final UserRepository users;
     private final DashboardDigestService briefings;
 
-    @Scheduled(cron = "0 0 10 * * MON-FRI", zone = "America/New_York")
+    // Retries within the hour: a user briefing running at 10:00 would otherwise skip the day.
+    // generateDemo starts at most one job per day.
+    @Scheduled(cron = "0 0/10 10 * * MON-FRI", zone = "America/New_York")
     public void generate() {
         if (!briefings.available()) return;
         for (var user : users.findByDemoTrue()) {

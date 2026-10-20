@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -21,7 +22,12 @@ public class AiGenerationService {
 
     /** key is a server-built SHA-256 of account/session scope, context revision and request identity. */
     public UUID submit(String key, long allowanceMicros, Consumer<UUID> work) {
-        var start = budget.start(key, allowanceMicros);
+        return submit(key, allowanceMicros, List.of(), work);
+    }
+
+    /** reservedKeys are passed to AiBudgetService.start to keep room for jobs that have not started yet. */
+    public UUID submit(String key, long allowanceMicros, List<String> reservedKeys, Consumer<UUID> work) {
+        var start = budget.start(key, allowanceMicros, reservedKeys);
         if (!start.created()) return start.id();
         try {
             executor.execute(() -> {

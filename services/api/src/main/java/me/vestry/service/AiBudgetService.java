@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -28,19 +29,32 @@ public class AiBudgetService {
 
     public record Start(UUID id, boolean created) {}
 
-    /** Read-only availability hint; start() still enforces exact costs under the database lock. */
     @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
     public boolean canStart() {
+        return canStart(List.of());
+    }
+
+    /** Read-only availability hint; start() still enforces exact costs under the database lock. */
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    public boolean canStart(List<String> reservedKeys) {
         if (!limits.enabled() || budget.findById(1).map(AiBudget::isBlocked).orElse(true)) return false;
         var now = clock.instant();
         var day = now.atZone(BUDGET_ZONE).toLocalDate();
-        return jobs.countByBudgetDay(day) < limits.dailyGenerations()
+        return jobs.countByBudgetDay(day) + pending(reservedKeys) < limits.dailyGenerations()
                 && limits.permitsLifetimeSpend(jobs.totalCharged(), 1) && jobs.chargedOn(day) < limits.dailyMicros()
                 && jobs.findByStatus(AiGeneration.Status.RUNNING).stream()
                     .noneMatch(job -> job.getStartedAt().plus(MAX_JOB_TIME).isAfter(now));
     }
 
     public Start start(String key, long allowance) {
+        return start(key, allowance, List.of());
+    }
+
+    /**
+     * Until each reserved job has started, this job must leave a generation slot and its own
+     * allowance free for it, so a later scheduled job cannot be crowded out.
+     */
+    public Start start(String key, long allowance, List<String> reservedKeys) {
         if (!limits.enabled()) throw new IllegalStateException("AI is disabled");
         if (key == null || !key.matches("[a-f0-9]{64}") || allowance <= 0) {
             throw new IllegalArgumentException("Invalid AI generation reservation");
@@ -59,9 +73,11 @@ public class AiBudgetService {
             throw new IllegalStateException("An AI generation is already running");
         }
         var day = now.atZone(BUDGET_ZONE).toLocalDate();
-        if (jobs.countByBudgetDay(day) >= limits.dailyGenerations()
-                || !limits.permitsLifetimeSpend(jobs.totalCharged(), allowance)
-                || allowance > limits.dailyMicros() - jobs.chargedOn(day)) {
+        int reserved = pending(reservedKeys);
+        long required = allowance * (1 + reserved);
+        if (jobs.countByBudgetDay(day) + reserved >= limits.dailyGenerations()
+                || !limits.permitsLifetimeSpend(jobs.totalCharged(), required)
+                || required > limits.dailyMicros() - jobs.chargedOn(day)) {
             throw new IllegalStateException("AI allowance reached");
         }
         var job = jobs.saveAndFlush(new AiGeneration(key, now, day, allowance));
@@ -107,6 +123,10 @@ public class AiBudgetService {
         job.finish(unresolved ? AiGeneration.Status.UNKNOWN
                         : success ? AiGeneration.Status.SUCCEEDED : AiGeneration.Status.FAILED,
                 attempted.stream().mapToLong(AiCall::getChargedMicros).sum());
+    }
+
+    private int pending(List<String> reservedKeys) {
+        return (int) reservedKeys.stream().filter(key -> jobs.findByRequestKey(key).isEmpty()).count();
     }
 
     private void lockAvailable() {

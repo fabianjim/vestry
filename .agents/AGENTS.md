@@ -48,6 +48,7 @@ Vestry is a portfolio journal for casual, reflective investors. It connects port
 **AI briefings**
 - Daily dashboard briefings are generated with OpenAI.
 - Preserve `AiBudgetService` reservation and settlement, the per-user/day duplicate prevention, and the content-tracing boundary in `BriefingTracing` (demo/eval runs only).
+- Users generate at most one briefing per New York day, on request. The demo's briefing is scheduled (weekdays from 10:00 New York, retried through the hour), and on weekdays user jobs leave one daily slot and allowance free until it starts.
 
 ## Frontend conventions
 

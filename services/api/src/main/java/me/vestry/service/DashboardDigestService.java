@@ -5,15 +5,18 @@ import me.vestry.model.AiGeneration;
 import me.vestry.model.DemoSession;
 import me.vestry.model.User;
 import me.vestry.repository.AiGenerationRepository;
+import me.vestry.repository.UserRepository;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.HexFormat;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +30,7 @@ public class DashboardDigestService {
     private final DashboardLayoutService layouts;
     private final DemoSessionResolver users;
     private final Clock clock;
+    private final UserRepository accounts;
 
     public enum Status { DISABLED, HIDDEN, IDLE, GENERATING, READY, FAILED, LIMITED }
     public record State(Status status, LocalDate day, DigestService.Result digest) {}
@@ -44,7 +48,8 @@ public class DashboardDigestService {
         if (user.isDemo() || before.status() != Status.IDLE) return before;
         try {
             var snapshot = context.capture();
-            generations.submit(key(user, day), digests.allowance(snapshot), id -> digests.generate(id, snapshot));
+            generations.submit(key(user, day), digests.allowance(snapshot), demoReservations(user, day),
+                    id -> digests.generate(id, snapshot));
         } catch (IllegalStateException unavailable) {
             // Expose no provider details or private context. Accepted/duplicate jobs remain discoverable by GET.
             var after = state(user, demo, day);
@@ -80,7 +85,15 @@ public class DashboardDigestService {
         if (latest != null && latest.capturedAt().atZone(ZONE).toLocalDate().equals(day)) {
             return new State(Status.READY, day, latest);
         }
-        return new State(budget.canStart() ? Status.IDLE : Status.LIMITED, day, latest);
+        return new State(budget.canStart(demoReservations(user, day)) ? Status.IDLE : Status.LIMITED, day, latest);
+    }
+
+    /** On weekdays, user briefings leave room for the scheduled demo briefing until it starts. */
+    private List<String> demoReservations(User user, LocalDate day) {
+        if (user.isDemo() || day.getDayOfWeek() == DayOfWeek.SATURDAY || day.getDayOfWeek() == DayOfWeek.SUNDAY) {
+            return List.of();
+        }
+        return accounts.findByDemoTrue().stream().map(demo -> key(demo, day)).toList();
     }
 
     private LocalDate today() { return clock.instant().atZone(ZONE).toLocalDate(); }
