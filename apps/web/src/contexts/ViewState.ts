@@ -1,4 +1,5 @@
 import { createContext, createElement, useContext, useState, type ReactNode } from 'react'
+import type { PerformanceLens, PerformanceRange } from '../utils/chartData'
 
 export type GraphSettings = {
   groupBySector: boolean
@@ -15,18 +16,12 @@ const DEFAULT_SETTINGS: GraphSettings = {
 type PanelTab = 'performance' | 'metadata'
 export type PanelScope = 'dashboard' | 'analysis'
 
-function initialChartDate() {
-  const date = new Date()
-  const day = date.getDay()
-  if (day === 6) date.setDate(date.getDate() - 1)
-  if (day === 0) date.setDate(date.getDate() - 2)
-  return date
-}
-
 function useViewStateValues() {
   return {
-    chartMode: useState<'hourly' | 'daily'>('hourly'),
-    chartDate: useState(initialChartDate),
+    chartRange: useState<PerformanceRange>('ALL'),
+    chartLens: useState<PerformanceLens>('value'),
+    // A market date (YYYY-MM-DD) pinning the 1D range; null follows the latest day.
+    chartDay: useState<string | null>(null),
     appliedSettings: useState(DEFAULT_SETTINGS),
     panelTabs: useState<Record<PanelScope, PanelTab>>({ dashboard: 'performance', analysis: 'metadata' }),
   }

@@ -24,14 +24,14 @@ describe('cached portfolio views', () => {
       { timestamp: new Date().toISOString(), portfolioValue: 100 },
     ])
     client.setQueryData(portfolioQueries.transactions().queryKey, [])
-    expect(render(<PortfolioChart />)).toContain('Hourly')
+    expect(render(<PortfolioChart />)).toContain('Portfolio value')
     expect(render(<PortfolioChart />)).not.toContain('Loading chart')
 
     client.getQueryCache().find({ queryKey: portfolioQueries.history().queryKey })!
       .setState({ status: 'error', error: new Error('Connection interrupted') })
     const html = render(<PortfolioChart />)
     expect(html).toContain('Connection interrupted')
-    expect(html).toContain('Hourly')
+    expect(html).toContain('Portfolio value')
   })
 
   it('uses cached history for the selected ticker without leaking another ticker’s history', () => {

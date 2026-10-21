@@ -6,7 +6,6 @@ import PortfolioChart from '../components/PortfolioChart'
 import type { PortfolioChartHandle } from '../components/PortfolioChart'
 import JournalPrompt from '../components/JournalPrompt'
 import JournalPanel from '../components/JournalPanel'
-import type { JournalPanelHandle } from '../components/JournalPanel'
 import RightSidebar from '../components/RightSidebar'
 import InfoTooltip from '../components/InfoTooltip'
 import NodeDetailPanel from '../components/NodeDetailPanel'
@@ -55,8 +54,6 @@ export default function Dashboard() {
   const [journalPromptTradeType, setJournalPromptTradeType] = useState<'BUY' | 'SELL'>('BUY')
   const [journalPromptEntryId, setJournalPromptEntryId] = useState<number | null>(null)
   const portfolioChartRef = useRef<PortfolioChartHandle>(null)
-  const journalPanelRef = useRef<JournalPanelHandle>(null)
-  const [activeJournalIds, setActiveJournalIds] = useState<number[] | null>(null)
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
   const [selectedJournalEntry, setSelectedJournalEntry] = useState<JournalEntry | null>(null)
   const handleJournalEntriesChange = useCallback((entries: JournalEntry[]) => {
@@ -328,10 +325,9 @@ export default function Dashboard() {
         <h3 className="text-xl font-130 mb-4">Portfolio Performance</h3>
         <PortfolioChart
           ref={portfolioChartRef}
-          onPinClick={(entries) => {
-            if (!entries.length) return
-            setActiveJournalIds(entries.map((e) => e.id))
-            journalPanelRef.current?.scrollToEntry(entries[0].id)
+          onEntryClick={(entry) => {
+            setSelectedJournalEntry(entry)
+            setSelectedTicker(null)
           }}
         />
       </div>
@@ -346,16 +342,13 @@ export default function Dashboard() {
           </Link>
         </div>
         <JournalPanel
-          ref={journalPanelRef}
           onEntriesChange={handleJournalEntriesChange}
-          activeJournalIds={activeJournalIds}
-          onClearActive={() => setActiveJournalIds(null)}
           onEntryClick={(entry) => {
             setSelectedJournalEntry(entry)
             setSelectedTicker(null)
           }}
           onViewOnChart={(entry) => {
-            portfolioChartRef.current?.setHourlyDate(new Date(entry.timestamp))
+            portfolioChartRef.current?.showDay(new Date(entry.timestamp))
             portfolioChartRef.current?.scrollIntoView()
           }}
         />

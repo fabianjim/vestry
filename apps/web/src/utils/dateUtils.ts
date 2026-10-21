@@ -56,6 +56,17 @@ const getMarketParts = (date: Date): MarketParts => {
   }
 }
 
+const marketDayFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: MARKET_TZ,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+/** The New York calendar date of an instant, as YYYY-MM-DD. */
+export const marketDay = (timestamp: string | number | Date): string =>
+  marketDayFormatter.format(new Date(timestamp))
+
 /** Matches inclusive YYYY-MM-DD filters to the New York dates shown in the UI. */
 export const isInMarketDateRange = (timestamp: string, from: string, to: string): boolean => {
   if (!from && !to) return true

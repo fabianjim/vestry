@@ -84,17 +84,19 @@ function createSectorGroupingForce(
 }
 
 function createDragBehavior(simulation: d3.Simulation<GraphNode, undefined>) {
+  // Only one node drags at a time; the simulation restarts on the first move, not on a plain click.
+  let moved = false
   return d3
-    .drag<Element, GraphNode>()
-    .on('start', (d) => {
+    .drag<SVGGElement, GraphNode>()
+    .on('start', (_event, d) => {
       d.fx = d.x ?? null
       d.fy = d.y ?? null
-      ;(d as any).__dragMoved = false
+      moved = false
     })
     .on('drag', (event, d) => {
-      if (!(d as any).__dragMoved) {
+      if (!moved) {
         simulation.alphaTarget(0.2).restart()
-        ;(d as any).__dragMoved = true
+        moved = true
       }
       d.fx = event.x
       d.fy = event.y
@@ -103,9 +105,7 @@ function createDragBehavior(simulation: d3.Simulation<GraphNode, undefined>) {
       if (!event.active) simulation.alphaTarget(0)
       d.fx = null
       d.fy = null
-      delete (d as any).__dragMoved
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    }) as any
+    })
 }
 
 function appendNodeVisuals(
@@ -323,9 +323,8 @@ export default function HoldingGraph({
 
       const node = g
         .append('g')
-        .selectAll('g')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .data(nodes, (d: any) => d.id)
+        .selectAll<SVGGElement, GraphNode>('g')
+        .data(nodes, (d) => d.id)
         .join('g')
         .style('cursor', 'pointer')
         .call(createDragBehavior(simulation))

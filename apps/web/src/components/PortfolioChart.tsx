@@ -1,173 +1,221 @@
 import { useViewState } from '../contexts/ViewState'
-import { useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
+import { forwardRef, useCallback, useId, useImperativeHandle, useMemo, useRef, type KeyboardEvent } from 'react'
 import {
-  LineChart,
+  ComposedChart,
   Line,
   XAxis,
   YAxis,
   CartesianGrid,
+  ReferenceLine,
   Tooltip,
   ResponsiveContainer,
   Customized,
 } from 'recharts'
-import { useXAxis, useYAxis } from 'recharts/es6/hooks'
+import { useActiveTooltipDataPoints, usePlotArea, useXAxis, useYAxis } from 'recharts/es6/hooks'
 import { useQuery } from '@tanstack/react-query'
+import { curveMonotoneX, curveStepAfter, curveStepBefore, line, ticks } from 'd3'
 import { journalQueries, portfolioQueries } from '../services/queries'
 import type { JournalEntry } from '../types/journal'
 import type { Transaction } from '../types/transaction'
-import type { ChartDataPoint } from '../utils/chartData'
-import * as d3 from 'd3'
-import { processHourlyData } from '../utils/chartData'
+import {
+  axisTicks,
+  buildTimeline,
+  dailyCloses,
+  dateEntries,
+  formatMarketDay,
+  formatRowLabel,
+  selectRange,
+  toRows,
+  yDomain,
+  type ChartRow,
+  type HistoryPoint,
+  type PerformanceLens,
+  type PerformanceRange,
+} from '../utils/chartData'
+import { marketDay } from '../utils/dateUtils'
+import { formatCompactCurrency, formatCurrency, formatSignedCurrency } from '../utils/formatUtils'
+import { getDisplayBody } from '../utils/tagUtils'
+import { JOURNAL_STYLES, journalBadge } from '../constants/journalStyles'
 import { GLASS_TOOLTIP_CLASS, GLIDING_TOOLTIP, trackTooltipDrift } from '../utils/chartTooltip'
-import { CalendarIcon } from './icons'
-
-interface HistoryData {
-  timestamp: string
-  portfolioValue: number
-}
+import SegmentedControl from './SegmentedControl'
 
 export interface PortfolioChartHandle {
-  setHourlyDate: (date: Date) => void
+  showDay: (date: Date) => void
   scrollIntoView: () => void
 }
 
 interface Props {
-  onPinClick?: (entries: JournalEntry[]) => void
+  onEntryClick?: (entry: JournalEntry) => void
 }
 
-// Extract cubic bezier segments from a d3 monotone path.
-// A monotone path looks like: M x0 y0 C cp1x cp1y cp2x cp2y x1 y1 C cp1x cp1y cp2x cp2y x2 y2
-// We return an array where segments[i] is a standalone SVG path drawing from data[i] to data[i+1].
-function extractMonotoneSegments(pathD: string): string[] {
-  const segments: string[] = []
+const LENSES = [
+  { value: 'value', label: 'Value' },
+  { value: 'gain', label: 'Gain' },
+] as const
 
-  // Split at every C, keeping the C as the start of each piece
-  // e.g. "M0,100C16,100,33,90,50,90C66,90,83,80,100,80"
-  //   -> ["M0,100", "C16,100,33,90,50,90", "C66,90,83,80,100,80"]
-  const pieces = pathD.split(/(?=C)/)
-  if (pieces.length < 2) return segments
+const RANGES = [
+  { value: '1D', label: '1D' },
+  { value: '1W', label: '1W' },
+  { value: '1M', label: '1M' },
+  { value: '3M', label: '3M' },
+  { value: 'ALL', label: 'All' },
+] as const
 
-  // Segment 0: combine the M piece with the first C piece
-  // e.g. "M0,100" + "C16,100,33,90,50,90" -> "M0,100C16,100,33,90,50,90"
-  segments.push(pieces[0] + pieces[1])
-
-  // For each subsequent C piece, prepend "Mx,y" where x,y is the endpoint of the previous segment.
-  // A C command ends with "...,endX,endY". Extract those two numbers.
-  let lastEnd = ''
-  const endMatch = pieces[1].match(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/)
-  if (endMatch) {
-    lastEnd = endMatch[1] + ',' + endMatch[2]
-  }
-
-  for (let i = 2; i < pieces.length; i++) {
-    const piece = pieces[i]
-    if (lastEnd) {
-      segments.push('M' + lastEnd + piece)
-    }
-    const m = piece.match(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/)
-    if (m) {
-      lastEnd = m[1] + ',' + m[2]
-    }
-  }
-
-  return segments
+const GAIN_LABELS: Record<Exclude<PerformanceRange, '1D'>, string> = {
+  '1W': 'Gain, past week',
+  '1M': 'Gain, past month',
+  '3M': 'Gain, past 3 months',
+  ALL: 'Gain, all time',
 }
 
-function TransactionOverlay({
-  data,
-  lineColor,
-  onPinClick,
-  journalEntries,
-}: {
-  data: ChartDataPoint[]
-  lineColor: string
-  onPinClick?: (entries: JournalEntry[]) => void
-  journalEntries: JournalEntry[]
-}) {
+// Pixels reserved under the plot for journal marks, inside the plot so the tooltip follows into it.
+const LANE_HEIGHT = 44
+const MARK_SPACING = 9
+const MAX_MARKS = 3
+
+const signTone = (amount: number) => amount > 0 ? 'text-gain-emphasis' : amount < 0 ? 'text-loss-emphasis' : 'text-foreground'
+const sharesFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 })
+
+function tradeLines(trades: Transaction[]): string[] {
+  const shares = new Map<string, number>()
+  for (const tx of trades) {
+    const key = `${tx.type === 'BUY' ? 'Bought' : 'Sold'}\u0000${tx.ticker}`
+    shares.set(key, (shares.get(key) ?? 0) + tx.shares)
+  }
+  return [...shares].map(([key, total]) => {
+    const [verb, ticker] = key.split('\u0000')
+    return `${verb} ${sharesFormat.format(total)} ${ticker}`
+  })
+}
+
+/** Shades the gap between the line and its reference (money in, or zero): gain above, loss below. */
+function GainBand({ rows, lens, domain }: { rows: ChartRow[]; lens: PerformanceLens; domain: [number, number] }) {
   const xAxis = useXAxis(0)
   const yAxis = useYAxis(0)
+  const plot = usePlotArea()
+  const id = `band-${useId().replace(/:/g, '')}`
+  if (!xAxis || !yAxis || !plot || rows.length < 2) return null
 
-  if (!xAxis || !yAxis) return null
+  const x = (row: ChartRow) => Number(xAxis.scale(row.x))
+  const top = (row: ChartRow) => Number(yAxis.scale(lens === 'value' ? row.value : row.gain))
+  const bottom = (row: ChartRow) => {
+    const reference = lens === 'value' ? row.invested : 0
+    return Number(yAxis.scale(Math.min(Math.max(reference, domain[0]), domain[1])))
+  }
+  // Same curves as the Recharts lines (monotone value, stepAfter money in), so the edges meet them.
+  const upper = line<ChartRow>().x(x).y(top).curve(curveMonotoneX)(rows)
+  const reference = line<ChartRow>().x(x).y(bottom).curve(curveStepAfter)(rows)
+  const lowerBack = line<ChartRow>().x(x).y(bottom).curve(curveStepBefore)([...rows].reverse())
+  if (!upper || !reference || !lowerBack) return null
 
-  // Build screen-space points and generate the full monotone path with d3
-  // (same curveMonotoneX algorithm Recharts uses for type="monotone")
-  const screenPoints = data.map((p) => [xAxis.scale(p.timestamp), yAxis.scale(p.value)] as [number, number])
-  const lineGenerator = d3.line().curve(d3.curveMonotoneX)
-  const fullPath = lineGenerator(screenPoints)
-  const segments = fullPath ? extractMonotoneSegments(fullPath) : []
+  const left = x(rows[0])
+  const right = x(rows[rows.length - 1])
+  const band = `${upper}L${lowerBack.slice(1)}Z`
+  return (
+    <g pointerEvents="none">
+      <defs>
+        <clipPath id={`${id}-gain`}><path d={`${reference}L${right},${plot.y}L${left},${plot.y}Z`} /></clipPath>
+        <clipPath id={`${id}-loss`}><path d={`${reference}L${right},${plot.y + plot.height}L${left},${plot.y + plot.height}Z`} /></clipPath>
+      </defs>
+      <path d={band} fill="var(--color-gain)" fillOpacity={0.14} clipPath={`url(#${id}-gain)`} />
+      <path d={band} fill="var(--color-loss)" fillOpacity={0.14} clipPath={`url(#${id}-loss)`} />
+    </g>
+  )
+}
+
+/**
+ * Journal entries along the bottom of the plot, stacked per point. Reflections arc back to the
+ * entry they reflect on. Hovering a point lights its entries and their sources.
+ */
+function JournalLane({ rows, onEntryClick }: { rows: ChartRow[]; onEntryClick?: (entry: JournalEntry) => void }) {
+  const xAxis = useXAxis(0)
+  const plot = usePlotArea()
+  const active = useActiveTooltipDataPoints<ChartRow>()?.[0]
+
+  const layout = useMemo(() => {
+    if (!xAxis || !plot) return null
+    const base = plot.y + plot.height - 22
+    const marks: { entry: JournalEntry; x: number; y: number }[] = []
+    const positions = new Map<number, number>()
+    for (const row of rows) {
+      const x = Number(xAxis.scale(row.x))
+      row.entries.slice(0, MAX_MARKS).forEach((entry, k) => {
+        marks.push({ entry, x, y: base - k * MARK_SPACING })
+        positions.set(entry.id, x)
+      })
+    }
+    const arcs = marks.flatMap(({ entry, x }) => {
+      const from = entry.sourceEntryId != null ? positions.get(entry.sourceEntryId) : undefined
+      return from === undefined ? [] : [{ id: entry.id, from, to: x }]
+    })
+    return { base, marks, arcs }
+  }, [rows, xAxis, plot])
+
+  if (!layout) return null
+
+  const lit = new Set<number>()
+  for (const entry of active?.entries ?? []) {
+    lit.add(entry.id)
+    if (entry.sourceEntryId != null) lit.add(entry.sourceEntryId)
+  }
+  const open = (entry: JournalEntry) => onEntryClick?.(entry)
+  const onKey = (entry: JournalEntry) => (event: KeyboardEvent) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    open(entry)
+  }
+  const arcY = layout.base + 5
 
   return (
     <g>
-      {data.map((point, index) => {
-        if (!point.isTransaction || index === 0) return null
-
-        const segment = segments[index - 1]
-        if (!segment) return null
-
-        const cx = xAxis.scale(point.timestamp)
-        const cy = yAxis.scale(point.value)
-        const circleColor = point.transactionType === 'BUY' ? 'var(--color-buy)' : 'var(--color-sell)'
-        const hasEntries = (point.journalEntryIds?.length ?? 0) > 0
-        const tradeCount = point.transactionCount ?? 1
-
+      {layout.arcs.map(({ id, from, to }) => {
+        const on = lit.has(id)
+        const depth = Math.min(16, Math.abs(to - from) * 0.25 + 4)
         return (
-          // Buy/Sell event dashed line and hollow circle
-          <g key={`tx-${index}`}>
-            {/* background colored line to remove solid line*/}
-            <path
-              d={segment}
+          <path
+            key={id}
+            d={`M${from},${arcY}C${from},${arcY + depth} ${to},${arcY + depth} ${to},${arcY}`}
+            fill="none"
+            stroke="var(--color-reflection)"
+            strokeOpacity={on ? 0.9 : 0.3}
+            strokeWidth={on ? 1.5 : 1}
+            pointerEvents="none"
+          />
+        )
+      })}
+      {layout.marks.map(({ entry, x, y }) => {
+        const on = lit.has(entry.id)
+        const style = JOURNAL_STYLES[entry.entryType]
+        return (
+          <g key={entry.id}>
+            <circle
+              cx={x}
+              cy={y}
+              r={on ? 5.5 : 4}
+              fill={style.color}
               stroke="var(--color-surface)"
-              strokeWidth={6}
-              fill="none"
-            />
-            {/* dashed curve — identical path to the solid monotone line */}
-            <path
-              d={segment}
-              stroke={lineColor}
               strokeWidth={2}
-              strokeDasharray="6,4"
-              fill="none"
+              opacity={lit.size > 0 && !on ? 0.45 : 1}
+              pointerEvents="none"
             />
-
-            {/* hollow circle */}
-            <circle
-              cx={cx}
-              cy={cy}
-              r={5}
-              fill="none"
-              stroke={circleColor}
-              strokeWidth={2}
-              style={{ cursor: hasEntries ? 'pointer' : 'default' }}
-            />
-            {/* count badge for grouped trades */}
-            {tradeCount > 1 && (
-              <text
-                x={cx}
-                y={cy - 10}
-                textAnchor="middle"
-                fill={circleColor}
-                fontSize={10}
-                style={{ pointerEvents: 'none' }}
-              >
-                {tradeCount}
-              </text>
+            {onEntryClick && (
+              <circle
+                cx={x}
+                cy={y}
+                r={9}
+                fill="transparent"
+                strokeWidth={2}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${style.label.toLowerCase()} entry${entry.ticker ? ` for ${entry.ticker}` : ''}, ${formatMarketDay(marketDay(entry.timestamp))}`}
+                className="cursor-pointer outline-none focus-visible:stroke-primary pointer-coarse:[r:14px]"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  open(entry)
+                }}
+                onKeyDown={onKey(entry)}
+              />
             )}
-            {/* clickable area for the hollow circle */}
-            <circle
-              cx={cx}
-              cy={cy}
-              r={5}
-              fill="transparent"
-              style={{ cursor: hasEntries ? 'pointer' : 'default' }}
-              onClick={() => {
-                if (hasEntries && onPinClick) {
-                  const entries = (point.journalEntryIds ?? [])
-                    .map((id) => journalEntries.find((e) => e.id === id))
-                    .filter((e): e is JournalEntry => e != null)
-                  if (entries.length > 0) onPinClick(entries)
-                }
-              }}
-            />
           </g>
         )
       })}
@@ -175,199 +223,101 @@ function TransactionOverlay({
   )
 }
 
+function PerformanceTooltip({ active, payload, lens, range, entriesById }: {
+  active?: boolean
+  payload?: ReadonlyArray<{ payload?: ChartRow }>
+  lens: PerformanceLens
+  range: PerformanceRange
+  entriesById: Map<number, JournalEntry>
+}) {
+  const row = payload?.[0]?.payload
+  if (!active || !row) return null
+  const gain = lens === 'gain' ? row.gain : row.value - row.invested
+  return (
+    <div className={`${GLASS_TOOLTIP_CLASS} w-64 px-3 py-2 text-sm text-foreground`}>
+      <div className="text-muted mb-1">{formatRowLabel(row, range)}</div>
+      <div className="flex justify-between tabular-nums">
+        <span className="text-secondary">Value</span>
+        <span>{formatCurrency(row.value)}</span>
+      </div>
+      <div className="flex justify-between tabular-nums">
+        <span className="text-secondary">Gain</span>
+        <span className={signTone(gain)}>{formatSignedCurrency(gain)}</span>
+      </div>
+      {row.trades.length > 0 && (
+        <div className="mt-2 border-t border-border-subtle pt-2 text-secondary">
+          {tradeLines(row.trades).map(text => <div key={text}>{text}</div>)}
+        </div>
+      )}
+      {row.entries.slice(0, 2).map(entry => {
+        const source = entry.sourceEntryId != null ? entriesById.get(entry.sourceEntryId) : undefined
+        return (
+          <div key={entry.id} className="mt-2 border-t border-border-subtle pt-2">
+            <div className="flex items-center gap-2">
+              <span className={journalBadge(entry.entryType)}>{JOURNAL_STYLES[entry.entryType].label}</span>
+              {entry.ticker && <span className="font-130">{entry.ticker}</span>}
+            </div>
+            <p className="mt-1 line-clamp-3 text-secondary">{getDisplayBody(entry.body)}</p>
+            {source && (
+              <div className="mt-1 text-xs text-muted">
+                Reflects on {JOURNAL_STYLES[source.entryType].label}{source.ticker ? ` · ${source.ticker}` : ''}, {formatMarketDay(marketDay(source.timestamp))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {row.entries.length > 2 && <div className="mt-1 text-xs text-muted">+{row.entries.length - 2} more</div>}
+    </div>
+  )
+}
+
 const EMPTY_ENTRIES: JournalEntry[] = []
-const EMPTY_HISTORY: HistoryData[] = []
+const EMPTY_HISTORY: HistoryPoint[] = []
 const EMPTY_TRANSACTIONS: Transaction[] = []
 
-const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function PortfolioChart({ onPinClick }, ref) {
+const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function PortfolioChart({ onEntryClick }, ref) {
   const historyQuery = useQuery(portfolioQueries.history())
   const transactionsQuery = useQuery(portfolioQueries.transactions())
-  const data = historyQuery.data ?? EMPTY_HISTORY
-  const transactions = transactionsQuery.data ?? EMPTY_TRANSACTIONS
   const journalQuery = useQuery(journalQueries.entries())
+  const history = historyQuery.data ?? EMPTY_HISTORY
+  const transactions = transactionsQuery.data ?? EMPTY_TRANSACTIONS
   const journalEntries = journalQuery.data ?? EMPTY_ENTRIES
   const loading = historyQuery.isPending || transactionsQuery.isPending
   const error = historyQuery.error?.message ?? transactionsQuery.error?.message ?? journalQuery.error?.message
-  const { chartMode: [viewMode, setViewMode], chartDate: [currentDate, setCurrentDate] } = useViewState()
-  const hasAnimatedRef = useRef(false)
+  const { chartRange: [range, setRange], chartLens: [lens, setLens], chartDay: [day, setDay] } = useViewState()
   const containerRef = useRef<HTMLDivElement>(null)
 
   useImperativeHandle(ref, () => ({
-    setHourlyDate: (date: Date) => {
-      setViewMode('hourly')
-      setCurrentDate(date)
+    showDay: (date: Date) => {
+      setRange('1D')
+      setDay(marketDay(date))
     },
     scrollIntoView: () => {
       containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     },
-  }))
+  }), [setRange, setDay])
 
-  useEffect(() => {
-    if (data.length > 0) hasAnimatedRef.current = true
-  }, [data])
-
-  const processedData: ChartDataPoint[] = useMemo(() => {
-    if (!data || data.length === 0) return []
-
-    if (viewMode === 'hourly') {
-      return processHourlyData(data, transactions, journalEntries, currentDate)
-    } else {
-      const dailyData: { [key: string]: HistoryData } = {}
-
-      data.forEach((item) => {
-        const date = new Date(item.timestamp)
-        const dateKey = date.toDateString()
-
-        if (!dailyData[dateKey] || new Date(item.timestamp) > new Date(dailyData[dateKey].timestamp)) {
-          dailyData[dateKey] = item
-        }
-      })
-
-      const sortedDaily = Object.values(dailyData)
-        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-        .map((item) => ({
-          timestamp: new Date(item.timestamp).getTime(),
-          time: new Date(item.timestamp).toLocaleDateString('en-US', {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-          }),
-          value: item.portfolioValue,
-          fullTimestamp: item.timestamp,
-          isTransaction: false,
-        }))
-
-      if (sortedDaily.length === 0) return []
-
-      const windowEndTime = new Date(currentDate).getTime()
-
-      // Find the last data point at or before the current navigation date
-      let endIndex = sortedDaily.findIndex((p) => p.timestamp > windowEndTime)
-      if (endIndex === -1) {
-        endIndex = sortedDaily.length
-      }
-      endIndex = Math.max(0, endIndex - 1)
-
-      const startIndex = Math.max(0, endIndex - 4)
-      return sortedDaily.slice(startIndex, endIndex + 1)
-    }
-  }, [data, transactions, journalEntries, viewMode, currentDate])
-
-  const isPositiveTrend = useMemo(() => {
-    if (processedData.length < 2) return true
-    return processedData[processedData.length - 1].value >= processedData[0].value
-  }, [processedData])
-
-  const lineColor = isPositiveTrend ? 'var(--color-gain)' : 'var(--color-loss)'
-
-  const getPreviousTradingDay = (date: Date): Date => {
-    const newDate = new Date(date)
-    if (viewMode === 'hourly') {
-      newDate.setDate(newDate.getDate() - 1)
-      const day = newDate.getDay()
-      if (day === 0) newDate.setDate(newDate.getDate() - 2)
-      if (day === 6) newDate.setDate(newDate.getDate() - 1)
-    } else {
-      newDate.setDate(newDate.getDate() - 5)
-    }
-    return newDate
-  }
-
-  const handlePrevious = () => {
-    setCurrentDate(getPreviousTradingDay(currentDate))
-  }
-
-  const getNextTradingDay = (date: Date): Date => {
-    const newDate = new Date(date)
-    if (viewMode === 'hourly') {
-      newDate.setDate(newDate.getDate() + 1)
-      const day = newDate.getDay()
-      if (day === 6) newDate.setDate(newDate.getDate() + 2)
-      if (day === 0) newDate.setDate(newDate.getDate() + 1)
-    } else {
-      newDate.setDate(newDate.getDate() + 5)
-    }
-    return newDate
-  }
-
-  const handleNext = () => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const newDate = getNextTradingDay(currentDate)
-    const newDateStart = new Date(newDate)
-    newDateStart.setHours(0, 0, 0, 0)
-    if (newDateStart <= today) {
-      setCurrentDate(newDate)
-    }
-  }
-
-  // Helpers for daily navigation labels
-  const dailyDateRange = useMemo(() => {
-    if (viewMode !== 'daily' || processedData.length === 0) return null
-    const first = new Date(processedData[0].timestamp)
-    const last = new Date(processedData[processedData.length - 1].timestamp)
-
-    // Find the latest date with data
-    const dailyData: { [key: string]: HistoryData } = {}
-    data.forEach((item) => {
-      const date = new Date(item.timestamp)
-      const dateKey = date.toDateString()
-      if (!dailyData[dateKey] || new Date(item.timestamp) > new Date(dailyData[dateKey].timestamp)) {
-        dailyData[dateKey] = item
-      }
-    })
-    const latestTimestamp = Math.max(...Object.values(dailyData).map((d) => new Date(d.timestamp).getTime()))
-
-    const isLatestWindow = last.getTime() === latestTimestamp
-    return { first, last, isLatestWindow }
-  }, [viewMode, processedData, data])
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)
-  }
-
-  const formatDateInput = (date: Date): string => {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
-
-  const minHistoryDate = useMemo(() => {
-    if (!data || data.length === 0) return undefined
-    const earliest = Math.min(...data.map((d) => new Date(d.timestamp).getTime()))
-    return new Date(earliest)
-  }, [data])
-
-  const maxSelectableDate = useMemo(() => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    return today
-  }, [])
-
-  const handleDateSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.value) return
-    const [year, month, day] = e.target.value.split('-').map(Number)
-    setCurrentDate(new Date(year, month - 1, day))
-  }
-
-  const canGoForward = useMemo(() => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const nextTradingDay = getNextTradingDay(currentDate)
-    nextTradingDay.setHours(0, 0, 0, 0)
-    return nextTradingDay <= today
-  }, [currentDate])
-
-  // Dynamic ticks from actual data points (one tick per point)
-  const xAxisTicks = useMemo(() => {
-    return processedData.map((p) => p.timestamp)
-  }, [processedData])
+  // Each stage recomputes only when its inputs change: switching range or lens never rebuilds the timeline.
+  const timeline = useMemo(() => buildTimeline(history, transactions), [history, transactions])
+  const closes = useMemo(() => dailyCloses(timeline), [timeline])
+  const datedEntries = useMemo(() => dateEntries(journalEntries), [journalEntries])
+  const entriesById = useMemo(() => new Map(journalEntries.map(entry => [entry.id, entry])), [journalEntries])
+  const rows = useMemo(() => {
+    const { points, baseline } = selectRange(timeline, closes, range, range === '1D' ? day ?? undefined : undefined)
+    return toRows(points, baseline, datedEntries, range)
+  }, [timeline, closes, range, day, datedEntries])
+  const domain = useMemo<[number, number]>(() => rows.length === 0 ? [0, 1] : lens === 'value'
+    ? yDomain(rows.map(row => row.value), rows.map(row => row.invested))
+    : yDomain(rows.map(row => row.gain), [0]), [rows, lens])
+  const axis = useMemo(() => axisTicks(rows, range), [rows, range])
+  const yTicks = useMemo(() => ticks(domain[0], domain[1], 4), [domain])
+  // Money in only shows when it fits beside the value line; on short ranges it would flatten the line,
+  // and a gap clamped to the plot's edge would no longer mean gain.
+  const showMoneyIn = lens === 'value' && rows.every(row => row.invested >= domain[0] && row.invested <= domain[1])
+  const openActiveEntry = useCallback((state: { activeTooltipIndex?: number | string | null }) => {
+    const entry = rows[Number(state.activeTooltipIndex)]?.entries[0]
+    if (entry) onEntryClick?.(entry)
+  }, [rows, onEntryClick])
 
   if (loading && !error) {
     return (
@@ -385,7 +335,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
     )
   }
 
-  if (data.length === 0) {
+  if (history.length === 0) {
     return (
       <div className="h-72 flex items-center justify-center bg-surface rounded-lg border border-border text-muted">
         {error || 'No historical data available'}
@@ -393,196 +343,102 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
     )
   }
 
+  const latestDay = timeline[timeline.length - 1].day
+  const shownDay = day ?? latestDay
+  const last = rows[rows.length - 1]
+  const lineColor = !last || last.gain >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
+  const label = lens === 'value'
+    ? range === '1D' && shownDay !== latestDay ? `Portfolio value, ${formatMarketDay(shownDay)}` : 'Portfolio value'
+    : range !== '1D' ? GAIN_LABELS[range]
+    : shownDay === marketDay(Date.now()) ? 'Gain today' : `Gain, ${formatMarketDay(shownDay)}`
+  const headline = !last ? '—' : lens === 'value' ? formatCurrency(last.value) : formatSignedCurrency(last.gain)
+
   return (
-    <div
-      ref={containerRef}
-      className="bg-surface p-4 md:p-5 rounded-lg border border-border"
-    >
+    <div ref={containerRef} className="bg-surface p-4 md:p-5 rounded-lg border border-border">
       {error && <div className="text-error mb-4">{error}</div>}
-      <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
-        <div className="flex shrink-0">
-          <button
-            onClick={() => {
-              setViewMode('hourly')
-            }}
-            className={`px-4 py-2 text-sm border border-border rounded-l-md cursor-pointer transition-colors ${
-              viewMode === 'hourly'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-elevated text-foreground hover:bg-surface-hover active:bg-surface-active'
-            }`}
-          >
-            Hourly
-          </button>
-          <button
-            onClick={() => {
-              if (data.length > 0) {
-                const dailyData: { [key: string]: HistoryData } = {}
-                data.forEach((item) => {
-                  const date = new Date(item.timestamp)
-                  const dateKey = date.toDateString()
-                  if (!dailyData[dateKey] || new Date(item.timestamp) > new Date(dailyData[dateKey].timestamp)) {
-                    dailyData[dateKey] = item
-                  }
-                })
-                const latest = Object.values(dailyData).sort(
-                  (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-                ).pop()
-                if (latest) {
-                  setCurrentDate(new Date(latest.timestamp))
-                }
-              }
-              setViewMode('daily')
-            }}
-            className={`px-4 py-2 text-sm border border-border border-l-0 rounded-r-md cursor-pointer transition-colors ${
-              viewMode === 'daily'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-elevated text-foreground hover:bg-surface-hover active:bg-surface-active'
-            }`}
-          >
-            Daily
-          </button>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+        <div>
+          <div className="text-sm text-muted">{label}</div>
+          <div className={`text-2xl md:text-3xl font-130 tabular-nums ${lens === 'gain' && last ? signTone(last.gain) : 'text-foreground'}`}>
+            {headline}
+          </div>
         </div>
-
-        <div className="flex items-center gap-3">
-          <div className="relative group focus-within:outline-none focus-within:ring-2 focus-within:ring-primary rounded-md">
-            <button
-              type="button"
-              disabled={data.length === 0}
-              aria-hidden="true"
-              tabIndex={-1}
-              className="w-10 h-10 flex items-center justify-center bg-elevated border border-border rounded-md cursor-pointer text-foreground group-hover:bg-surface-hover transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
-            >
-              <CalendarIcon className="w-5 h-5" />
-            </button>
-            <input
-              type="date"
-              className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed focus:outline-none"
-              min={minHistoryDate ? formatDateInput(minHistoryDate) : undefined}
-              max={formatDateInput(maxSelectableDate)}
-              value={formatDateInput(currentDate)}
-              onChange={handleDateSelect}
-              aria-label="Select date"
-              disabled={data.length === 0}
-            />
-          </div>
-
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handlePrevious}
-              aria-label="Previous period"
-              className="w-10 h-10 flex items-center justify-center bg-elevated border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-surface-hover active:bg-surface-active transition-colors"
-            >
-              ←
-            </button>
-
-            <span className="text-sm text-muted min-w-[100px] text-center">
-              {viewMode === 'hourly'
-                ? (() => {
-                    const today = new Date()
-                    today.setHours(0, 0, 0, 0)
-                    const selected = new Date(currentDate)
-                    selected.setHours(0, 0, 0, 0)
-                    if (selected.getTime() === today.getTime()) {
-                      return 'Today'
-                    }
-                    return currentDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-                  })()
-                : dailyDateRange
-                ? dailyDateRange.isLatestWindow
-                  ? 'Last 5 Days'
-                  : `${dailyDateRange.first.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })} - ${dailyDateRange.last.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })}`
-                : 'Last 5 Days'}
-            </span>
-
-            <button
-              onClick={handleNext}
-              disabled={!canGoForward}
-              aria-label="Next period"
-              className="w-10 h-10 flex items-center justify-center bg-elevated border border-border rounded-md cursor-pointer text-lg text-foreground hover:bg-surface-hover active:bg-surface-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
-            >
-              →
-            </button>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <SegmentedControl label="Chart measure" options={LENSES} value={lens} onChange={setLens} />
+          <SegmentedControl label="Chart period" options={RANGES} value={range} onChange={(next) => {
+            setRange(next)
+            setDay(null)
+          }} />
         </div>
       </div>
 
-      {processedData.length > 0 ? (
-        <div onPointerMove={trackTooltipDrift} className="h-72">
+      {rows.length > 0 ? (
+        <div onPointerMove={trackTooltipDrift} className="h-72 md:h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={processedData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
+            <ComposedChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} onClick={openActiveEntry}>
+              <CartesianGrid vertical={false} syncWithTicks strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
               <XAxis
-                dataKey="timestamp"
+                dataKey="x"
                 type="number"
-                ticks={xAxisTicks}
+                domain={['dataMin', 'dataMax']}
+                ticks={axis.ticks}
+                interval={0}
+                tickFormatter={(value) => axis.labels.get(value) ?? ''}
+                padding={{ left: 12, right: 12 }}
                 stroke="var(--color-muted)"
                 fontSize={12}
                 tickLine={false}
-                tickFormatter={(value) =>
-                  viewMode === 'hourly'
-                    ? new Date(value).toLocaleTimeString('en-US', {
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        hour12: true,
-                      })
-                    : new Date(value).toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric',
-                      })
-                }
+                axisLine={false}
               />
               <YAxis
-                domain={[(dataMin: number) => dataMin * 0.995, (dataMax: number) => dataMax * 1.005]}
+                domain={domain}
+                allowDataOverflow
+                padding={{ bottom: LANE_HEIGHT }}
+                ticks={yTicks}
+                interval={0}
+                tickFormatter={(value: number) => lens === 'gain' && value > 0 ? `+${formatCompactCurrency(value)}` : formatCompactCurrency(value)}
                 stroke="var(--color-muted)"
                 fontSize={12}
                 tickLine={false}
-                tickFormatter={(value) => formatCurrency(value)}
-                tickCount={3}
+                axisLine={false}
+                width={64}
               />
-              <Tooltip {...GLIDING_TOOLTIP} content={({ active, payload, label }) => active && payload?.length ? (
-                <div className={`${GLASS_TOOLTIP_CLASS} px-3 py-2 text-sm text-foreground`}>
-                  {viewMode === 'hourly'
-                    ? new Date(Number(label)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-                    : new Date(Number(label)).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-                  }: {formatCurrency(Number(payload[0].value))}
-                </div>
-              ) : null} />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke={lineColor}
-                strokeWidth={2}
-                dot={(props: { cx?: number; cy?: number; payload?: { isTransaction?: boolean } }) => {
-                  const { cx, cy, payload } = props
-                  if (payload?.isTransaction) return <g />
-                  return <circle cx={cx} cy={cy} r={4} fill={lineColor} strokeWidth={0} />
-                }}
-                activeDot={{ r: 6, strokeWidth: 0 }}
-                isAnimationActive={!hasAnimatedRef.current}
-                animationDuration={1000}
-              />
-              {viewMode === 'hourly' && (
-                <Customized
-                  component={() => (
-                <TransactionOverlay
-                  data={processedData}
-                  lineColor={lineColor}
-                  onPinClick={onPinClick}
-                  journalEntries={journalEntries}
-                />
-                  )}
+              {lens === 'gain' && domain[0] <= 0 && domain[1] >= 0 && <ReferenceLine y={0} stroke="var(--color-border)" />}
+              {(lens === 'gain' || showMoneyIn) && <Customized component={<GainBand rows={rows} lens={lens} domain={domain} />} />}
+              {showMoneyIn && (
+                <Line
+                  dataKey="invested"
+                  name="Money in"
+                  type="stepAfter"
+                  stroke="var(--color-border-control)"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 4"
+                  dot={false}
+                  activeDot={false}
+                  isAnimationActive={false}
                 />
               )}
-            </LineChart>
+              <Line
+                dataKey={lens}
+                type="monotone"
+                stroke={lineColor}
+                strokeWidth={2}
+                dot={rows.length === 1}
+                activeDot={{ r: 4, strokeWidth: 0, fill: lineColor }}
+                isAnimationActive={false}
+              />
+              <Customized component={<JournalLane rows={rows} onEntryClick={onEntryClick} />} />
+              <Tooltip
+                {...GLIDING_TOOLTIP}
+                cursor={{ stroke: 'var(--color-muted)', strokeOpacity: 0.4 }}
+                content={<PerformanceTooltip lens={lens} range={range} entriesById={entriesById} />}
+              />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="h-72 flex items-center justify-center bg-surface-hover rounded-lg text-muted">
-          <div className="text-center">
-            <div className="text-base mb-2">No data for this {viewMode === 'hourly' ? 'day' : 'period'}</div>
-            <div className="text-sm">Try navigating to a different period</div>
-          </div>
+        <div className="h-72 md:h-80 flex items-center justify-center bg-surface-hover rounded-lg text-muted">
+          No data for this day
         </div>
       )}
     </div>
