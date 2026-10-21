@@ -107,14 +107,14 @@ function buildJournalScript(): JournalScriptStep[] {
   const apply = (at: number) => steps.push({ at, shown: last().shown, applied: last().shown })
 
   const types: JournalEntryType[] = ['BUY', 'SELL', 'INSIGHT']
-  types.forEach((_, i) => show(800 + i * 250, { types: types.slice(0, i + 1) }))
-  apply(1700)
+  types.forEach((_, i) => show(500 + i * 200, { types: types.slice(0, i + 1) }))
+  apply(1150)
   const tagIds = [TAGS.fed.id, TAGS.semis.id, TAGS.rebalance.id]
-  tagIds.forEach((_, i) => show(2600 + i * 250, { tagIds: tagIds.slice(0, i + 1) }))
-  apply(3500)
-  show(4400, { from: '2026-06-18' })
-  show(4650, { to: '2026-06-18' })
-  apply(5050)
+  tagIds.forEach((_, i) => show(1700 + i * 200, { tagIds: tagIds.slice(0, i + 1) }))
+  apply(2350)
+  show(2900, { from: '2026-06-18' })
+  show(3100, { to: '2026-06-18' })
+  apply(3400)
   return steps
 }
 

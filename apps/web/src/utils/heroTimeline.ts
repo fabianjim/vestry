@@ -3,13 +3,13 @@
  * event while its card enters and its note types out, then resumes. Every frame derives from one clock.
  */
 
-// About 12 seconds for the landing day; Skip jumps to the end.
+// About 9 seconds for the landing day; Skip jumps to the end.
 export const HERO_PLAYBACK = {
   delayMs: 500,
-  drawMsPerHour: 900,
-  enterMs: 350,
-  charsPerSecond: 60,
-  holdMs: 400,
+  drawMsPerHour: 600,
+  enterMs: 300,
+  charsPerSecond: 75,
+  holdMs: 300,
 }
 
 type Phase =
