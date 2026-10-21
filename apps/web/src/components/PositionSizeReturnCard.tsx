@@ -4,6 +4,7 @@ import { Cell, LabelList, ReferenceLine, ResponsiveContainer, Scatter, ScatterCh
 import { portfolioQueries } from '../services/queries'
 import { positionSizeReturn, type ValuedHolding } from '../utils/holdingsAnalysis'
 import HoldingsCardHeader from './HoldingsCardHeader'
+import HoldingTooltip from './HoldingTooltip'
 
 export default function PositionSizeReturnCard({ holdings, controls, onHoldingClick }: {
   holdings: ValuedHolding[]; controls?: ReactNode; onHoldingClick: (ticker: string) => void
@@ -27,11 +28,8 @@ export default function PositionSizeReturnCard({ holdings, controls, onHoldingCl
               <Tooltip cursor={{ strokeDasharray: '3 3' }}
                 content={({ active, payload }) => {
                   const point = payload?.[0]?.payload as typeof points[number] | undefined
-                  return active && point ? <div className="rounded border border-border bg-elevated p-3 text-sm shadow-floating">
-                    <p className="font-130 mb-1">{point.ticker}</p>
-                    <p className="text-secondary">Weight: {point.weight.toFixed(1)}%</p>
-                    <p className="text-secondary">Unrealized return: {point.returnPercent.toFixed(1)}%</p>
-                  </div> : null
+                  return active && point ? <HoldingTooltip title={point.ticker}
+                    lines={[`Weight: ${point.weight.toFixed(1)}%`, `Unrealized return: ${point.returnPercent.toFixed(1)}%`]} /> : null
                 }} />
               <Scatter data={points} isAnimationActive={false} cursor="pointer"
                 onClick={(point: { payload?: { ticker?: string } }) => {

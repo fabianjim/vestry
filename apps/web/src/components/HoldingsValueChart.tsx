@@ -14,6 +14,8 @@ import {
   Pie,
 } from 'recharts'
 import type { HoldingValueItem } from '../hooks/useHoldingGraphData'
+import { glidingRowTooltip, trackTooltipDrift } from '../utils/chartTooltip'
+import HoldingTooltip from './HoldingTooltip'
 
 type HoldingsValueChartProps = {
   data: HoldingValueItem[]
@@ -61,13 +63,10 @@ export default function HoldingsValueChart({ data, embedded = false, controls }:
 
   const chartHeight = chartType === 'pie' ? 'h-64' : 'h-72'
 
-  const tooltipFormatter = (value: number, _name: string, props: { payload?: HoldingValueItem }) => {
-    const item = props.payload
-    if (!item) return [String(value), '']
-    return [
-      `${formatCurrency(value)} (${formatPercent(item.percentage)})`,
-      item.ticker,
-    ]
+  const tooltipContent = ({ active, payload }: { active?: boolean; payload?: ReadonlyArray<{ payload?: HoldingValueItem }> }) => {
+    const item = payload?.[0]?.payload
+    return active && item ? <HoldingTooltip title={item.ticker}
+      lines={[`${formatCurrency(item.value)} (${formatPercent(item.percentage)})`]} /> : null
   }
 
   return (
@@ -117,7 +116,7 @@ export default function HoldingsValueChart({ data, embedded = false, controls }:
         </div>
       </HoldingsCardHeader>
 
-      <div className={`${chartHeight} flex items-center justify-center`}>
+      <div onPointerMove={trackTooltipDrift} className={`${chartHeight} flex items-center justify-center`}>
         <ResponsiveContainer width="100%" height="100%">
           {chartType === 'pie' ? (
             <PieChart>
@@ -137,15 +136,7 @@ export default function HoldingsValueChart({ data, embedded = false, controls }:
                 ))}
               </Pie>
               <Tooltip
-                formatter={tooltipFormatter}
-                contentStyle={{
-                  backgroundColor: 'var(--color-elevated)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '6px',
-                  color: 'var(--color-foreground)',
-                }}
-                itemStyle={{ color: 'var(--color-foreground)' }}
-                labelStyle={{ color: 'var(--color-foreground)' }}
+                content={tooltipContent}
               />
             </PieChart>
           ) : (
@@ -170,17 +161,9 @@ export default function HoldingsValueChart({ data, embedded = false, controls }:
                 tickLine={false}
                 width={60}
               />
-              <Tooltip
+              <Tooltip {...glidingRowTooltip(70)}
                 cursor={{ fill: 'var(--color-foreground)', fillOpacity: 0.04 }}
-                formatter={tooltipFormatter}
-                contentStyle={{
-                  backgroundColor: 'var(--color-elevated)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '6px',
-                  color: 'var(--color-foreground)',
-                }}
-                itemStyle={{ color: 'var(--color-foreground)' }}
-                labelStyle={{ color: 'var(--color-foreground)' }}
+                content={tooltipContent}
               />
               <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20}>
                 {data.map((entry, index) => (

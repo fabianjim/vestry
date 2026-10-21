@@ -5,6 +5,8 @@ import { concentrationSummary, type ValuedHolding } from '../utils/holdingsAnaly
 import { formatCompactCurrency } from '../utils/formatUtils'
 import HoldingsCardHeader from './HoldingsCardHeader'
 import type { ConcentrationSettings } from './HoldingsGrid'
+import { GLIDING_TOOLTIP, trackTooltipDrift } from '../utils/chartTooltip'
+import HoldingTooltip from './HoldingTooltip'
 
 const percent = (value: number | null) => value == null ? '—' : `${value.toFixed(1)}%`
 
@@ -29,7 +31,7 @@ export default function ConcentrationCard({ holdings, controls, large, topN, onT
           {formatCompactCurrency(summary.topValue!)} of {formatCompactCurrency(rows[rows.length - 1].cumulativeValue)}
         </p>
       </div>
-      <div className="h-44" aria-label="Cumulative portfolio weight, ranked by holding size">
+      <div onPointerMove={trackTooltipDrift} className="h-44" aria-label="Cumulative portfolio weight, ranked by holding size">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={rows} margin={{ top: 10, right: 12, bottom: 0, left: 0 }} accessibilityLayer>
             <XAxis dataKey="rank" interval={0} stroke="var(--color-muted)" tickLine={false} fontSize={11} />
@@ -37,10 +39,11 @@ export default function ConcentrationCard({ holdings, controls, large, topN, onT
               stroke="var(--color-muted)" axisLine={false} tickLine={false} fontSize={11} />
             <ReferenceArea x1={1} x2={summary.topN} fill="var(--color-primary)" fillOpacity={0.08} />
             <ReferenceLine x={summary.topN} stroke="var(--color-primary)" strokeDasharray="3 3" />
-            <Tooltip formatter={(value: number) => [percent(value), 'Combined weight']}
-              labelFormatter={label => `Top ${label} holding${label === 1 ? '' : 's'}`}
-              contentStyle={{ backgroundColor: 'var(--color-elevated)', border: '1px solid var(--color-border)', borderRadius: 6 }}
-              labelStyle={{ color: 'var(--color-foreground)' }} itemStyle={{ color: 'var(--color-foreground)' }} />
+            <Tooltip {...GLIDING_TOOLTIP} content={({ active, payload }) => {
+              const row = payload?.[0]?.payload as typeof rows[number] | undefined
+              return active && row ? <HoldingTooltip title={`Top ${row.rank} holding${row.rank === 1 ? '' : 's'}`}
+                lines={[`${percent(row.cumulativeWeight)} combined weight`]} /> : null
+            }} />
             <Area type="linear" dataKey="cumulativeWeight" stroke="var(--color-primary)" fill="var(--color-primary)"
               fillOpacity={0.08} isAnimationActive={false} activeDot={false}
               dot={({ cx, cy, payload }) => <circle key={payload.rank} cx={cx} cy={cy} r={payload.rank === summary.topN ? 6 : 4}

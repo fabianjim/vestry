@@ -7,6 +7,8 @@ import { journalQueries, portfolioQueries } from '../services/queries'
 import { holdingPnl, reflectionOverview, type ValuedHolding } from '../utils/holdingsAnalysis'
 import { formatDateTime } from '../utils/dateUtils'
 import { formatCompactCurrency, formatSignedCurrency } from '../utils/formatUtils'
+import { glidingRowTooltip, trackTooltipDrift } from '../utils/chartTooltip'
+import HoldingTooltip from './HoldingTooltip'
 
 const percent = (value: number | null) => value == null ? '—' : `${value.toFixed(1)}%`
 
@@ -61,17 +63,19 @@ export function HoldingPnlCard({ holdings, realized = false, controls }: { holdi
             <span className={total > 0 ? 'text-gain' : total < 0 ? 'text-loss' : 'text-foreground'}>{formatSignedCurrency(total)}</span>
           </p>
           <div className="max-h-80 overflow-y-auto">
-            <div style={{ height: Math.max(160, known.length * 38) }}>
+            <div onPointerMove={trackTooltipDrift} style={{ height: Math.max(160, known.length * 38) }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={known} layout="vertical" margin={{ top: 8, right: 24, bottom: 8, left: 0 }} accessibilityLayer>
                   <XAxis type="number" tickFormatter={value => showPercent ? `${value}%` : formatCompactCurrency(value)}
                     stroke="var(--color-muted)" fontSize={11} />
                   <YAxis type="category" dataKey="ticker" width={65} stroke="var(--color-secondary)" fontSize={12} tickLine={false} axisLine={false} />
                   <ReferenceLine x={0} stroke="var(--color-border-control)" />
-                  <Tooltip formatter={(value: number) => [formatValue(value), 'Gain/loss']}
-                    cursor={{ fill: 'var(--color-surface-hover)' }}
-                    contentStyle={{ backgroundColor: 'var(--color-elevated)', border: '1px solid var(--color-border)', borderRadius: 6 }}
-                    labelStyle={{ color: 'var(--color-foreground)' }} itemStyle={{ color: 'var(--color-foreground)' }} />
+                  <Tooltip {...glidingRowTooltip(65)} cursor={{ fill: 'var(--color-surface-hover)' }}
+                    content={({ active, payload }) => {
+                      const item = payload?.[0]
+                      const row = item?.payload as typeof known[number] | undefined
+                      return active && row ? <HoldingTooltip title={row.ticker} lines={[formatValue(Number(item!.value))]} /> : null
+                    }} />
                   <Bar dataKey={showPercent ? 'percent' : 'value'} barSize={18}>
                     {known.map(row => <Cell key={row.ticker} fill={row.value! > 0 ? 'var(--color-gain)' : row.value! < 0 ? 'var(--color-loss)' : 'var(--color-muted)'} />)}
                   </Bar>

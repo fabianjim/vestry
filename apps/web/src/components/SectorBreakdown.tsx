@@ -3,6 +3,8 @@ import HoldingsCardHeader from './HoldingsCardHeader'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from 'recharts'
 import type { SectorBreakdownItem } from '../hooks/useHoldingGraphData'
+import { glidingRowTooltip, trackTooltipDrift } from '../utils/chartTooltip'
+import HoldingTooltip from './HoldingTooltip'
 
 type SectorBreakdownProps = {
   data: SectorBreakdownItem[]
@@ -137,7 +139,7 @@ export default function SectorBreakdown({ data, embedded = false, controls }: Se
         </div>
       </HoldingsCardHeader>
 
-      <div className={`${chartHeight} flex items-center justify-center`}>
+      <div onPointerMove={trackTooltipDrift} className={`${chartHeight} flex items-center justify-center`}>
         <ResponsiveContainer width="100%" height="100%">
           {chartType === 'pie' ? (
             <PieChart>
@@ -157,22 +159,11 @@ export default function SectorBreakdown({ data, embedded = false, controls }: Se
                 ))}
               </Pie>
               <Tooltip
-                formatter={(value: number, _name: string, props: { payload?: SectorBreakdownItem }) => {
-                  const item = props.payload
-                  if (!item) return [String(value), '']
-                  return [
-                    `${formatCurrency(value)} (${formatPercent(item.percentage)})`,
-                    item.etf ? `${item.sector} ETF` : item.sector,
-                  ]
+                content={({ active, payload }) => {
+                  const item = payload?.[0]?.payload as SectorBreakdownItem | undefined
+                  return active && item ? <HoldingTooltip title={item.etf ? `${item.sector} ETF` : item.sector}
+                    lines={[`${formatCurrency(item.value)} (${formatPercent(item.percentage)})`]} /> : null
                 }}
-                contentStyle={{
-                  backgroundColor: 'var(--color-elevated)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '6px',
-                  color: 'var(--color-foreground)',
-                }}
-                itemStyle={{ color: 'var(--color-foreground)' }}
-                labelStyle={{ color: 'var(--color-foreground)' }}
               />
             </PieChart>
           ) : (
@@ -200,24 +191,13 @@ export default function SectorBreakdown({ data, embedded = false, controls }: Se
                   return item?.etf ? `${value} ETF` : value
                 }}
               />
-              <Tooltip
+              <Tooltip {...glidingRowTooltip(100)}
                 cursor={{ fill: 'var(--color-foreground)', fillOpacity: 0.04 }}
-                formatter={(value: number, _name: string, props: { payload?: SectorBreakdownItem }) => {
-                  const item = props.payload
-                  if (!item) return [String(value), '']
-                  return [
-                    `${formatCurrency(value)} (${formatPercent(item.percentage)})`,
-                    item.etf ? `${item.sector} ETF` : item.sector,
-                  ]
+                content={({ active, payload }) => {
+                  const item = payload?.[0]?.payload as SectorBreakdownItem | undefined
+                  return active && item ? <HoldingTooltip title={item.etf ? `${item.sector} ETF` : item.sector}
+                    lines={[`${formatCurrency(item.value)} (${formatPercent(item.percentage)})`]} /> : null
                 }}
-                contentStyle={{
-                  backgroundColor: 'var(--color-elevated)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '6px',
-                  color: 'var(--color-foreground)',
-                }}
-                itemStyle={{ color: 'var(--color-foreground)' }}
-                labelStyle={{ color: 'var(--color-foreground)' }}
               />
               <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20}>
                 {filteredData.map((entry, index) => (
