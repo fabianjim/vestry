@@ -22,15 +22,19 @@ import {
   buildTimeline,
   dailyCloses,
   dateEntries,
+  formatDateWindow,
   formatMarketDay,
   formatRowLabel,
+  selectDates,
   selectRange,
   toRows,
   yDomain,
   type ChartRow,
+  type DateWindow,
   type HistoryPoint,
   type PerformanceLens,
   type PerformanceRange,
+  type Resolution,
 } from '../utils/chartData'
 import { marketDay } from '../utils/dateUtils'
 import { formatCompactCurrency, formatCurrency, formatSignedCurrency } from '../utils/formatUtils'
@@ -38,6 +42,8 @@ import { getDisplayBody } from '../utils/tagUtils'
 import { JOURNAL_STYLES, journalBadge } from '../constants/journalStyles'
 import { GLASS_TOOLTIP_CLASS, GLIDING_TOOLTIP, trackTooltipDrift } from '../utils/chartTooltip'
 import SegmentedControl from './SegmentedControl'
+import SettingsPopover from './SettingsPopover'
+import { CalendarIcon } from './icons'
 
 export interface PortfolioChartHandle {
   showDay: (date: Date) => void
@@ -223,11 +229,11 @@ function JournalLane({ rows, onEntryClick }: { rows: ChartRow[]; onEntryClick?: 
   )
 }
 
-function PerformanceTooltip({ active, payload, lens, range, entriesById }: {
+function PerformanceTooltip({ active, payload, lens, resolution, entriesById }: {
   active?: boolean
   payload?: ReadonlyArray<{ payload?: ChartRow }>
   lens: PerformanceLens
-  range: PerformanceRange
+  resolution: Resolution
   entriesById: Map<number, JournalEntry>
 }) {
   const row = payload?.[0]?.payload
@@ -235,7 +241,7 @@ function PerformanceTooltip({ active, payload, lens, range, entriesById }: {
   const gain = lens === 'gain' ? row.gain : row.value - row.invested
   return (
     <div className={`${GLASS_TOOLTIP_CLASS} w-64 px-3 py-2 text-sm text-foreground`}>
-      <div className="text-muted mb-1">{formatRowLabel(row, range)}</div>
+      <div className="text-muted mb-1">{formatRowLabel(row, resolution)}</div>
       <div className="flex justify-between tabular-nums">
         <span className="text-secondary">Value</span>
         <span>{formatCurrency(row.value)}</span>
@@ -271,6 +277,55 @@ function PerformanceTooltip({ active, payload, lens, range, entriesById }: {
   )
 }
 
+/** Picks a span of market dates in place of a range, prefilled with the dates on screen. */
+function ChartDatePicker({ dates, shown, bounds, onChange }: {
+  dates: DateWindow | null
+  shown: DateWindow
+  bounds: DateWindow
+  onChange: (dates: DateWindow | null) => void
+}) {
+  const value = dates ?? shown
+  const pick = (edge: keyof DateWindow, day: string) => {
+    if (!day) return
+    const next = { ...value, [edge]: day }
+    onChange(next.from <= next.to ? next : { from: next.to, to: next.from })
+  }
+  const field = (edge: keyof DateWindow, label: string, min: string, max: string) => (
+    <label className="block">
+      <span className="text-xs text-muted block mb-1">{label}</span>
+      <input
+        type="date"
+        value={value[edge]}
+        min={min}
+        max={max}
+        onChange={(event) => pick(edge, event.target.value)}
+        className="w-full bg-foreground/5 border border-border-control rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+      />
+    </label>
+  )
+  return (
+    <div className="flex rounded-md bg-foreground/5 p-0.5">
+      <SettingsPopover
+        label="Choose dates"
+        glass
+        width={224}
+        triggerClassName={`px-1.5! py-1! ${dates ? 'bg-primary/15 text-foreground' : 'text-secondary hover:text-foreground'}`}
+        trigger={<CalendarIcon className="w-4 h-4" />}
+      >
+        <div className="space-y-2 p-1">
+          {field('from', 'From', bounds.from, value.to)}
+          {field('to', 'To', value.from, bounds.to)}
+          <div className="flex justify-end">
+            <button type="button" onClick={() => onChange(null)} className="text-xs text-primary hover:text-primary-hover">
+              Clear
+            </button>
+          </div>
+        </div>
+      </SettingsPopover>
+    </div>
+  )
+}
+
 const EMPTY_ENTRIES: JournalEntry[] = []
 const EMPTY_HISTORY: HistoryPoint[] = []
 const EMPTY_TRANSACTIONS: Transaction[] = []
@@ -284,32 +339,32 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
   const journalEntries = journalQuery.data ?? EMPTY_ENTRIES
   const loading = historyQuery.isPending || transactionsQuery.isPending
   const error = historyQuery.error?.message ?? transactionsQuery.error?.message ?? journalQuery.error?.message
-  const { chartRange: [range, setRange], chartLens: [lens, setLens], chartDay: [day, setDay] } = useViewState()
+  const { chartRange: [range, setRange], chartLens: [lens, setLens], chartDates: [dates, setDates] } = useViewState()
   const containerRef = useRef<HTMLDivElement>(null)
 
   useImperativeHandle(ref, () => ({
     showDay: (date: Date) => {
-      setRange('1D')
-      setDay(marketDay(date))
+      const day = marketDay(date)
+      setDates({ from: day, to: day })
     },
     scrollIntoView: () => {
       containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     },
-  }), [setRange, setDay])
+  }), [setDates])
 
   // Each stage recomputes only when its inputs change: switching range or lens never rebuilds the timeline.
   const timeline = useMemo(() => buildTimeline(history, transactions), [history, transactions])
   const closes = useMemo(() => dailyCloses(timeline), [timeline])
   const datedEntries = useMemo(() => dateEntries(journalEntries), [journalEntries])
   const entriesById = useMemo(() => new Map(journalEntries.map(entry => [entry.id, entry])), [journalEntries])
-  const rows = useMemo(() => {
-    const { points, baseline } = selectRange(timeline, closes, range, range === '1D' ? day ?? undefined : undefined)
-    return toRows(points, baseline, datedEntries, range)
-  }, [timeline, closes, range, day, datedEntries])
+  const { rows, resolution } = useMemo(() => {
+    const { points, baseline, resolution } = dates ? selectDates(timeline, closes, dates) : selectRange(timeline, closes, range)
+    return { rows: toRows(points, baseline, datedEntries, resolution), resolution }
+  }, [timeline, closes, range, dates, datedEntries])
   const domain = useMemo<[number, number]>(() => rows.length === 0 ? [0, 1] : lens === 'value'
     ? yDomain(rows.map(row => row.value), rows.map(row => row.invested))
     : yDomain(rows.map(row => row.gain), [0]), [rows, lens])
-  const axis = useMemo(() => axisTicks(rows, range), [rows, range])
+  const axis = useMemo(() => axisTicks(rows, resolution), [rows, resolution])
   const yTicks = useMemo(() => ticks(domain[0], domain[1], 4), [domain])
   // Money in only shows when it fits beside the value line; on short ranges it would flatten the line,
   // and a gap clamped to the plot's edge would no longer mean gain.
@@ -343,14 +398,13 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
     )
   }
 
-  const latestDay = timeline[timeline.length - 1].day
-  const shownDay = day ?? latestDay
+  const bounds = { from: timeline[0].day, to: timeline[timeline.length - 1].day }
   const last = rows[rows.length - 1]
   const lineColor = !last || last.gain >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
-  const label = lens === 'value'
-    ? range === '1D' && shownDay !== latestDay ? `Portfolio value, ${formatMarketDay(shownDay)}` : 'Portfolio value'
+  const label = dates ? `${lens === 'value' ? 'Portfolio value' : 'Gain'}, ${formatDateWindow(dates)}`
+    : lens === 'value' ? 'Portfolio value'
     : range !== '1D' ? GAIN_LABELS[range]
-    : shownDay === marketDay(Date.now()) ? 'Gain today' : `Gain, ${formatMarketDay(shownDay)}`
+    : bounds.to === marketDay(Date.now()) ? 'Gain today' : `Gain, ${formatMarketDay(bounds.to)}`
   const headline = !last ? '—' : lens === 'value' ? formatCurrency(last.value) : formatSignedCurrency(last.gain)
 
   return (
@@ -365,10 +419,16 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <SegmentedControl label="Chart measure" options={LENSES} value={lens} onChange={setLens} />
-          <SegmentedControl label="Chart period" options={RANGES} value={range} onChange={(next) => {
+          <SegmentedControl label="Chart period" options={RANGES} value={dates ? null : range} onChange={(next) => {
             setRange(next)
-            setDay(null)
+            setDates(null)
           }} />
+          <ChartDatePicker
+            dates={dates}
+            shown={last ? { from: rows[0].day, to: last.day } : bounds}
+            bounds={bounds}
+            onChange={setDates}
+          />
         </div>
       </div>
 
@@ -431,14 +491,14 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
               <Tooltip
                 {...GLIDING_TOOLTIP}
                 cursor={{ stroke: 'var(--color-muted)', strokeOpacity: 0.4 }}
-                content={<PerformanceTooltip lens={lens} range={range} entriesById={entriesById} />}
+                content={<PerformanceTooltip lens={lens} resolution={resolution} entriesById={entriesById} />}
               />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
       ) : (
         <div className="h-72 md:h-80 flex items-center justify-center bg-surface-hover rounded-lg text-muted">
-          No data for this day
+          {dates && dates.from !== dates.to ? 'No data for these dates' : 'No data for this day'}
         </div>
       )}
     </div>

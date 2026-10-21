@@ -9,6 +9,16 @@ export type HistoryPoint = {
 
 export type PerformanceRange = '1D' | '1W' | '1M' | '3M' | 'ALL'
 export type PerformanceLens = 'value' | 'gain'
+/** Inclusive New York market dates, YYYY-MM-DD. */
+export type DateWindow = { from: string; to: string }
+
+/**
+ * How finely a window plots: one day on a clock, a week of observations, or daily closes
+ * labelled by date or by month.
+ */
+export type Resolution = 'day' | 'week' | 'month' | 'long'
+
+export type Selection = { points: PerformancePoint[]; baseline?: PerformancePoint; resolution: Resolution }
 
 /**
  * One observation of the portfolio. `invested` is the net money put in so far (buys minus sell
@@ -25,7 +35,7 @@ export type PerformancePoint = {
 }
 
 export type ChartRow = PerformancePoint & {
-  /** Time on the 1D axis; elsewhere the point's index, so nights and weekends take no space. */
+  /** Time on a one-day axis; elsewhere the point's index, so nights and weekends take no space. */
   x: number
   /** Gain since the range's baseline, so the Gain lens and its headline agree. */
   gain: number
@@ -132,35 +142,42 @@ export function dailyCloses(timeline: PerformancePoint[]): PerformancePoint[] {
   return closes
 }
 
+const RANGE_RESOLUTION: Record<PerformanceRange, Resolution> = { '1D': 'day', '1W': 'week', '1M': 'month', '3M': 'long', ALL: 'long' }
+const DAY_MS = 24 * HOUR
+
 /**
  * The points a range plots, and the baseline its gain is measured from. 1D and 1W use every
- * observation; longer ranges use daily closes. Ranges after 1D open on the point before the window,
- * so the line starts where the previous period ended. `day` pins 1D to a market date.
+ * observation; longer ranges use daily closes. 1D shows the latest market day from the previous
+ * close; later ranges open on the point before the window, so the line starts where it left off.
  */
-export function selectRange(
-  timeline: PerformancePoint[],
-  closes: PerformancePoint[],
-  range: PerformanceRange,
-  day?: string,
-): { points: PerformancePoint[]; baseline?: PerformancePoint } {
-  if (timeline.length === 0) return { points: [] }
+export function selectRange(timeline: PerformancePoint[], closes: PerformancePoint[], range: PerformanceRange): Selection {
+  const resolution = RANGE_RESOLUTION[range]
+  if (timeline.length === 0) return { points: [], resolution }
   const latest = timeline[timeline.length - 1]
 
-  if (range === '1D') {
-    const target = day ?? latest.day
-    const start = firstIndex(timeline, point => point.day >= target)
-    const end = firstIndex(timeline, point => point.day > target)
-    return { points: timeline.slice(start, end), baseline: timeline[start - 1] }
-  }
-  if (range === 'ALL') return { points: closes }
+  if (range === '1D') return { ...selectDates(timeline, closes, { from: latest.day, to: latest.day }), resolution }
+  if (range === 'ALL') return { points: closes, resolution }
 
   const source = range === '1W' ? timeline : closes
   const from = new Date(latest.time)
   if (range === '1W') from.setDate(from.getDate() - 7)
   else from.setMonth(from.getMonth() - (range === '1M' ? 1 : 3))
   const inWindow = firstIndex(source, point => point.time >= from.getTime())
-  if (inWindow === 0) return { points: source }
-  return { points: source.slice(inWindow - 1), baseline: source[inWindow - 1] }
+  if (inWindow === 0) return { points: source, resolution }
+  return { points: source.slice(inWindow - 1), baseline: source[inWindow - 1], resolution }
+}
+
+/**
+ * The points between two market dates, measured from the close before them. Up to a week plots
+ * every observation; longer spans use daily closes.
+ */
+export function selectDates(timeline: PerformancePoint[], closes: PerformancePoint[], { from, to }: DateWindow): Selection {
+  const days = (dayDate(to).getTime() - dayDate(from).getTime()) / DAY_MS
+  const resolution: Resolution = days === 0 ? 'day' : days <= 7 ? 'week' : days <= 62 ? 'month' : 'long'
+  const source = days <= 7 ? timeline : closes
+  const start = firstIndex(source, point => point.day >= from)
+  const end = firstIndex(source, point => point.day > to)
+  return { points: source.slice(start, end), baseline: source[start - 1], resolution }
 }
 
 /** Journal entries in time order with their market dates, computed once per journal change. */
@@ -178,18 +195,18 @@ export function toRows(
   points: PerformancePoint[],
   baseline: PerformancePoint | undefined,
   entries: DatedEntry[],
-  range: PerformanceRange,
+  resolution: Resolution,
 ): ChartRow[] {
   const baseGain = baseline ? baseline.value - baseline.invested : 0
   const rows: ChartRow[] = points.map((point, index) => ({
     ...point,
-    x: range === '1D' ? point.time : index,
+    x: resolution === 'day' ? point.time : index,
     gain: point.value - point.invested - baseGain,
     entries: [],
   }))
   if (rows.length === 0) return rows
 
-  const daily = range === '1M' || range === '3M' || range === 'ALL'
+  const daily = resolution === 'month' || resolution === 'long'
   const first = rows[0].day
   const last = rows[rows.length - 1].day
   let row = 0
@@ -235,38 +252,45 @@ const dateFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 's
 const weekdayFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short' })
 const longDateFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' })
 const monthFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short' })
+const yearDateFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' })
 const dayDate = (day: string) => new Date(`${day}T12:00:00Z`)
 
 /** "Mon, Oct 19" for a YYYY-MM-DD market date. */
 export const formatMarketDay = (day: string) => longDateFormat.format(dayDate(day))
 
-/** The tooltip label for a row: its date on daily ranges, with the time on intraday ranges. */
-export function formatRowLabel(row: ChartRow, range: PerformanceRange): string {
+/** "Fri, Oct 16" for one day, "Sep 1 – Oct 16" for a span, with years when they differ. */
+export function formatDateWindow({ from, to }: DateWindow): string {
+  if (from === to) return formatMarketDay(from)
+  const format = from.slice(0, 4) === to.slice(0, 4) ? dateFormat : yearDateFormat
+  return `${format.format(dayDate(from))} – ${format.format(dayDate(to))}`
+}
+
+/** The tooltip label for a row: its date on daily resolutions, with the time on intraday ones. */
+export function formatRowLabel(row: ChartRow, resolution: Resolution): string {
   const date = formatMarketDay(row.day)
-  return range === '1D' || range === '1W' ? `${date}, ${timeFormat.format(row.time)}` : date
+  return resolution === 'day' || resolution === 'week' ? `${date}, ${timeFormat.format(row.time)}` : date
 }
 
 /** X-axis ticks where the period changes (hour, day or month), thinned to fit. */
-export function axisTicks(rows: ChartRow[], range: PerformanceRange): { ticks: number[]; labels: Map<number, string> } {
+export function axisTicks(rows: ChartRow[], resolution: Resolution): { ticks: number[]; labels: Map<number, string> } {
   const labels = new Map<number, string>()
   const pick = (starts: ChartRow[], label: (row: ChartRow) => string) => {
     const step = Math.ceil(starts.length / MAX_TICKS)
     starts.filter((_, i) => i % step === 0).forEach(row => labels.set(row.x, label(row)))
   }
-  // Where the period changes; the first row usually starts mid-period, so it gets no label.
-  const changes = (key: (row: ChartRow) => string) => rows.filter((row, i) => i > 0 && key(row) !== key(rows[i - 1]))
+  // Month starts; the first row usually falls mid-month, so it gets no label.
+  const months = resolution === 'long'
+    ? rows.filter((row, i) => i > 0 && row.day.slice(0, 7) !== rows[i - 1].day.slice(0, 7))
+    : []
 
-  if (range === '1D') {
+  if (resolution === 'day') {
     pick(rows.filter(row => row.time % HOUR === 0), row => hourFormat.format(row.time))
-  } else if (range === '1W') {
-    pick(changes(row => row.day), row => weekdayFormat.format(dayDate(row.day)))
+  } else if (resolution === 'week') {
+    pick(rows.filter((row, i) => i === 0 || row.day !== rows[i - 1].day), row => weekdayFormat.format(dayDate(row.day)))
+  } else if (months.length >= 2) {
+    pick(months, row => row.day.slice(5, 7) === '01' ? row.day.slice(0, 4) : monthFormat.format(dayDate(row.day)))
   } else {
-    const months = changes(row => row.day.slice(0, 7))
-    if (range !== '1M' && months.length >= 2) {
-      pick(months, row => row.day.slice(5, 7) === '01' ? row.day.slice(0, 4) : monthFormat.format(dayDate(row.day)))
-    } else {
-      pick(rows, row => dateFormat.format(dayDate(row.day)))
-    }
+    pick(rows, row => dateFormat.format(dayDate(row.day)))
   }
   return { ticks: [...labels.keys()], labels }
 }

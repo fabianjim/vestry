@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { axisTicks, buildTimeline, dailyCloses, dateEntries, selectRange, toRows, yDomain } from './chartData'
+import { axisTicks, buildTimeline, dailyCloses, dateEntries, formatDateWindow, selectDates, selectRange, toRows, yDomain } from './chartData'
 import type { Transaction } from '../types/transaction'
 import type { JournalEntry } from '../types/journal'
 
@@ -77,13 +77,11 @@ describe('selectRange', () => {
   )
   const closes = dailyCloses(timeline)
 
-  it('shows the latest day measured from the previous close, or a pinned day', () => {
+  it('shows the latest day measured from the previous close', () => {
     const latest = selectRange(timeline, closes, '1D')
     expect(latest.points.map(p => p.value)).toEqual([120, 125])
     expect(latest.baseline?.value).toBe(112)
-
-    expect(selectRange(timeline, closes, '1D', '2026-05-20').points.map(p => p.value)).toEqual([111, 112])
-    expect(selectRange(timeline, closes, '1D', '2026-05-22').points).toEqual([])
+    expect(latest.resolution).toBe('day')
   })
 
   it('opens longer ranges on the close before the window, and All on the first close', () => {
@@ -93,7 +91,39 @@ describe('selectRange', () => {
 
     expect(selectRange(timeline, closes, '1M').points.map(p => p.value)).toEqual([100, 110, 112, 125])
     expect(selectRange(timeline, closes, '1M').baseline).toBeUndefined()
-    expect(selectRange(timeline, closes, 'ALL')).toEqual({ points: closes })
+    expect(selectRange(timeline, closes, 'ALL')).toEqual({ points: closes, resolution: 'long' })
+  })
+})
+
+describe('selectDates', () => {
+  const timeline = buildTimeline(
+    [observe('01', 15, 100), observe('19', 15, 110), observe('20', 11, 111), observe('20', 15, 112), observe('21', 11, 120), observe('21', 15, 125)],
+    [],
+  )
+  const closes = dailyCloses(timeline)
+
+  it('plots every observation up to a week and daily closes beyond, from the close before', () => {
+    const day = selectDates(timeline, closes, { from: '2026-05-20', to: '2026-05-20' })
+    expect(day.points.map(p => p.value)).toEqual([111, 112])
+    expect(day.baseline?.value).toBe(110)
+    expect(day.resolution).toBe('day')
+
+    const days = selectDates(timeline, closes, { from: '2026-05-19', to: '2026-05-20' })
+    expect(days.points.map(p => p.value)).toEqual([110, 111, 112])
+    expect(days.resolution).toBe('week')
+
+    const month = selectDates(timeline, closes, { from: '2026-05-01', to: '2026-05-21' })
+    expect(month.points.map(p => p.value)).toEqual([100, 110, 112, 125])
+    expect(month.baseline).toBeUndefined()
+    expect(month.resolution).toBe('month')
+
+    expect(selectDates(timeline, closes, { from: '2026-05-22', to: '2026-05-22' }).points).toEqual([])
+  })
+
+  it('labels one day or a span, with years only when they differ', () => {
+    expect(formatDateWindow({ from: '2026-10-16', to: '2026-10-16' })).toBe('Fri, Oct 16')
+    expect(formatDateWindow({ from: '2026-09-01', to: '2026-10-16' })).toBe('Sep 1 – Oct 16')
+    expect(formatDateWindow({ from: '2026-12-28', to: '2027-01-04' })).toBe('Dec 28, 2026 – Jan 4, 2027')
   })
 })
 
@@ -107,7 +137,7 @@ describe('toRows', () => {
     const closes = dailyCloses(timeline)
     // Friday's entry, a Saturday entry (Monday was a holiday, so it lands on Tuesday) and one outside the range.
     const entries = dateEntries([entry(3, at('23', 10)), entry(1, at('22', 12)), entry(2, at('29', 10))])
-    const rows = toRows(closes, closes[0], entries, '1M')
+    const rows = toRows(closes, closes[0], entries, 'month')
 
     expect(rows.map(r => r.gain)).toEqual([0, 50])
     expect(rows.map(r => r.x)).toEqual([0, 1])
@@ -115,8 +145,8 @@ describe('toRows', () => {
   })
 
   it('places intraday entries on the next observation, or the day’s last one', () => {
-    const { points, baseline } = selectRange(timeline, dailyCloses(timeline), '1D')
-    const rows = toRows(points, baseline, dateEntries([entry(1, at('26', 12)), entry(2, at('26', 17))]), '1D')
+    const { points, baseline, resolution } = selectRange(timeline, dailyCloses(timeline), '1D')
+    const rows = toRows(points, baseline, dateEntries([entry(1, at('26', 12)), entry(2, at('26', 17))]), resolution)
 
     expect(rows.map(r => r.entries.map(e => e.id))).toEqual([[], [1, 2]])
     expect(rows[0].x).toBe(rows[0].time)
@@ -142,8 +172,8 @@ describe('axisTicks', () => {
       ['2026-04-28', '2026-05-01', '2026-06-01', '2026-06-02'].map(day => ({ timestamp: `${day}T19:00:00Z`, portfolioValue: 1 })),
       [],
     )
-    const rows = toRows(dailyCloses(timeline), undefined, [], 'ALL')
-    const { ticks, labels } = axisTicks(rows, 'ALL')
+    const rows = toRows(dailyCloses(timeline), undefined, [], 'long')
+    const { ticks, labels } = axisTicks(rows, 'long')
 
     expect(ticks).toEqual([1, 2])
     expect(ticks.map(tick => labels.get(tick))).toEqual(['May', 'Jun'])
