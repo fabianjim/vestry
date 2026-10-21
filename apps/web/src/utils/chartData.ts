@@ -18,8 +18,6 @@ export type DateWindow = { from: string; to: string }
  */
 export type Resolution = 'day' | 'week' | 'month' | 'long'
 
-export type Selection = { points: PerformancePoint[]; baseline?: PerformancePoint; resolution: Resolution }
-
 /**
  * One observation of the portfolio. `invested` is the net money put in so far (buys minus sell
  * proceeds), so `value - invested` is the total gain, realized and unrealized.
@@ -30,8 +28,6 @@ export type PerformancePoint = {
   day: string
   value: number
   invested: number
-  /** Trades first reflected at this point. */
-  trades: Transaction[]
 }
 
 export type ChartRow = PerformancePoint & {
@@ -42,13 +38,18 @@ export type ChartRow = PerformancePoint & {
   entries: JournalEntry[]
 }
 
+export type Selection = { points: PerformancePoint[]; baseline?: PerformancePoint; resolution: Resolution }
+
 export type DatedEntry = { entry: JournalEntry; time: number; day: string }
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
+const DAY_MS = 24 * HOUR
 const GROUP_WINDOW_MS = 2 * MINUTE
 
 const toTime = (timestamp: string) => new Date(timestamp).getTime()
+// Market dates are read at UTC noon, so date math and labels match the YYYY-MM-DD key in any timezone.
+const dayDate = (day: string) => new Date(`${day}T12:00:00Z`)
 const netFlow = (tx: Transaction) => (tx.type === 'BUY' ? tx.totalValue : -tx.totalValue)
 
 // Group transactions so same-type trades within two minutes of each other
@@ -118,32 +119,23 @@ export function buildTimeline(history: HistoryPoint[], transactions: Transaction
   let t = 0
   for (const point of merged) {
     const cutoff = point.synthetic ? point.time : point.time + MINUTE - 1
-    const included: Transaction[] = []
-    while (t < trades.length && toTime(trades[t].timestamp) <= cutoff) {
-      invested += netFlow(trades[t])
-      included.push(trades[t++])
-    }
-    points.push({ time: point.time, day: marketDay(point.time), value: point.value, invested, trades: included })
+    while (t < trades.length && toTime(trades[t].timestamp) <= cutoff) invested += netFlow(trades[t++])
+    points.push({ time: point.time, day: marketDay(point.time), value: point.value, invested })
   }
   return points
 }
 
-/** The last point of each market day, carrying every trade from that day. */
+/** The last point of each market day. */
 export function dailyCloses(timeline: PerformancePoint[]): PerformancePoint[] {
   const closes: PerformancePoint[] = []
   for (const point of timeline) {
-    const last = closes[closes.length - 1]
-    if (last?.day === point.day) {
-      closes[closes.length - 1] = { ...point, trades: last.trades.length ? last.trades.concat(point.trades) : point.trades }
-    } else {
-      closes.push(point)
-    }
+    if (closes[closes.length - 1]?.day === point.day) closes[closes.length - 1] = point
+    else closes.push(point)
   }
   return closes
 }
 
 const RANGE_RESOLUTION: Record<PerformanceRange, Resolution> = { '1D': 'day', '1W': 'week', '1M': 'month', '3M': 'long', ALL: 'long' }
-const DAY_MS = 24 * HOUR
 
 /**
  * The points a range plots, and the baseline its gain is measured from. 1D and 1W use every
@@ -155,7 +147,7 @@ export function selectRange(timeline: PerformancePoint[], closes: PerformancePoi
   if (timeline.length === 0) return { points: [], resolution }
   const latest = timeline[timeline.length - 1]
 
-  if (range === '1D') return { ...selectDates(timeline, closes, { from: latest.day, to: latest.day }), resolution }
+  if (range === '1D') return selectDates(timeline, closes, { from: latest.day, to: latest.day })
   if (range === 'ALL') return { points: closes, resolution }
 
   const source = range === '1W' ? timeline : closes
@@ -247,13 +239,12 @@ export function yDomain(values: number[], reference: number[]): [number, number]
 const MAX_TICKS = 7
 const hourFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric' })
 const timeFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' })
-// Market dates are formatted at UTC noon so the label matches the YYYY-MM-DD key in any timezone.
+// Market dates are formatted in UTC, matching `dayDate`.
 const dateFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' })
 const weekdayFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short' })
 const longDateFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' })
 const monthFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short' })
 const yearDateFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' })
-const dayDate = (day: string) => new Date(`${day}T12:00:00Z`)
 
 /** "Mon, Oct 19" for a YYYY-MM-DD market date. */
 export const formatMarketDay = (day: string) => longDateFormat.format(dayDate(day))

@@ -1,11 +1,12 @@
 import { useViewState } from '../contexts/ViewState'
-import { forwardRef, useCallback, useId, useImperativeHandle, useMemo, useRef, type KeyboardEvent } from 'react'
+import { forwardRef, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import {
   ComposedChart,
   Line,
   XAxis,
   YAxis,
   CartesianGrid,
+  ReferenceDot,
   ReferenceLine,
   Tooltip,
   ResponsiveContainer,
@@ -38,7 +39,6 @@ import {
 } from '../utils/chartData'
 import { marketDay } from '../utils/dateUtils'
 import { formatCompactCurrency, formatCurrency, formatSignedCurrency } from '../utils/formatUtils'
-import { getDisplayBody } from '../utils/tagUtils'
 import { JOURNAL_STYLES, journalBadge } from '../constants/journalStyles'
 import { GLASS_TOOLTIP_CLASS, GLIDING_TOOLTIP, trackTooltipDrift } from '../utils/chartTooltip'
 import SegmentedControl from './SegmentedControl'
@@ -79,19 +79,29 @@ const LANE_HEIGHT = 44
 const MARK_SPACING = 9
 const MAX_MARKS = 3
 
-const signTone = (amount: number) => amount > 0 ? 'text-gain-emphasis' : amount < 0 ? 'text-loss-emphasis' : 'text-foreground'
-const sharesFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 })
+const TOOLTIP_WIDTH = 256
+// Recharts' default gap between the cursor and its tooltip.
+const TOOLTIP_OFFSET = 10
 
-function tradeLines(trades: Transaction[]): string[] {
-  const shares = new Map<string, number>()
-  for (const tx of trades) {
-    const key = `${tx.type === 'BUY' ? 'Bought' : 'Sold'}\u0000${tx.ticker}`
-    shares.set(key, (shares.get(key) ?? 0) + tx.shares)
+const signTone = (amount: number) => amount > 0 ? 'text-gain-emphasis' : amount < 0 ? 'text-loss-emphasis' : 'text-foreground'
+
+/** A tooltip held open at a point with journal entries, so they can be opened. */
+type Pin = { index: number; row: ChartRow; left: number; top: number; focus: boolean }
+
+/** Swallows the click that follows a press, so a press that dismisses does nothing else. */
+function swallowNextClick() {
+  const swallow = (event: MouseEvent) => {
+    event.stopPropagation()
+    event.preventDefault()
+    done()
   }
-  return [...shares].map(([key, total]) => {
-    const [verb, ticker] = key.split('\u0000')
-    return `${verb} ${sharesFormat.format(total)} ${ticker}`
-  })
+  // A press that never becomes a click (a drag or a scroll) must not swallow a later one.
+  const done = () => {
+    document.removeEventListener('click', swallow, true)
+    document.removeEventListener('pointerdown', done, true)
+  }
+  document.addEventListener('click', swallow, true)
+  document.addEventListener('pointerdown', done, true)
 }
 
 /** Shades the gap between the line and its reference (money in, or zero): gain above, loss below. */
@@ -131,25 +141,31 @@ function GainBand({ rows, lens, domain }: { rows: ChartRow[]; lens: PerformanceL
 
 /**
  * Journal entries along the bottom of the plot, stacked per point. Reflections arc back to the
- * entry they reflect on. Hovering a point lights its entries and their sources.
+ * entry they reflect on. Hovering or pinning a point lights its entries and their sources;
+ * choosing a mark pins its point.
  */
-function JournalLane({ rows, onEntryClick }: { rows: ChartRow[]; onEntryClick?: (entry: JournalEntry) => void }) {
+function JournalLane({ rows, pinned, onPin }: {
+  rows: ChartRow[]
+  pinned?: ChartRow
+  onPin: (index: number, x: number, focus: boolean) => void
+}) {
   const xAxis = useXAxis(0)
   const plot = usePlotArea()
-  const active = useActiveTooltipDataPoints<ChartRow>()?.[0]
+  const hovered = useActiveTooltipDataPoints<ChartRow>()?.[0]
+  const active = pinned ?? hovered
 
   const layout = useMemo(() => {
     if (!xAxis || !plot) return null
     const base = plot.y + plot.height - 22
-    const marks: { entry: JournalEntry; x: number; y: number }[] = []
+    const marks: { entry: JournalEntry; index: number; x: number; y: number }[] = []
     const positions = new Map<number, number>()
-    for (const row of rows) {
+    rows.forEach((row, index) => {
       const x = Number(xAxis.scale(row.x))
       row.entries.slice(0, MAX_MARKS).forEach((entry, k) => {
-        marks.push({ entry, x, y: base - k * MARK_SPACING })
+        marks.push({ entry, index, x, y: base - k * MARK_SPACING })
         positions.set(entry.id, x)
       })
-    }
+    })
     const arcs = marks.flatMap(({ entry, x }) => {
       const from = entry.sourceEntryId != null ? positions.get(entry.sourceEntryId) : undefined
       return from === undefined ? [] : [{ id: entry.id, from, to: x }]
@@ -163,12 +179,6 @@ function JournalLane({ rows, onEntryClick }: { rows: ChartRow[]; onEntryClick?: 
   for (const entry of active?.entries ?? []) {
     lit.add(entry.id)
     if (entry.sourceEntryId != null) lit.add(entry.sourceEntryId)
-  }
-  const open = (entry: JournalEntry) => onEntryClick?.(entry)
-  const onKey = (entry: JournalEntry) => (event: KeyboardEvent) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return
-    event.preventDefault()
-    open(entry)
   }
   const arcY = layout.base + 5
 
@@ -189,7 +199,7 @@ function JournalLane({ rows, onEntryClick }: { rows: ChartRow[]; onEntryClick?: 
           />
         )
       })}
-      {layout.marks.map(({ entry, x, y }) => {
+      {layout.marks.map(({ entry, index, x, y }) => {
         const on = lit.has(entry.id)
         const style = JOURNAL_STYLES[entry.entryType]
         return (
@@ -204,24 +214,26 @@ function JournalLane({ rows, onEntryClick }: { rows: ChartRow[]; onEntryClick?: 
               opacity={lit.size > 0 && !on ? 0.45 : 1}
               pointerEvents="none"
             />
-            {onEntryClick && (
-              <circle
-                cx={x}
-                cy={y}
-                r={9}
-                fill="transparent"
-                strokeWidth={2}
-                role="button"
-                tabIndex={0}
-                aria-label={`Open ${style.label.toLowerCase()} entry${entry.ticker ? ` for ${entry.ticker}` : ''}, ${formatMarketDay(marketDay(entry.timestamp))}`}
-                className="cursor-pointer outline-none focus-visible:stroke-primary pointer-coarse:[r:14px]"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  open(entry)
-                }}
-                onKeyDown={onKey(entry)}
-              />
-            )}
+            <circle
+              cx={x}
+              cy={y}
+              r={9}
+              fill="transparent"
+              strokeWidth={2}
+              role="button"
+              tabIndex={0}
+              aria-label={`Show ${style.label.toLowerCase()} entry${entry.ticker ? ` for ${entry.ticker}` : ''}, ${formatMarketDay(marketDay(entry.timestamp))}`}
+              className="cursor-pointer outline-none focus-visible:stroke-primary pointer-coarse:[r:14px]"
+              onClick={(event) => {
+                event.stopPropagation()
+                onPin(index, x, false)
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return
+                event.preventDefault()
+                onPin(index, x, true)
+              }}
+            />
           </g>
         )
       })}
@@ -229,15 +241,13 @@ function JournalLane({ rows, onEntryClick }: { rows: ChartRow[]; onEntryClick?: 
   )
 }
 
-function PerformanceTooltip({ active, payload, lens, resolution, entriesById }: {
-  active?: boolean
-  payload?: ReadonlyArray<{ payload?: ChartRow }>
+/** A point's value and gain, then its journal entries; with `onEntryClick` the entries open. */
+function TooltipCard({ row, lens, resolution, onEntryClick }: {
+  row: ChartRow
   lens: PerformanceLens
   resolution: Resolution
-  entriesById: Map<number, JournalEntry>
+  onEntryClick?: (entry: JournalEntry) => void
 }) {
-  const row = payload?.[0]?.payload
-  if (!active || !row) return null
   const gain = lens === 'gain' ? row.gain : row.value - row.invested
   return (
     <div className={`${GLASS_TOOLTIP_CLASS} w-64 px-3 py-2 text-sm text-foreground`}>
@@ -250,31 +260,42 @@ function PerformanceTooltip({ active, payload, lens, resolution, entriesById }: 
         <span className="text-secondary">Gain</span>
         <span className={signTone(gain)}>{formatSignedCurrency(gain)}</span>
       </div>
-      {row.trades.length > 0 && (
-        <div className="mt-2 border-t border-border-subtle pt-2 text-secondary">
-          {tradeLines(row.trades).map(text => <div key={text}>{text}</div>)}
+      {row.entries.length > 0 && (
+        <div className="mt-2 border-t border-border-subtle pt-2 space-y-1">
+          {row.entries.map(entry => {
+            const content = (
+              <>
+                <span className={journalBadge(entry.entryType)}>{JOURNAL_STYLES[entry.entryType].label}</span>
+                {entry.ticker && <span className="font-130">{entry.ticker}</span>}
+              </>
+            )
+            return onEntryClick ? (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => onEntryClick(entry)}
+                className="-mx-1.5 flex w-[calc(100%+0.75rem)] items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                {content}
+              </button>
+            ) : (
+              <div key={entry.id} className="flex items-center gap-2 py-1">{content}</div>
+            )
+          })}
         </div>
       )}
-      {row.entries.slice(0, 2).map(entry => {
-        const source = entry.sourceEntryId != null ? entriesById.get(entry.sourceEntryId) : undefined
-        return (
-          <div key={entry.id} className="mt-2 border-t border-border-subtle pt-2">
-            <div className="flex items-center gap-2">
-              <span className={journalBadge(entry.entryType)}>{JOURNAL_STYLES[entry.entryType].label}</span>
-              {entry.ticker && <span className="font-130">{entry.ticker}</span>}
-            </div>
-            <p className="mt-1 line-clamp-3 text-secondary">{getDisplayBody(entry.body)}</p>
-            {source && (
-              <div className="mt-1 text-xs text-muted">
-                Reflects on {JOURNAL_STYLES[source.entryType].label}{source.ticker ? ` · ${source.ticker}` : ''}, {formatMarketDay(marketDay(source.timestamp))}
-              </div>
-            )}
-          </div>
-        )
-      })}
-      {row.entries.length > 2 && <div className="mt-1 text-xs text-muted">+{row.entries.length - 2} more</div>}
     </div>
   )
+}
+
+function HoverTooltip({ active, payload, ...card }: {
+  active?: boolean
+  payload?: ReadonlyArray<{ payload?: ChartRow }>
+  lens: PerformanceLens
+  resolution: Resolution
+}) {
+  const row = payload?.[0]?.payload
+  return active && row ? <TooltipCard row={row} {...card} /> : null
 }
 
 /** Picks a span of market dates in place of a range, prefilled with the dates on screen. */
@@ -341,6 +362,9 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
   const error = historyQuery.error?.message ?? transactionsQuery.error?.message ?? journalQuery.error?.message
   const { chartRange: [range, setRange], chartLens: [lens, setLens], chartDates: [dates, setDates] } = useViewState()
   const containerRef = useRef<HTMLDivElement>(null)
+  const plotRef = useRef<HTMLDivElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [pinned, setPinned] = useState<Pin | null>(null)
 
   useImperativeHandle(ref, () => ({
     showDay: (date: Date) => {
@@ -356,7 +380,6 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
   const timeline = useMemo(() => buildTimeline(history, transactions), [history, transactions])
   const closes = useMemo(() => dailyCloses(timeline), [timeline])
   const datedEntries = useMemo(() => dateEntries(journalEntries), [journalEntries])
-  const entriesById = useMemo(() => new Map(journalEntries.map(entry => [entry.id, entry])), [journalEntries])
   const { rows, resolution } = useMemo(() => {
     const { points, baseline, resolution } = dates ? selectDates(timeline, closes, dates) : selectRange(timeline, closes, range)
     return { rows: toRows(points, baseline, datedEntries, resolution), resolution }
@@ -369,10 +392,44 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
   // Money in only shows when it fits beside the value line; on short ranges it would flatten the line,
   // and a gap clamped to the plot's edge would no longer mean gain.
   const showMoneyIn = lens === 'value' && rows.every(row => row.invested >= domain[0] && row.invested <= domain[1])
-  const openActiveEntry = useCallback((state: { activeTooltipIndex?: number | string | null }) => {
-    const entry = rows[Number(state.activeTooltipIndex)]?.entries[0]
-    if (entry) onEntryClick?.(entry)
-  }, [rows, onEntryClick])
+  // A pin belongs to the rows it was made on; a new range or a data refresh drops it.
+  const pin = pinned && rows[pinned.index] === pinned.row ? pinned : null
+
+  useEffect(() => {
+    if (!pin) return
+    const close = (event: PointerEvent) => {
+      if (cardRef.current?.contains(event.target as Node)) return
+      setPinned(null)
+      swallowNextClick()
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPinned(null)
+    }
+    if (pin.focus) cardRef.current?.querySelector('button')?.focus()
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [pin])
+
+  // Only points with entries pin. The card takes the hover tooltip's place exactly; without one
+  // (a keyboard pin) it sits beside the point, flipping left near the right edge.
+  const pinAt = (index: number, x: number, focus: boolean) => {
+    const plot = plotRef.current
+    const row = rows[index]
+    if (!plot || !row?.entries.length) return
+    const bounds = plot.getBoundingClientRect()
+    const hover = plot.querySelector('.recharts-tooltip-wrapper')?.getBoundingClientRect()
+    const position = hover?.width
+      ? { left: hover.left - bounds.left, top: hover.top - bounds.top }
+      : {
+          left: x + TOOLTIP_OFFSET + TOOLTIP_WIDTH <= bounds.width ? x + TOOLTIP_OFFSET : Math.max(0, x - TOOLTIP_OFFSET - TOOLTIP_WIDTH),
+          top: 0,
+        }
+    setPinned({ index, row, ...position, focus })
+  }
 
   if (loading && !error) {
     return (
@@ -433,9 +490,16 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
       </div>
 
       {rows.length > 0 ? (
-        <div onPointerMove={trackTooltipDrift} className="h-72 md:h-80">
+        <div ref={plotRef} onPointerMove={trackTooltipDrift} className="relative h-72 md:h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} onClick={openActiveEntry}>
+            <ComposedChart
+              data={rows}
+              margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+              onClick={(state) => {
+                const x = state.activeCoordinate?.x
+                if (x != null) pinAt(Number(state.activeTooltipIndex), x, false)
+              }}
+            >
               <CartesianGrid vertical={false} syncWithTicks strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
               <XAxis
                 dataKey="x"
@@ -484,17 +548,33 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
                 stroke={lineColor}
                 strokeWidth={2}
                 dot={rows.length === 1}
-                activeDot={{ r: 4, strokeWidth: 0, fill: lineColor }}
+                activeDot={pin ? false : { r: 4, strokeWidth: 0, fill: lineColor }}
                 isAnimationActive={false}
               />
-              <Customized component={<JournalLane rows={rows} onEntryClick={onEntryClick} />} />
+              {pin && <ReferenceLine x={pin.row.x} stroke="var(--color-muted)" strokeOpacity={0.4} />}
+              {pin && <ReferenceDot x={pin.row.x} y={pin.row[lens]} r={4} fill={lineColor} stroke="none" />}
+              <Customized component={<JournalLane rows={rows} pinned={pin?.row} onPin={pinAt} />} />
               <Tooltip
                 {...GLIDING_TOOLTIP}
+                active={pin ? false : undefined}
                 cursor={{ stroke: 'var(--color-muted)', strokeOpacity: 0.4 }}
-                content={<PerformanceTooltip lens={lens} resolution={resolution} entriesById={entriesById} />}
+                content={<HoverTooltip lens={lens} resolution={resolution} />}
               />
             </ComposedChart>
           </ResponsiveContainer>
+          {pin && (
+            <div ref={cardRef} className="absolute z-10" style={{ left: pin.left, top: pin.top }}>
+              <TooltipCard
+                row={pin.row}
+                lens={lens}
+                resolution={resolution}
+                onEntryClick={(entry) => {
+                  setPinned(null)
+                  onEntryClick?.(entry)
+                }}
+              />
+            </div>
+          )}
         </div>
       ) : (
         <div className="h-72 md:h-80 flex items-center justify-center bg-surface-hover rounded-lg text-muted">

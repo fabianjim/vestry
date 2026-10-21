@@ -8,10 +8,10 @@ const at = (day: string, hour: number, minute = 0, second = 0) =>
   `2026-05-${day}T${String(hour + 4).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}Z`
 const observe = (day: string, hour: number, portfolioValue: number, minute = 0) => ({ timestamp: at(day, hour, minute), portfolioValue })
 let nextId = 1
-const trade = (timestamp: string, type: 'BUY' | 'SELL', totalValue: number, ticker = 'CAVA'): Transaction =>
-  ({ id: nextId++, ticker, type, shares: 1, price: totalValue, totalValue, timestamp })
-const entry = (id: number, timestamp: string, sourceEntryId?: number): JournalEntry =>
-  ({ id, entryType: 'INSIGHT', body: '', ticker: null, timestamp, priceSnapshot: null, tags: [], sourceEntryId })
+const trade = (timestamp: string, type: 'BUY' | 'SELL', totalValue: number): Transaction =>
+  ({ id: nextId++, ticker: 'CAVA', type, shares: 1, price: totalValue, totalValue, timestamp })
+const entry = (id: number, timestamp: string): JournalEntry =>
+  ({ id, entryType: 'INSIGHT', body: '', ticker: null, timestamp, priceSnapshot: null, tags: [] })
 
 describe('buildTimeline', () => {
   it('steps at each trade between fetches and tracks money in, so gain is unchanged by trading', () => {
@@ -24,8 +24,6 @@ describe('buildTimeline', () => {
     expect(timeline.map(p => p.invested)).toEqual([0, 1000, 500, -1500, -1500])
     expect(timeline.slice(0, 4).map(p => p.value - p.invested)).toEqual([10000, 10000, 10000, 10000])
     expect(timeline[1].time).toBe(new Date(at('21', 11, 15)).getTime())
-    expect(timeline[1].trades).toHaveLength(1)
-    expect(timeline[4].trades).toHaveLength(0)
   })
 
   it('collapses same-type trades within two minutes, but not opposite types or later trades', () => {
@@ -39,7 +37,6 @@ describe('buildTimeline', () => {
 
     expect(timeline.map(p => p.value)).toEqual([10000, 13000, 12600, 12500])
     expect(timeline[1].time).toBe(new Date(at('21', 11, 16, 30)).getTime())
-    expect(timeline[1].trades).toHaveLength(3)
     expect(timeline.map(p => p.invested)).toEqual([0, 3000, 2600, 2500])
   })
 
@@ -52,21 +49,19 @@ describe('buildTimeline', () => {
 
     expect(timeline.map(p => p.value)).toEqual([5000, 5600])
     expect(timeline.map(p => p.invested)).toEqual([5000, 5500])
-    expect(timeline.map(p => p.trades.length)).toEqual([1, 1])
   })
 })
 
 describe('dailyCloses', () => {
-  it('keeps the last point of each New York day with all of its trades', () => {
+  it('keeps the last point of each New York day', () => {
     const timeline = buildTimeline(
       // 19:30 New York on the 20th is already the 21st in UTC.
       [observe('20', 15, 100), observe('20', 19, 110, 30), observe('21', 15, 120)],
-      [trade(at('20', 15, 10), 'BUY', 5), trade(at('20', 15, 20), 'BUY', 5)],
+      [],
     )
     const closes = dailyCloses(timeline)
 
     expect(closes.map(p => [p.day, p.value])).toEqual([['2026-05-20', 110], ['2026-05-21', 120]])
-    expect(closes[0].trades).toHaveLength(2)
   })
 })
 
