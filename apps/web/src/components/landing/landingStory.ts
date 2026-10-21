@@ -24,7 +24,7 @@ const entry = (
 export const SPY_BUY = entry(10, 'BUY', 'SPY', '2026-06-18T19:50:00Z', 750, [TAGS.fed],
   'Bought near close as markets begin to rebound after yesterday’s debut from the new Fed chair.')
 export const NVDA_INSIGHT = entry(9, 'INSIGHT', 'NVDA', '2026-06-18T17:45:00Z', 178.9, [TAGS.semis],
-  'I own NVDA because I expect demand for data-center chips to grow. I’ll reconsider if customers start cutting spending.')
+  'I expect demand for data-center chips to grow. I’ll reconsider if customers start cutting spending.')
 export const AAPL_SELL = entry(8, 'SELL', 'AAPL', '2026-06-18T15:35:00Z', 232.4, [TAGS.rebalance],
   'Trimmed AAPL after the run-up. It had grown past a quarter of my portfolio.')
 
