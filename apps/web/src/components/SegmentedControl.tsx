@@ -1,7 +1,8 @@
 type Props<T extends string> = {
   label: string
   options: ReadonlyArray<{ value: T; label: string }>
-  value: T
+  /** null when none of the options applies. */
+  value: T | null
   onChange: (value: T) => void
 }
 
