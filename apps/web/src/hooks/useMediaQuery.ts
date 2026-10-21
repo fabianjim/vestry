@@ -3,7 +3,7 @@ import { useCallback, useSyncExternalStore } from 'react'
 /**
  * Tracks a CSS media query. Prefer Tailwind breakpoint classes; use this only when a
  * component must render a different tree. Media queries measure rem at 16px, so
- * '(min-width: 64rem)' matches Tailwind `lg:` even though the root font is 14px.
+ * '(min-width: 64rem)' matches Tailwind `lg:` even though the root font is 15px.
  */
 export function useMediaQuery(query: string) {
   const subscribe = useCallback((onChange: () => void) => {

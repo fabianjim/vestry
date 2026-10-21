@@ -6,7 +6,7 @@ const hooks = vi.hoisted(() => ({
   states: [] as unknown[], cursor: 0, refCursor: 0,
   effect: undefined as (() => void | (() => void)) | undefined,
   container: { getBoundingClientRect: () => ({ left: 330, width: 40, top: 500, bottom: 540 }), contains: (target: unknown) => target === 'inside' },
-  popup: { getBoundingClientRect: () => ({ width: 280, height: 100 }), contains: (target: unknown) => target === 'popup' },
+  popup: { getBoundingClientRect: () => ({ width: 300, height: 100 }), contains: (target: unknown) => target === 'popup' },
 }))
 vi.mock('react', async importOriginal => ({
   ...await importOriginal<typeof import('react')>(),
@@ -61,7 +61,7 @@ beforeEach(() => {
 })
 afterEach(() => { cleanup?.(); cleanup = undefined; vi.unstubAllGlobals() })
 
-it('opens on tap, describes its button, and stays inside the viewport with the app’s 14px rem', () => {
+it('opens on tap, describes its button, and stays inside the viewport with the app’s 15px rem', () => {
   const initial = render()
   expect(initial.button.props['aria-expanded']).toBe(false)
   expect(initial.tooltip).toBeUndefined()
@@ -71,7 +71,7 @@ it('opens on tap, describes its button, and stays inside the viewport with the a
   const popup = find(opened.root, el => el.props.style != null)!
   const { left, top } = popup.props.style as { left: number; top: number }
   expect(left).toBeGreaterThanOrEqual(16)
-  expect(left + 20 * 14).toBeLessThanOrEqual(375 - 16)
+  expect(left + 20 * 15).toBeLessThanOrEqual(375 - 16)
   expect(top).toBe(400) // Flip above a trigger near the bottom of the viewport.
   expect(invoke(opened.button, 'onClick').tooltip).toBeUndefined()
 })

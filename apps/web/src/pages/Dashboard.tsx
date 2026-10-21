@@ -296,7 +296,7 @@ export default function Dashboard() {
   return (
     <div className="flex min-h-screen gap-6"> {/* if modifying sidebar gap also update Layout.tsx */}
       {/* Main Content */}
-      <div className="min-w-0 flex-1 max-w-6xl mx-auto mt-4 md:mt-6 px-3">
+      <div className="min-w-0 flex-1 max-w-6xl mx-auto mt-4 md:mt-6 px-3 lg:px-6">
 
       {briefing.available && <BriefingBar expanded={layout.showBriefing}
         disabled={!preferences.query.data || preferences.save.isPending}
