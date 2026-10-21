@@ -1,248 +1,151 @@
 import { describe, it, expect } from 'vitest'
-import { processHourlyData } from './chartData'
+import { axisTicks, buildTimeline, dailyCloses, dateEntries, selectRange, toRows, yDomain } from './chartData'
 import type { Transaction } from '../types/transaction'
 import type { JournalEntry } from '../types/journal'
 
-describe('processHourlyData', () => {
-  // Use noon local time so toDateString() returns the expected date in any timezone
-  const currentDate = new Date('2026-05-21T12:00:00')
+// Timestamps are UTC; New York is UTC-4 in May.
+const at = (day: string, hour: number, minute = 0, second = 0) =>
+  `2026-05-${day}T${String(hour + 4).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}Z`
+const observe = (day: string, hour: number, portfolioValue: number, minute = 0) => ({ timestamp: at(day, hour, minute), portfolioValue })
+let nextId = 1
+const trade = (timestamp: string, type: 'BUY' | 'SELL', totalValue: number, ticker = 'CAVA'): Transaction =>
+  ({ id: nextId++, ticker, type, shares: 1, price: totalValue, totalValue, timestamp })
+const entry = (id: number, timestamp: string, sourceEntryId?: number): JournalEntry =>
+  ({ id, entryType: 'INSIGHT', body: '', ticker: null, timestamp, priceSnapshot: null, tags: [], sourceEntryId })
 
-  // Helper to create a history point at a specific LOCAL time during trading hours.
-  // We use UTC timestamps; local time is UTC-4 (EDT), so add 4 hours.
-  const makeHistory = (hour: number, minute: number, portfolioValue: number) => ({
-    timestamp: `2026-05-21T${String(hour + 4).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00Z`,
-    portfolioValue,
+describe('buildTimeline', () => {
+  it('steps at each trade between fetches and tracks money in, so gain is unchanged by trading', () => {
+    const timeline = buildTimeline(
+      [observe('21', 11, 10000), observe('21', 12, 10850)],
+      [trade(at('21', 11, 15), 'BUY', 1000), trade(at('21', 11, 30), 'SELL', 500), trade(at('21', 11, 45), 'SELL', 2000)],
+    )
+
+    expect(timeline.map(p => p.value)).toEqual([10000, 11000, 10500, 8500, 10850])
+    expect(timeline.map(p => p.invested)).toEqual([0, 1000, 500, -1500, -1500])
+    expect(timeline.slice(0, 4).map(p => p.value - p.invested)).toEqual([10000, 10000, 10000, 10000])
+    expect(timeline[1].time).toBe(new Date(at('21', 11, 15)).getTime())
+    expect(timeline[1].trades).toHaveLength(1)
+    expect(timeline[4].trades).toHaveLength(0)
   })
 
-  // Helper to create a transaction at a specific LOCAL time
-  const makeTx = (hour: number, minute: number, type: 'BUY' | 'SELL', totalValue: number): Transaction => ({
-    id: 1,
-    ticker: 'CAVA',
-    type,
-    shares: 1,
-    price: totalValue,
-    totalValue,
-    timestamp: `2026-05-21T${String(hour + 4).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00Z`,
+  it('collapses same-type trades within two minutes, but not opposite types or later trades', () => {
+    const timeline = buildTimeline([observe('21', 11, 10000)], [
+      trade(at('21', 11, 15, 10), 'BUY', 1500),
+      trade(at('21', 11, 15, 40), 'BUY', 1000),
+      trade(at('21', 11, 16, 30), 'BUY', 500),
+      trade(at('21', 11, 16, 45), 'SELL', 400),
+      trade(at('21', 11, 20), 'SELL', 100),
+    ])
+
+    expect(timeline.map(p => p.value)).toEqual([10000, 13000, 12600, 12500])
+    expect(timeline[1].time).toBe(new Date(at('21', 11, 16, 30)).getTime())
+    expect(timeline[1].trades).toHaveLength(3)
+    expect(timeline.map(p => p.invested)).toEqual([0, 3000, 2600, 2500])
   })
 
-  it('compounds multiple buy/sell events in the same hour', () => {
-    const history = [
-      makeHistory(11, 0, 10009), // 11:00 AM fetch
-    ]
+  it('lets a fetch that already reflects a trade carry the step, as the server buckets by minute', () => {
+    const timeline = buildTimeline(
+      [observe('21', 10, 5000, 15), observe('21', 11, 5600)],
+      // Portfolio creation lands in the 10:15 bucket; the 11:00 buy is inside the 11:00 bucket.
+      [trade(at('21', 10, 15, 20), 'BUY', 5000), trade(at('21', 11, 0, 30), 'BUY', 500)],
+    )
 
-    const transactions: Transaction[] = [
-      makeTx(11, 11, 'BUY', 160),  // Buy at 11:11 -> 10009 + 160 = 10169
-      makeTx(11, 58, 'BUY', 1926), // Buy at 11:58 -> 10169 + 1926 = 12095
-      makeTx(11, 59, 'SELL', 417), // Sell at 11:59 -> 12095 - 417 = 11678
-    ]
+    expect(timeline.map(p => p.value)).toEqual([5000, 5600])
+    expect(timeline.map(p => p.invested)).toEqual([5000, 5500])
+    expect(timeline.map(p => p.trades.length)).toEqual([1, 1])
+  })
+})
 
-    const result = processHourlyData(history, transactions, [], currentDate)
+describe('dailyCloses', () => {
+  it('keeps the last point of each New York day with all of its trades', () => {
+    const timeline = buildTimeline(
+      // 19:30 New York on the 20th is already the 21st in UTC.
+      [observe('20', 15, 100), observe('20', 19, 110, 30), observe('21', 15, 120)],
+      [trade(at('20', 15, 10), 'BUY', 5), trade(at('20', 15, 20), 'BUY', 5)],
+    )
+    const closes = dailyCloses(timeline)
 
-    // Should have 4 points: 1 hourly fetch + 3 transactions
-    expect(result).toHaveLength(4)
+    expect(closes.map(p => [p.day, p.value])).toEqual([['2026-05-20', 110], ['2026-05-21', 120]])
+    expect(closes[0].trades).toHaveLength(2)
+  })
+})
 
-    // Verify chronological order (timestamps are UTC; local time is UTC-4)
-    expect(result[0].timestamp).toBe(new Date('2026-05-21T15:00:00Z').getTime())
-    expect(result[1].timestamp).toBe(new Date('2026-05-21T15:11:00Z').getTime())
-    expect(result[2].timestamp).toBe(new Date('2026-05-21T15:58:00Z').getTime())
-    expect(result[3].timestamp).toBe(new Date('2026-05-21T15:59:00Z').getTime())
+describe('selectRange', () => {
+  const timeline = buildTimeline(
+    [observe('01', 15, 100), observe('19', 15, 110), observe('20', 11, 111), observe('20', 15, 112), observe('21', 11, 120), observe('21', 15, 125)],
+    [],
+  )
+  const closes = dailyCloses(timeline)
 
-    // Verify values compound correctly
-    expect(result[0].value).toBe(10009)  // Original fetch
-    expect(result[1].value).toBe(10169)  // 10009 + 160
-    expect(result[2].value).toBe(12095)  // 10169 + 1926
-    expect(result[3].value).toBe(11678)  // 12095 - 417
+  it('shows the latest day measured from the previous close, or a pinned day', () => {
+    const latest = selectRange(timeline, closes, '1D')
+    expect(latest.points.map(p => p.value)).toEqual([120, 125])
+    expect(latest.baseline?.value).toBe(112)
 
-    // Verify transaction flags
-    expect(result[0].isTransaction).toBe(false)
-    expect(result[1].isTransaction).toBe(true)
-    expect(result[2].isTransaction).toBe(true)
-    expect(result[3].isTransaction).toBe(true)
+    expect(selectRange(timeline, closes, '1D', '2026-05-20').points.map(p => p.value)).toEqual([111, 112])
+    expect(selectRange(timeline, closes, '1D', '2026-05-22').points).toEqual([])
   })
 
-  it('applies transactions to previous hourly fetch when no prior transactions exist', () => {
-    const history = [
-      makeHistory(10, 0, 5000),
-      makeHistory(11, 0, 5500),
-    ]
+  it('opens longer ranges on the close before the window, and All on the first close', () => {
+    const week = selectRange(timeline, closes, '1W')
+    expect(week.points.map(p => p.value)).toEqual([100, 110, 111, 112, 120, 125])
+    expect(week.baseline?.value).toBe(100)
 
-    const transactions: Transaction[] = [
-      makeTx(10, 30, 'BUY', 500), // Should apply to 10:00 fetch (5000)
-      makeTx(11, 30, 'SELL', 300), // Should apply to 11:00 fetch (5500)
-    ]
+    expect(selectRange(timeline, closes, '1M').points.map(p => p.value)).toEqual([100, 110, 112, 125])
+    expect(selectRange(timeline, closes, '1M').baseline).toBeUndefined()
+    expect(selectRange(timeline, closes, 'ALL')).toEqual({ points: closes })
+  })
+})
 
-    const result = processHourlyData(history, transactions, [], currentDate)
+describe('toRows', () => {
+  const timeline = buildTimeline(
+    [observe('22', 11, 1000), observe('22', 15, 1100), observe('26', 11, 1200), observe('26', 15, 1150)],
+    [],
+  )
 
-    expect(result).toHaveLength(4)
+  it('measures gain from the baseline and places entries on the point that covers them', () => {
+    const closes = dailyCloses(timeline)
+    // Friday's entry, a Saturday entry (Monday was a holiday, so it lands on Tuesday) and one outside the range.
+    const entries = dateEntries([entry(3, at('23', 10)), entry(1, at('22', 12)), entry(2, at('29', 10))])
+    const rows = toRows(closes, closes[0], entries, '1M')
 
-    // 10:30 buy applied to 10:00 fetch (UTC timestamps have +4h offset)
-    const buyPoint = result.find((p) => p.timestamp === new Date('2026-05-21T14:30:00Z').getTime())
-    expect(buyPoint?.value).toBe(5500) // 5000 + 500
-
-    // 11:30 sell applied to 11:00 fetch
-    const sellPoint = result.find((p) => p.timestamp === new Date('2026-05-21T15:30:00Z').getTime())
-    expect(sellPoint?.value).toBe(5200) // 5500 - 300
+    expect(rows.map(r => r.gain)).toEqual([0, 50])
+    expect(rows.map(r => r.x)).toEqual([0, 1])
+    expect(rows.map(r => r.entries.map(e => e.id))).toEqual([[1], [3]])
   })
 
-  it('matches journal entries to transactions within 5 minute window', () => {
-    const history = [makeHistory(11, 0, 10000)]
+  it('places intraday entries on the next observation, or the day’s last one', () => {
+    const { points, baseline } = selectRange(timeline, dailyCloses(timeline), '1D')
+    const rows = toRows(points, baseline, dateEntries([entry(1, at('26', 12)), entry(2, at('26', 17))]), '1D')
 
-    const transactions: Transaction[] = [
-      {
-        id: 1,
-        ticker: 'AAPL',
-        type: 'BUY',
-        shares: 10,
-        price: 150,
-        totalValue: 1500,
-        timestamp: '2026-05-21T15:15:00Z', // 11:15 AM local (UTC-4)
-      },
-    ]
-
-    const journalEntries: JournalEntry[] = [
-      {
-        id: 42,
-        entryType: 'BUY',
-        body: 'Bought AAPL',
-        ticker: 'AAPL',
-        timestamp: '2026-05-21T15:17:00Z', // 11:17 AM local, within 5 min window
-        priceSnapshot: 150,
-        tags: [],
-      },
-      {
-        id: 99,
-        entryType: 'BUY',
-        body: 'Different buy',
-        ticker: 'TSLA',
-        timestamp: '2026-05-21T15:15:00Z',
-        priceSnapshot: 200,
-        tags: [],
-      },
-    ]
-
-    const result = processHourlyData(history, transactions, journalEntries, currentDate)
-
-    const txPoint = result.find((p) => p.isTransaction)
-    expect(txPoint?.journalEntryIds).toEqual([42]) // Should match the AAPL entry within 5 min
+    expect(rows.map(r => r.entries.map(e => e.id))).toEqual([[], [1, 2]])
+    expect(rows[0].x).toBe(rows[0].time)
+    expect(rows.map(r => r.gain)).toEqual([100, 50])
   })
+})
 
-  it('collapses same-type trades within two minutes into one dot', () => {
-    const history = [makeHistory(11, 0, 10000)]
+describe('yDomain', () => {
+  it('shares the axis with a nearby reference series, and leaves out one that would flatten the line', () => {
+    const [low, high] = yDomain([100, 200], [80, 210])
+    expect(low).toBeLessThan(80)
+    expect(high).toBeGreaterThan(210)
 
-    // Initial-portfolio-creation scenario: several buys in the same minute
-    const transactions: Transaction[] = [
-      { id: 1, ticker: 'AAPL', type: 'BUY', shares: 10, price: 150, totalValue: 1500, timestamp: '2026-05-21T15:15:10Z' },
-      { id: 2, ticker: 'GOOGL', type: 'BUY', shares: 5, price: 200, totalValue: 1000, timestamp: '2026-05-21T15:15:40Z' },
-      { id: 3, ticker: 'MSFT', type: 'BUY', shares: 2, price: 250, totalValue: 500, timestamp: '2026-05-21T15:16:30Z' },
-    ]
-
-    const journalEntries: JournalEntry[] = [
-      { id: 1, entryType: 'BUY', body: 'Initial portfolio creation', ticker: 'AAPL', timestamp: '2026-05-21T15:15:10Z', priceSnapshot: 150, tags: [] },
-      { id: 2, entryType: 'BUY', body: 'Initial portfolio creation', ticker: 'GOOGL', timestamp: '2026-05-21T15:15:40Z', priceSnapshot: 200, tags: [] },
-      { id: 3, entryType: 'BUY', body: 'Initial portfolio creation', ticker: 'MSFT', timestamp: '2026-05-21T15:16:30Z', priceSnapshot: 250, tags: [] },
-    ]
-
-    const result = processHourlyData(history, transactions, journalEntries, currentDate)
-
-    // 1 hourly point + 1 grouped dot
-    expect(result).toHaveLength(2)
-
-    const dot = result[1]
-    expect(dot.isTransaction).toBe(true)
-    expect(dot.transactionType).toBe('BUY')
-    expect(dot.transactionCount).toBe(3)
-    // Dot sits at the last trade's time with the combined value applied once
-    expect(dot.timestamp).toBe(new Date('2026-05-21T15:16:30Z').getTime())
-    expect(dot.value).toBe(13000) // 10000 + 1500 + 1000 + 500
-    expect(dot.journalEntryIds).toEqual([1, 2, 3])
+    const [farLow, farHigh] = yDomain([100, 200], [80, 400])
+    expect(farLow).toBeGreaterThan(80)
+    expect(farHigh).toBeLessThan(400)
   })
+})
 
-  it('keeps same-type trades more than two minutes apart as separate dots', () => {
-    const history = [makeHistory(11, 0, 10000)]
+describe('axisTicks', () => {
+  it('labels month starts on long ranges without labelling the mid-month first point', () => {
+    const timeline = buildTimeline(
+      ['2026-04-28', '2026-05-01', '2026-06-01', '2026-06-02'].map(day => ({ timestamp: `${day}T19:00:00Z`, portfolioValue: 1 })),
+      [],
+    )
+    const rows = toRows(dailyCloses(timeline), undefined, [], 'ALL')
+    const { ticks, labels } = axisTicks(rows, 'ALL')
 
-    const transactions: Transaction[] = [
-      makeTx(11, 15, 'BUY', 500),
-      makeTx(11, 18, 'BUY', 300), // 3 minutes later -> separate dot
-    ]
-
-    const result = processHourlyData(history, transactions, [], currentDate)
-
-    expect(result.filter((p) => p.isTransaction)).toHaveLength(2)
-    expect(result[1].value).toBe(10500)
-    expect(result[2].value).toBe(10800)
-  })
-
-  it('does not collapse buys and sells occurring in the same minute', () => {
-    const history = [makeHistory(11, 0, 10000)]
-
-    const transactions: Transaction[] = [
-      makeTx(11, 15, 'BUY', 1000),
-      makeTx(11, 15, 'SELL', 400),
-    ]
-
-    const result = processHourlyData(history, transactions, [], currentDate)
-
-    const txPoints = result.filter((p) => p.isTransaction)
-    expect(txPoints).toHaveLength(2)
-    expect(txPoints[0].transactionType).toBe('BUY')
-    expect(txPoints[0].value).toBe(11000)
-    expect(txPoints[1].transactionType).toBe('SELL')
-    expect(txPoints[1].value).toBe(10600)
-  })
-
-  it('ignores transactions outside trading hours', () => {
-    const history = [makeHistory(11, 0, 10000)]
-
-    const transactions: Transaction[] = [
-      makeTx(9, 30, 'BUY', 500), // Before 10 AM
-      makeTx(16, 30, 'SELL', 300), // After 4 PM
-      makeTx(11, 0, 'BUY', 200), // During hours
-    ]
-
-    const result = processHourlyData(history, transactions, [], currentDate)
-
-    expect(result).toHaveLength(2) // Only 1 hourly + 1 valid transaction
-    expect(result.filter((p) => p.isTransaction)).toHaveLength(1)
-    expect(result[1].value).toBe(10200)
-  })
-
-  it('ignores transactions on different days', () => {
-    const history = [makeHistory(11, 0, 10000)]
-
-    const transactions: Transaction[] = [
-      {
-        id: 1,
-        ticker: 'AAPL',
-        type: 'BUY',
-        shares: 10,
-        price: 150,
-        totalValue: 1500,
-        timestamp: '2026-05-20T15:15:00Z', // Different day (11:15 AM local)
-      },
-      makeTx(11, 15, 'BUY', 500), // Same day
-    ]
-
-    const result = processHourlyData(history, transactions, [], currentDate)
-
-    expect(result).toHaveLength(2)
-    expect(result[1].value).toBe(10500) // Only same-day transaction applied
-  })
-
-  it('handles sells correctly by subtracting from previous point', () => {
-    const history = [makeHistory(11, 0, 10000)]
-
-    const transactions: Transaction[] = [
-      makeTx(11, 15, 'BUY', 1000),   // 10000 + 1000 = 11000
-      makeTx(11, 30, 'SELL', 500),   // 11000 - 500 = 10500
-      makeTx(11, 45, 'SELL', 2000),  // 10500 - 2000 = 8500
-    ]
-
-    const result = processHourlyData(history, transactions, [], currentDate)
-
-    expect(result).toHaveLength(4)
-    expect(result[0].value).toBe(10000)
-    expect(result[1].value).toBe(11000)
-    expect(result[2].value).toBe(10500)
-    expect(result[3].value).toBe(8500)
+    expect(ticks).toEqual([1, 2])
+    expect(ticks.map(tick => labels.get(tick))).toEqual(['May', 'Jun'])
   })
 })

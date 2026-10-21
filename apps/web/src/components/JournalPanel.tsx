@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { journalQueries } from '../services/queries'
 import { refreshJournal } from '../services/queryUpdates'
 import { JOURNAL_STYLES, journalBadge } from '../constants/journalStyles'
-import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { JournalEntry, JournalEntryType } from '../types/journal'
 import { journalApi } from '../services/api'
 import { formatDateTime, isTradingHours } from '../utils/dateUtils'
@@ -12,13 +12,7 @@ import TagPills from './TagPills'
 import JournalSourceQuote from './JournalSourceQuote'
 import { useJournalSources } from '../hooks/useJournalSources'
 
-export interface JournalPanelHandle {
-  scrollToEntry: (id: number) => void
-}
-
 interface JournalPanelProps {
-  activeJournalIds?: number[] | null
-  onClearActive?: () => void
   onEntryClick?: (entry: JournalEntry) => void
   onViewOnChart?: (entry: JournalEntry) => void
   onEntriesChange?: (entries: JournalEntry[]) => void
@@ -26,10 +20,7 @@ interface JournalPanelProps {
 
 const EMPTY_ENTRIES: JournalEntry[] = []
 
-const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function JournalPanel(
-  { activeJournalIds, onClearActive, onEntryClick, onViewOnChart, onEntriesChange },
-  ref
-) {
+export default function JournalPanel({ onEntryClick, onViewOnChart, onEntriesChange }: JournalPanelProps) {
   const client = useQueryClient()
   const entriesQuery = useQuery(journalQueries.entries())
   const entries = entriesQuery.data ?? EMPTY_ENTRIES
@@ -40,43 +31,12 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
   const [entryType, setEntryType] = useState<JournalEntryType>('INSIGHT')
   const [body, setBody] = useState('')
   const [ticker, setTicker] = useState('')
-  const entryRefs = useRef<Map<number, HTMLDivElement>>(new Map())
   const containerRef = useRef<HTMLDivElement>(null)
 
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null)
   const [editBody, setEditBody] = useState('')
   const [deleteConfirmEntryId, setDeleteConfirmEntryId] = useState<number | null>(null)
   const [entryError, setEntryError] = useState('')
-
-  useImperativeHandle(ref, () => ({
-    scrollToEntry: (id: number) => {
-      const el = entryRefs.current.get(id)
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-    }
-  }))
-
-  useEffect(() => {
-    if (activeJournalIds == null || activeJournalIds.length === 0) return
-    let listener: ((e: MouseEvent) => void) | null = null
-    const timeout = setTimeout(() => {
-      listener = (e: MouseEvent) => {
-        const clickedActive = activeJournalIds.some((id) => {
-          const activeEl = entryRefs.current.get(id)
-          return activeEl && activeEl.contains(e.target as Node)
-        })
-        if (!clickedActive) {
-          onClearActive?.()
-        }
-      }
-      document.addEventListener('click', listener)
-    }, 0)
-    return () => {
-      clearTimeout(timeout)
-      if (listener) document.removeEventListener('click', listener)
-    }
-  }, [activeJournalIds, onClearActive])
 
   useEffect(() => {
     if (entriesQuery.data) onEntriesChange?.(entriesQuery.data)
@@ -220,11 +180,8 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
           {entries.map((entry) => (
             <div
               key={entry.id}
-              ref={(el) => {
-                if (el) entryRefs.current.set(entry.id, el)
-              }}
               onClick={() => onEntryClick?.(entry)}
-              className={`relative group p-3 rounded-md border border-border-subtle cursor-pointer hover:bg-surface-hover active:bg-surface-active transition-colors ${activeJournalIds?.includes(entry.id) ? 'outline-2 outline-primary outline-offset-2 bg-primary-soft' : 'bg-background'}`}
+              className={`relative group p-3 rounded-md border border-border-subtle cursor-pointer bg-background hover:bg-surface-hover active:bg-surface-active transition-colors`}
             >
               <div className="flex justify-between items-start mb-1">
                 <div className="flex items-center gap-2">
@@ -351,6 +308,4 @@ const JournalPanel = forwardRef<JournalPanelHandle, JournalPanelProps>(function 
       )}
     </div>
   )
-})
-
-export default JournalPanel
+}
