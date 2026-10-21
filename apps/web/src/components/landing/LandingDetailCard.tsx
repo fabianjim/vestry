@@ -4,6 +4,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { formatCompactCurrency, formatCurrency, formatSignedCurrencyWithPercent } from '../../utils/formatUtils'
 import { getPriceChange, getRecordedRangeSinceEntry } from '../../utils/stockStats'
 import { SPY_BUY, SPY_HISTORY } from './landingStory'
+import { GLASS_TOOLTIP_CLASS, GLIDING_TOOLTIP, trackTooltipDrift } from '../../utils/chartTooltip'
 
 const dayFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })
 const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' })
@@ -30,7 +31,7 @@ export default function LandingDetailCard() {
 
       <p className="text-sm text-foreground leading-relaxed mb-5">{SPY_BUY.body}</p>
 
-      <div className="h-56 [@media(min-width:768px)_and_(max-height:760px)]:h-40 mb-5">
+      <div onPointerMove={trackTooltipDrift} className="h-56 [@media(min-width:768px)_and_(max-height:760px)]:h-40 mb-5">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={history} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
@@ -50,8 +51,8 @@ export default function LandingDetailCard() {
               domain={[715, 785]}
               ticks={[720, 740, 760, 780]}
             />
-            <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
-              <div className="rounded-md border border-border bg-elevated px-3 py-2 text-sm text-foreground">
+            <Tooltip {...GLIDING_TOOLTIP} content={({ active, payload, label }) => active && payload?.length ? (
+              <div className={`${GLASS_TOOLTIP_CLASS} px-3 py-2 text-sm text-foreground`}>
                 {label}: {formatCompactCurrency(Number(payload[0].value))}
               </div>
             ) : null} />

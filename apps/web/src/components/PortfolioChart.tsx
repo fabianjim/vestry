@@ -18,6 +18,7 @@ import type { Transaction } from '../types/transaction'
 import type { ChartDataPoint } from '../utils/chartData'
 import * as d3 from 'd3'
 import { processHourlyData } from '../utils/chartData'
+import { GLASS_TOOLTIP_CLASS, GLIDING_TOOLTIP, trackTooltipDrift } from '../utils/chartTooltip'
 import { CalendarIcon } from './icons'
 
 interface HistoryData {
@@ -506,7 +507,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
       </div>
 
       {processedData.length > 0 ? (
-        <div className="h-72">
+        <div onPointerMove={trackTooltipDrift} className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={processedData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
@@ -539,8 +540,8 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
                 tickFormatter={(value) => formatCurrency(value)}
                 tickCount={3}
               />
-              <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
-                <div className="rounded-md border border-border bg-elevated px-3 py-2 text-sm text-foreground">
+              <Tooltip {...GLIDING_TOOLTIP} content={({ active, payload, label }) => active && payload?.length ? (
+                <div className={`${GLASS_TOOLTIP_CLASS} px-3 py-2 text-sm text-foreground`}>
                   {viewMode === 'hourly'
                     ? new Date(Number(label)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                     : new Date(Number(label)).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })

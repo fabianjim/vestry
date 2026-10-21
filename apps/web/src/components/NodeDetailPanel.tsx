@@ -22,6 +22,7 @@ import { formatDateTime, roundToMinute } from '../utils/dateUtils'
 import { getCurrentWeekRange } from '../utils/stockStats'
 import { JOURNAL_STYLES, journalBadge } from '../constants/journalStyles'
 import { formatCurrency, formatSignedCurrencyWithPercent } from '../utils/formatUtils'
+import { GLASS_TOOLTIP_CLASS, GLIDING_TOOLTIP, trackTooltipDrift } from '../utils/chartTooltip'
 
 type NodeDetailPanelProps = {
   ticker: string
@@ -434,7 +435,7 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
           ) : chartData.length === 0 ? (
             <div className="text-muted">{historyRange === 'all' ? 'No price history available.' : 'No price history available for this period.'}</div>
           ) : (
-            <div className="h-64">
+            <div onPointerMove={trackTooltipDrift} className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
@@ -451,8 +452,8 @@ export default function NodeDetailPanel({ ticker, metadata, onClose, isWatchlist
                     tickFormatter={(value) => `$${value.toFixed(0)}`}
                     domain={[(dataMin: number) => dataMin * 0.99, (dataMax: number) => dataMax * 1.01]}
                   />
-                  <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
-                    <div className="rounded-md border border-border bg-elevated px-3 py-2 text-sm text-foreground">
+                  <Tooltip {...GLIDING_TOOLTIP} content={({ active, payload, label }) => active && payload?.length ? (
+                    <div className={`${GLASS_TOOLTIP_CLASS} px-3 py-2 text-sm text-foreground`}>
                       {formatPriceHistoryDate(Number(label))}{historyRange !== 'all' && ` · ${formatPriceHistoryDate(Number(label), true)}` }: {formatCurrency(Number(payload[0].value))}
                     </div>
                   ) : null} />

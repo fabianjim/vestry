@@ -10,6 +10,7 @@ import { formatCompactCurrency } from '../../utils/formatUtils'
 import LandingEntryCard from './LandingEntryCard'
 import StackItem from '../StackItem'
 import { HERO_EVENTS, PORTFOLIO_AXIS_TICKS, PORTFOLIO_DAY, type PortfolioPoint } from './landingStory'
+import { GLASS_TOOLTIP_CLASS, GLIDING_TOOLTIP, trackTooltipDrift } from '../../utils/chartTooltip'
 
 interface LandingChartProps {
   onBuyClick?: () => void
@@ -143,7 +144,7 @@ export default function LandingChart({ onBuyClick }: LandingChartProps) {
           <div ref={total} className="text-2xl font-130 text-foreground mt-1 tabular-nums" />
         </div>
 
-        <div className="h-60">
+        <div onPointerMove={trackTooltipDrift} className="h-60">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={PORTFOLIO_DAY} margin={{ top: 10, right: 20, bottom: 10, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
@@ -167,8 +168,8 @@ export default function LandingChart({ onBuyClick }: LandingChartProps) {
                 tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                 domain={['dataMin - 1000', 'dataMax + 1000']}
               />
-              <Tooltip active={frame.done ? undefined : false} content={({ active, payload, label }) => active && payload?.length ? (
-                <div className="rounded-md border border-border bg-elevated px-3 py-2 text-sm text-foreground">
+              <Tooltip {...GLIDING_TOOLTIP} active={frame.done ? undefined : false} content={({ active, payload, label }) => active && payload?.length ? (
+                <div className={`${GLASS_TOOLTIP_CLASS} px-3 py-2 text-sm text-foreground`}>
                   {formatTime(Number(label))}: {formatCompactCurrency(Number(payload[0].value))}
                 </div>
               ) : null} />

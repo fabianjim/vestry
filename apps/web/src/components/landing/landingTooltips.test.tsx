@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, it, vi } from 'vitest'
 import LandingChart from './LandingChart'
 import LandingDetailCard from './LandingDetailCard'
+import { GLASS_TOOLTIP_CLASS } from '../../utils/chartTooltip'
 
 const hover = vi.hoisted(() => ({ label: '' as string | number, value: 0, playbackDone: false }))
 
@@ -40,7 +41,7 @@ it('keeps the hero tooltip hidden until playback finishes, then shows time and c
   hover.playbackDone = true
   const markup = renderToStaticMarkup(<LandingChart />)
   expect(markup).toContain('11:35 AM: $49,000')
-  expect(markup).toContain('bg-elevated px-3 py-2 text-sm text-foreground')
+  expect(markup).toContain(`${GLASS_TOOLTIP_CLASS} px-3 py-2 text-sm text-foreground`)
 })
 
 it('uses the same one-line date and currency tooltip for Analyze', () => {
@@ -48,5 +49,5 @@ it('uses the same one-line date and currency tooltip for Analyze', () => {
   hover.value = 750
   const markup = renderToStaticMarkup(<LandingDetailCard />)
   expect(markup).toContain('Jun 18: $750')
-  expect(markup).toContain('bg-elevated px-3 py-2 text-sm text-foreground')
+  expect(markup).toContain(`${GLASS_TOOLTIP_CLASS} px-3 py-2 text-sm text-foreground`)
 })
