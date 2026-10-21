@@ -7,12 +7,18 @@ import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class NasdaqMetadataService {
+
+    private static final int NO_MATCH = 3;
 
     private final Map<String, StockMetadata> metadataCache = new ConcurrentHashMap<>();
     private final EtfMetadataService etfMetadataService;
@@ -102,5 +108,45 @@ public class NasdaqMetadataService {
             return Optional.of(nasdaqMetadata);
         }
         return etfMetadataService.lookupMetadata(ticker);
+    }
+
+    /**
+     * Ranks an exact ticker first, then ticker or name prefixes, then later name words,
+     * with larger market caps first inside each tier.
+     */
+    public List<StockMetadata> search(String query, int limit) {
+        String q = query == null ? "" : query.trim().toUpperCase(Locale.ROOT);
+        if (q.isEmpty()) return List.of();
+
+        // Stocks replace ETFs with the same ticker, matching lookupMetadata.
+        Map<String, StockMetadata> candidates = new HashMap<>();
+        etfMetadataService.allMetadata().forEach(metadata -> candidates.put(metadata.getTicker(), metadata));
+        candidates.putAll(metadataCache);
+
+        Comparator<StockMetadata> order = Comparator
+                .<StockMetadata>comparingInt(metadata -> searchTier(metadata, q))
+                .thenComparing(metadata -> metadata.getMarketCap() == null ? 0.0 : metadata.getMarketCap(),
+                        Comparator.reverseOrder())
+                .thenComparing(StockMetadata::getTicker);
+        return candidates.values().stream()
+                .filter(metadata -> isPriceable(metadata.getTicker()))
+                .filter(metadata -> searchTier(metadata, q) < NO_MATCH)
+                .sorted(order)
+                .limit(limit)
+                .toList();
+    }
+
+    private static int searchTier(StockMetadata metadata, String q) {
+        String ticker = metadata.getTicker();
+        if (ticker.equals(q)) return 0;
+        String name = metadata.getName() == null ? "" : metadata.getName().toUpperCase(Locale.ROOT);
+        if (ticker.startsWith(q) || name.startsWith(q)) return 1;
+        if (name.contains(" " + q)) return 2;
+        return NO_MATCH;
+    }
+
+    // The CSV writes share classes and preferreds as BRK/B and ABC^A, which the price feed does not accept.
+    private static boolean isPriceable(String ticker) {
+        return ticker.indexOf('/') < 0 && ticker.indexOf('^') < 0;
     }
 }

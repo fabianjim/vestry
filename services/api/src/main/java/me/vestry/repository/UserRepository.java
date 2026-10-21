@@ -13,6 +13,12 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     List<User> findByDemoTrue();
 
     Optional<User> findByUsername(String username);
+
+    Optional<User> findByGoogleSubject(String googleSubject);
     
     boolean existsByUsername(String username);
+
+    boolean existsByUsernameIgnoreCase(String username);
+
+    List<User> findAllByUsernameIgnoreCase(String username);
 }

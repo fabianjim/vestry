@@ -1,6 +1,6 @@
 import { marketDayBoundary } from '../utils/calendarSelection'
 import type { Holding, PortfolioHistoryPoint } from '../types/portfolio'
-import type { StockData, StockHistoryPoint } from '../types/stock'
+import type { StockData, StockHistoryPoint, TickerMatch } from '../types/stock'
 import type { PnLSummary, Transaction } from '../types/transaction'
 import type { WatchlistItem } from '../types/watchlist'
 import type { HoldingsLayout } from '../utils/holdingsLayout'
@@ -146,6 +146,9 @@ export const stockApi = {
   fetchInitial: () =>
     apiClient('/stock/fetch/initial'),
 
+  searchTickers: (query: string, signal?: AbortSignal): Promise<TickerMatch[]> =>
+    apiClient(`/stock/search?q=${encodeURIComponent(query)}`, { signal }),
+
   getStockData: (ticker: string, signal?: AbortSignal): Promise<StockData> =>
     apiClient(`/stock/data/${ticker}`, { signal }),
 
@@ -228,11 +231,17 @@ export const authApi = {
   login: (username: string, password: string) =>
     apiClient('/auth/login', { method: 'POST', body: { username, password } }),
 
-  register: (username: string, password: string) =>
-    apiClient('/auth/register', { method: 'POST', body: { username, password } }),
+  register: (username: string, password: string, website = '') =>
+    apiClient('/auth/register', { method: 'POST', body: { username, password, website } }),
 
   logout: () =>
     apiClient('/auth/logout', { method: 'POST' }),
+
+  googleConfig: (): Promise<{ clientId: string | null }> =>
+    apiClient('/auth/google/client-id'),
+
+  googleLogin: (accessToken: string) =>
+    apiClient('/auth/google', { method: 'POST', body: { accessToken } }),
 
   me: (signal?: AbortSignal): Promise<SessionUser> =>
     apiClient('/auth/me', { signal }),

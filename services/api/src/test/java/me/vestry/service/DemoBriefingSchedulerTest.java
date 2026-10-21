@@ -20,9 +20,11 @@ class DemoBriefingSchedulerTest {
         assertEquals("America/New_York", schedule.zone());
         var cron = CronExpression.parse(schedule.cron());
         var friday = ZonedDateTime.of(2026, 10, 30, 10, 0, 0, 0, ZoneId.of(schedule.zone()));
-        var monday = cron.next(friday);
-        assertEquals(ZonedDateTime.parse("2026-11-02T10:00:00-05:00[America/New_York]"), monday);
         assertEquals(friday, cron.next(friday.minusSeconds(1)));
+        // Retries every ten minutes through the hour, then waits for the next weekday.
+        assertEquals(friday.plusMinutes(10), cron.next(friday));
+        var monday = cron.next(friday.plusMinutes(50));
+        assertEquals(ZonedDateTime.parse("2026-11-02T10:00:00-05:00[America/New_York]"), monday);
     }
 
     @Test

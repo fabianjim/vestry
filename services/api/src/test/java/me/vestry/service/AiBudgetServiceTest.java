@@ -123,6 +123,28 @@ class AiBudgetServiceTest {
     }
 
     @Test
+    void reservedJobsKeepASlotAndTheirAllowanceUntilTheyStart() {
+        var demo = java.util.List.of(key(99));
+        assertThrows(IllegalStateException.class, () -> service.start(key(1), 10_001, demo));
+        for (int i = 1; i <= 4; i++) service.finish(service.start(key(i), 1_000, demo).id(), false);
+        assertFalse(service.canStart(demo));
+        assertTrue(service.canStart());
+        assertThrows(IllegalStateException.class, () -> service.start(key(5), 1_000, demo));
+
+        var reserved = service.start(key(99), 10_000);
+        assertTrue(reserved.created());
+        service.finish(reserved.id(), true);
+        assertFalse(service.canStart(demo)); // All five daily slots are used now.
+    }
+
+    @Test
+    void startedReservationsNoLongerHoldBackOtherJobs() {
+        var demo = java.util.List.of(key(99));
+        service.finish(service.start(key(99), 1_000).id(), true);
+        assertTrue(service.start(key(1), 10_001, demo).created());
+    }
+
+    @Test
     void databaseLockPreventsConcurrentStarts() throws Exception {
         var gate = new CountDownLatch(1);
         var executor = Executors.newFixedThreadPool(2);

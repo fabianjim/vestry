@@ -1,9 +1,11 @@
 package me.vestry.controller;
 
 import me.vestry.model.User;
-import me.vestry.repository.UserRepository;
+import me.vestry.security.GoogleSignInVerifier;
+import me.vestry.security.GoogleSignInVerifier.GoogleIdentity;
 import me.vestry.service.DemoSessionResolver;
 import me.vestry.service.DemoSessionStore;
+import me.vestry.service.UserService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -14,7 +16,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.web.bind.annotation.*;
@@ -26,50 +27,68 @@ import java.util.Optional;
 @RequestMapping("/api/auth")
 public class LoginController {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final UserService userService;
     private final DemoSessionResolver demoSessionResolver;
     private final ServerProperties serverProperties;
+    private final GoogleSignInVerifier googleVerifier;
 
-    public LoginController(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                           DemoSessionResolver demoSessionResolver, ServerProperties serverProperties) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
+    public LoginController(UserService userService, DemoSessionResolver demoSessionResolver,
+                           ServerProperties serverProperties, GoogleSignInVerifier googleVerifier) {
+        this.userService = userService;
         this.demoSessionResolver = demoSessionResolver;
+        this.googleVerifier = googleVerifier;
         this.serverProperties = serverProperties;
     }
 
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> register(@RequestBody RegisterRequest request) {
-        if (userRepository.existsByUsername(request.username)) {
-            return ResponseEntity.badRequest()
-                    .body(new RegisterResponse("This user already exists", null));
+        // People never see the honeypot field; scripts that fill every input do.
+        if (request.website != null && !request.website.isBlank()) {
+            return ResponseEntity.badRequest().body(new RegisterResponse("Registration failed.", null));
         }
-
-        String hashedPassword = passwordEncoder.encode(request.password);
-        User user = new User(request.username, hashedPassword);
-        userRepository.save(user);
-
-        return ResponseEntity.ok(
-                new RegisterResponse("User created successfully", user.getUsername())
-        );
+        try {
+            User user = userService.registerUser(request.username, request.password);
+            return ResponseEntity.ok(new RegisterResponse("User created successfully", user.getUsername()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new RegisterResponse(e.getMessage(), null));
+        }
     }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request,
                                               HttpServletRequest httpRequest, HttpServletResponse response) {
-        Optional<User> foundUser = userRepository.findByUsername(request.username);
-
-        if (foundUser.isEmpty()) {
+        Optional<User> authenticated = userService.authenticate(request.username, request.password);
+        if (authenticated.isEmpty()) {
             return ResponseEntity.badRequest()
                     .body(new LoginResponse("Invalid username or password", null, null, false));
         }
-        User user = foundUser.get();
-        if (!passwordEncoder.matches(request.password, user.getPassword())) {
-            return ResponseEntity.badRequest()
-                    .body(new LoginResponse("Invalid username or password", null, null, false));
-        }
+        return startSession(authenticated.get(), httpRequest, response);
+    }
 
+    @GetMapping("/google/client-id")
+    public GoogleConfigResponse googleConfig() {
+        return new GoogleConfigResponse(googleVerifier.clientId());
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<LoginResponse> google(@RequestBody GoogleLoginRequest request,
+                                               HttpServletRequest httpRequest, HttpServletResponse response) {
+        if (!googleVerifier.enabled()) return ResponseEntity.notFound().build();
+        Optional<GoogleIdentity> identity = googleVerifier.verify(request.accessToken);
+        if (identity.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(new LoginResponse("Google sign-in failed. Try again.", null, null, false));
+        }
+        try {
+            User user = userService.signInWithGoogle(identity.get().subject(), identity.get().email());
+            return startSession(user, httpRequest, response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new LoginResponse(e.getMessage(), null, null, false));
+        }
+    }
+
+    private ResponseEntity<LoginResponse> startSession(User user, HttpServletRequest httpRequest,
+                                                       HttpServletResponse response) {
         String demoId = user.isDemo() ? demoSessionResolver.resume(user, httpRequest, response) : null;
         HttpSession previous = httpRequest.getSession(false);
         if (previous != null) previous.invalidate();
@@ -84,7 +103,6 @@ public class LoginController {
         SecurityContextHolder.setContext(context);
         new HttpSessionSecurityContextRepository().saveContext(context, httpRequest, response);
 
-        System.out.println("User " + user.getUsername() + " " + user.getId() + " logged in successfully.");
         return ResponseEntity.ok(
                 new LoginResponse("Login successful", user.getUsername(), user.getId(), user.isDemo())
         );
@@ -107,24 +125,22 @@ public class LoginController {
         );
     }
 
-    /*@PostMapping("/logout")
-    public ResponseEntity<LoginResponse> logout() {
-        SecurityContextHolder.clearContext();
-        return ResponseEntity.ok(
-                new LoginResponse("Logout successful", null, null)
-        );
-    }*/
-
-
     public static class RegisterRequest {
         public String username;
         public String password;
+        public String website;
     }
 
     public static class LoginRequest {
         public String username;
         public String password;
-    } 
+    }
+
+    public static class GoogleLoginRequest {
+        public String accessToken;
+    }
+
+    public record GoogleConfigResponse(String clientId) {}
 
     public record LoginResponse(String message, String username, Integer userId, boolean isDemo) {}
 

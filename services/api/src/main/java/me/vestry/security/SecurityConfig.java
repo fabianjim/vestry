@@ -27,7 +27,7 @@ public class SecurityConfig {
             @Override
             public void addInterceptors(InterceptorRegistry registry) {
                 registry.addInterceptor(resolver).addPathPatterns("/api/**")
-                        .excludePathPatterns("/api/auth/login", "/api/auth/register");
+                        .excludePathPatterns("/api/auth/login", "/api/auth/register", "/api/auth/google");
             }
         };
     }

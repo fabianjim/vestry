@@ -27,3 +27,9 @@ export type StockData = {
   lastSuccessfulFetch: string | null
   eod: boolean
 }
+
+export type TickerMatch = {
+  ticker: string
+  name: string | null
+  etf: boolean
+}

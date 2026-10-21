@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -19,7 +20,7 @@ class AiGenerationServiceTest {
 
     @Test
     void duplicateDoesNotRunOrRefundWork() {
-        when(budget.start("key", 1000)).thenReturn(new AiBudgetService.Start(job, false));
+        when(budget.start("key", 1000, List.of())).thenReturn(new AiBudgetService.Start(job, false));
         assertEquals(job, service.submit("key", 1000, id -> fail("Duplicate ran")));
         verifyNoInteractions(executor);
         verify(budget, never()).finish(any(), anyBoolean());
@@ -27,7 +28,7 @@ class AiGenerationServiceTest {
 
     @Test
     void recordsSuccessAndFailureWithoutPropagatingPrivateWorkerErrors() {
-        when(budget.start("key", 1000)).thenReturn(new AiBudgetService.Start(job, true));
+        when(budget.start("key", 1000, List.of())).thenReturn(new AiBudgetService.Start(job, true));
         doAnswer(invocation -> { invocation.<Runnable>getArgument(0).run(); return null; })
                 .when(executor).execute(any(Runnable.class));
         Consumer<UUID> work = mock(Consumer.class);
@@ -40,7 +41,7 @@ class AiGenerationServiceTest {
 
     @Test
     void rejectedWorkerReleasesUnspentReservation() {
-        when(budget.start("key", 1000)).thenReturn(new AiBudgetService.Start(job, true));
+        when(budget.start("key", 1000, List.of())).thenReturn(new AiBudgetService.Start(job, true));
         doThrow(new TaskRejectedException("busy")).when(executor).execute(any(Runnable.class));
         assertThrows(IllegalStateException.class, () -> service.submit("key", 1000, id -> fail("Rejected work ran")));
         verify(budget).finish(job, false);

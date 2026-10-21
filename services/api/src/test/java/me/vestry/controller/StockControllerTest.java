@@ -8,6 +8,7 @@ import me.vestry.service.DemoSessionService;
 import me.vestry.service.PortfolioService;
 import me.vestry.service.StockService;
 import me.vestry.service.MarketScheduleService;
+import me.vestry.service.NasdaqMetadataService;
 import org.springframework.context.annotation.Import;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +54,9 @@ public class StockControllerTest {
 
     @MockitoBean
     private DemoSessionService demoSessionService;
+
+    @MockitoBean
+    private NasdaqMetadataService nasdaqMetadataService;
 
     private Stock createStock(Stock.StockType type, Instant hourBucket) {
         return new Stock("AAPL", Instant.now(), 150.0, 148.0, 147.0, 151.0, 147.5, type, hourBucket);

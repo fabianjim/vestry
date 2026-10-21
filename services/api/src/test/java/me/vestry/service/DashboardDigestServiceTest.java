@@ -5,6 +5,7 @@ import me.vestry.model.AiGeneration;
 import me.vestry.model.DemoSession;
 import me.vestry.model.User;
 import me.vestry.repository.AiGenerationRepository;
+import me.vestry.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -23,9 +24,10 @@ class DashboardDigestServiceTest {
     private final AiBudgetService budget = mock(AiBudgetService.class);
     private final DashboardLayoutService layouts = mock(DashboardLayoutService.class);
     private final DemoSessionResolver users = mock(DemoSessionResolver.class);
+    private final UserRepository accounts = mock(UserRepository.class);
     private final Instant now = Instant.parse("2026-10-02T03:00:00Z");
     private final Clock clock = Clock.fixed(now, ZoneOffset.UTC);
-    private final DashboardDigestService service = new DashboardDigestService(digests, context, generations, jobs, budget, layouts, users, clock);
+    private final DashboardDigestService service = new DashboardDigestService(digests, context, generations, jobs, budget, layouts, users, clock, accounts);
     private final User user = new User();
     private final Map<String, AiGeneration> stored = new HashMap<>();
     private final ObjectMapper mapper = new ObjectMapper();
@@ -36,16 +38,21 @@ class DashboardDigestServiceTest {
         when(users.getCurrentUser()).thenReturn(user);
         when(digests.available()).thenReturn(true);
         when(budget.canStart()).thenReturn(true);
+        when(budget.canStart(anyList())).thenReturn(true);
         when(layouts.get(eq(user), any())).thenReturn(mapper.createObjectNode().put("showBriefing", true));
         when(jobs.findByRequestKey(anyString())).thenAnswer(i -> Optional.ofNullable(stored.get(i.getArgument(0))));
         when(context.capture()).thenReturn(new DigestContextService.Snapshot(7, false, now, List.of(), "{}"));
         when(digests.allowance(any())).thenReturn(30000L);
-        when(generations.submit(anyString(), eq(30000L), any())).thenAnswer(i -> {
-            var job = new AiGeneration(i.getArgument(0), now, LocalDate.of(2026, 10, 1), 30000);
-            stored.put(i.getArgument(0), job);
-            i.<Consumer<UUID>>getArgument(2).accept(job.getId());
-            return job.getId();
-        });
+        when(generations.submit(anyString(), eq(30000L), any())).thenAnswer(i -> run(i.getArgument(0), i.getArgument(2)));
+        when(generations.submit(anyString(), eq(30000L), anyList(), any()))
+                .thenAnswer(i -> run(i.getArgument(0), i.getArgument(3)));
+    }
+
+    private UUID run(String key, Consumer<UUID> work) {
+        var job = new AiGeneration(key, now, LocalDate.of(2026, 10, 1), 30000);
+        stored.put(key, job);
+        work.accept(job.getId());
+        return job.getId();
     }
 
     @Test
@@ -55,7 +62,7 @@ class DashboardDigestServiceTest {
         assertEquals(DashboardDigestService.Status.GENERATING, service.generate(null).status());
         assertEquals(DashboardDigestService.Status.GENERATING, service.generate(null).status());
         verify(context, times(1)).capture();
-        verify(generations, times(1)).submit(anyString(), anyLong(), any());
+        verify(generations, times(1)).submit(anyString(), anyLong(), anyList(), any());
         verify(digests).generate(any(), any());
         assertEquals(LocalDate.of(2026, 10, 1), service.get(null).day());
     }
@@ -100,7 +107,7 @@ class DashboardDigestServiceTest {
         assertEquals(DashboardDigestService.Status.HIDDEN, service.generate(null).status());
         verifyNoInteractions(jobs, context, generations);
         when(layouts.get(user, null)).thenReturn(mapper.createObjectNode().put("showBriefing", true));
-        when(budget.canStart()).thenReturn(false);
+        when(budget.canStart(anyList())).thenReturn(false);
         assertEquals(DashboardDigestService.Status.LIMITED, service.generate(null).status());
         verifyNoInteractions(context, generations);
     }
@@ -125,17 +132,36 @@ class DashboardDigestServiceTest {
     void newYorkDayChangeAllowsNewRequestAndExpiredJobsStopPolling() {
         service.generate(null);
         var later = new DashboardDigestService(digests, context, generations, jobs, budget, layouts, users,
-                Clock.fixed(now.plusSeconds(301), ZoneOffset.UTC));
+                Clock.fixed(now.plusSeconds(301), ZoneOffset.UTC), accounts);
         assertEquals(DashboardDigestService.Status.FAILED, later.get(null).status());
         later = new DashboardDigestService(digests, context, generations, jobs, budget, layouts, users,
-                Clock.fixed(Instant.parse("2026-10-02T04:00:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-10-02T04:00:00Z"), ZoneOffset.UTC), accounts);
         assertEquals(DashboardDigestService.Status.IDLE, later.get(null).status());
     }
 
     @Test
     void rejectedReservationReturnsLimitedWithoutLeakingErrorText() {
-        when(generations.submit(anyString(), anyLong(), any())).thenThrow(new IllegalStateException("provider details"));
+        when(generations.submit(anyString(), anyLong(), anyList(), any())).thenThrow(new IllegalStateException("provider details"));
         assertEquals(DashboardDigestService.Status.LIMITED, service.generate(null).status());
         verify(digests, never()).generate(any(), any());
+    }
+
+    @Test
+    void weekdayUserBriefingsReserveTheDemoSlotButWeekendsAndTheDemoDoNot() {
+        var demo = new User(); demo.setId(3); demo.setDemo(true);
+        when(accounts.findByDemoTrue()).thenReturn(List.of(demo));
+        when(context.captureDemo(demo)).thenReturn(new DigestContextService.Snapshot(3, true, now, List.of(), "{}"));
+
+        service.generate(null); // Thursday in New York
+        var reserved = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(generations).submit(anyString(), anyLong(), reserved.capture(), any());
+        assertEquals(1, reserved.getValue().size());
+        service.generateDemo(demo);
+        assertTrue(stored.containsKey(reserved.getValue().get(0)));
+
+        var saturday = new DashboardDigestService(digests, context, generations, jobs, budget, layouts, users,
+                Clock.fixed(Instant.parse("2026-10-03T16:00:00Z"), ZoneOffset.UTC), accounts);
+        saturday.get(null);
+        verify(budget).canStart(List.of());
     }
 }
