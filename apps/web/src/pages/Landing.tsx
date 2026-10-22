@@ -105,7 +105,7 @@ export default function Landing() {
             type="button"
             key={id}
             onClick={() => scrollTo(id)}
-            className="group relative py-2 cursor-pointer"
+            className="group py-2 cursor-pointer"
             aria-label={`Go to ${id} section`}
             aria-current={index === activeSection ? 'true' : undefined}
           >
@@ -115,7 +115,6 @@ export default function Landing() {
                 : 'w-4 bg-foreground/30 group-hover:bg-foreground/60 group-focus-visible:bg-foreground/60'
               }
             `} />
-            <span aria-hidden="true" className="pointer-events-none absolute left-full top-1/2 ml-3 -translate-y-1/2 text-xs text-muted capitalize opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">{id}</span>
           </button>
         ))}
       </div>
