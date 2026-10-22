@@ -347,6 +347,24 @@ function ChartDatePicker({ dates, shown, bounds, onChange }: {
   )
 }
 
+/** Money in is listed only while it is drawn. */
+function ChartLegend({ lens, lineColor, showMoneyIn }: { lens: PerformanceLens; lineColor: string; showMoneyIn: boolean }) {
+  return (
+    <div className="mt-1 flex items-center gap-4 text-xs text-secondary">
+      <span className="flex items-center gap-1.5">
+        <svg width="16" height="8" aria-hidden="true"><line x1="0" y1="4" x2="16" y2="4" stroke={lineColor} strokeWidth={2} /></svg>
+        {lens === 'value' ? 'Value' : 'Gain'}
+      </span>
+      {showMoneyIn && (
+        <span className="flex items-center gap-1.5">
+          <svg width="16" height="8" aria-hidden="true"><line x1="0" y1="4" x2="16" y2="4" stroke="var(--color-border-control)" strokeWidth={1.5} strokeDasharray="4 4" /></svg>
+          Money in
+        </span>
+      )}
+    </div>
+  )
+}
+
 const EMPTY_ENTRIES: JournalEntry[] = []
 const EMPTY_HISTORY: HistoryPoint[] = []
 const EMPTY_TRANSACTIONS: Transaction[] = []
@@ -581,6 +599,7 @@ const PortfolioChart = forwardRef<PortfolioChartHandle, Props>(function Portfoli
           {dates && dates.from !== dates.to ? 'No data for these dates' : 'No data for this day'}
         </div>
       )}
+      {rows.length > 0 && <ChartLegend lens={lens} lineColor={lineColor} showMoneyIn={showMoneyIn} />}
     </div>
   )
 })
