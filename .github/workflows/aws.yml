@@ -25,6 +25,15 @@ jobs:
         working-directory: services/api
         run: ./mvnw clean package -DskipTests
 
+      # the platform only reads .platform, .ebextensions and Procfile from a bundle, not a bare jar
+      - name: Bundle for Elastic Beanstalk
+        working-directory: services/api
+        run: |
+          mkdir target/bundle
+          cp target/vestry-api-0.0.1-SNAPSHOT.jar target/bundle/vestry-api.jar
+          cp -R Procfile .platform .ebextensions target/bundle/
+          cd target/bundle && zip -r ../deploy.zip .
+
       - name: Deploy to Elastic Beanstalk
         uses: einaregilsson/beanstalk-deploy@v22
         with:
@@ -34,4 +43,4 @@ jobs:
           environment_name: portfolio-monitor-api-env
           region: us-east-1
           version_label: ${{ github.sha }}
-          deployment_package: services/api/target/vestry-api-0.0.1-SNAPSHOT.jar
+          deployment_package: services/api/target/deploy.zip
