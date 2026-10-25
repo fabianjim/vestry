@@ -22,7 +22,7 @@ Vestry is a portfolio journal for casual, reflective investors. It connects port
 ## Invariants (high-risk; verify carefully when touched)
 
 **Deployment**
-- The browser calls relative `/api/*`, which Vercel rewrites to EB (`apps/web/vercel.json`). Keep every API route under `/api`.
+- The browser calls relative `/api/*`, which Vercel rewrites to EB over HTTPS at `api.vestry.me` (`apps/web/vercel.json`). Keep every API route under `/api`.
 - `aws.yml` deploys a zip of the jar with `services/api/Procfile`, `.platform` and `.ebextensions`; a bare jar would drop them. Nginx on the instance terminates TLS with a Let's Encrypt cert from `.platform/hooks`, which must never fail a deploy.
 - Keep `credentials: 'include'` and SSE `withCredentials`.
 - The EB names `portfolio-monitor-api(-env)` and the `RDS_*` env vars are intentionally legacy. Do not rename them; that is an infrastructure migration.
