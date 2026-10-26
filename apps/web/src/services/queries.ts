@@ -79,6 +79,12 @@ function journalFilters(filters: JournalFilters = {}): JournalFilters {
 
 export const journalQueries = {
   all: ['journal'] as const,
+  reflectAvailability: () => queryOptions({
+    queryKey: ['reflect-with-ai-availability'],
+    queryFn: ({ signal }) => journalApi.reflectAvailability(signal),
+    staleTime: 60_000,
+    retry: false,
+  }),
   entries: (filters?: JournalFilters) => {
     const normalized = journalFilters(filters)
     const filtered = Object.values(normalized).some(value => value !== undefined)

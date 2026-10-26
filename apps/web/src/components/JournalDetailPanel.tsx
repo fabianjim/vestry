@@ -30,6 +30,8 @@ import { marketDateKey } from '../utils/calendarSelection'
 import { formatCurrency, formatSignedCurrencyWithPercent } from '../utils/formatUtils'
 import { getDisplayBody, parseTagsFromBody } from '../utils/tagUtils'
 import JournalSourceQuote from './JournalSourceQuote'
+import ReflectionAidCard from './ReflectionAidCard'
+import type { ReflectionAidResult } from '../types/reflectionAid'
 import { useJournalSources } from '../hooks/useJournalSources'
 import { GLASS_TOOLTIP_CLASS, GLIDING_TOOLTIP, trackTooltipDrift } from '../utils/chartTooltip'
 
@@ -73,6 +75,11 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
   const [saveError, setSaveError] = useState('')
   const savingRef = useRef(false)
   const reflectionInputRef = useRef<HTMLTextAreaElement>(null)
+  const aidAvailable = useQuery(journalQueries.reflectAvailability()).data?.available === true
+  // tagged with the entry, so switching entries never shows another entry's aid
+  const [aid, setAid] = useState<{ entryId: number; result: ReflectionAidResult } | null>(null)
+  const [aidError, setAidError] = useState<{ entryId: number; message: string } | null>(null)
+  const [aidPending, setAidPending] = useState(false)
   const knownEntries = useMemo(() => [entry, ...relatedEntries], [entry, relatedEntries])
   const sources = useJournalSources(knownEntries)
   const sourceEntry = entry.sourceEntryId != null ? sources.get(entry.sourceEntryId) : null
@@ -107,6 +114,21 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
     } finally {
       savingRef.current = false
       setSaving(false)
+    }
+  }
+
+  const reflectWithAi = async () => {
+    if (aidPending) return
+    const entryId = entry.id
+    setAidPending(true)
+    setAidError(null)
+    try {
+      setAid({ entryId, result: await journalApi.reflectWithAi(entryId) })
+      setReflecting(true)
+    } catch (e) {
+      setAidError({ entryId, message: e instanceof Error ? e.message : "Couldn't reflect right now" })
+    } finally {
+      setAidPending(false)
     }
   }
 
@@ -360,10 +382,21 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
       )}
 
       <div className="mb-6">
+        {aid?.entryId === entry.id && (
+          <ReflectionAidCard entry={entry} result={aid.result} knownEntries={knownEntries} onEntryClick={onEntryClick} />
+        )}
+        {aidError?.entryId === entry.id && <div role="alert" className="text-error text-sm mb-3">{aidError.message}</div>}
         {!reflecting ? (
-          <button onClick={() => setReflecting(true)} className="px-3 py-2 text-sm text-primary border border-border rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors">
-            Reflect on this entry
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {aidAvailable && (
+              <button onClick={reflectWithAi} disabled={aidPending} className="px-3 py-2 text-sm text-primary border border-border rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed">
+                {aidPending ? 'Reflecting…' : 'Reflect with AI'}
+              </button>
+            )}
+            <button onClick={() => setReflecting(true)} className="px-3 py-2 text-sm text-primary border border-border rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors">
+              Reflect on this entry
+            </button>
+          </div>
         ) : (
           <form onSubmit={e => { e.preventDefault(); saveReflection() }}>
             <label htmlFor="reflection-body" className="block text-sm text-secondary mb-2">Your reflection</label>

@@ -125,3 +125,12 @@ export const formatNextUpdate = (next: Date, now = new Date()): string => {
 
   return `${dayLabel} ${timeLabel}`
 }
+
+// rough calendar span for "time since entry"; days under two months, then months, then years
+export const formatElapsed = (from: string, now = new Date()): string => {
+  const days = Math.max(0, Math.floor((now.getTime() - new Date(from).getTime()) / 86_400_000))
+  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`
+  if (days < 60) return plural(days, 'day')
+  if (days < 730) return plural(Math.floor(days / 30.44), 'month')
+  return plural(Math.floor(days / 365.25), 'year')
+}

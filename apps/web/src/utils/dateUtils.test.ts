@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatNextUpdate, isInMarketDateRange } from './dateUtils'
+import { formatElapsed, formatNextUpdate, isInMarketDateRange } from './dateUtils'
 
 const nyDate = (iso: string) => new Date(iso)
 
@@ -75,5 +75,20 @@ describe('formatNextUpdate', () => {
     const next = nyDate('2026-06-15T14:00:00Z') // Monday 10 AM
 
     expect(formatNextUpdate(next, now)).toBe('Mon 10am')
+  })
+})
+
+describe('formatElapsed', () => {
+  const now = new Date('2026-10-25T16:00:00Z')
+
+  it.each([
+    ['2026-10-25T15:00:00Z', '0 days'],
+    ['2026-10-24T15:00:00Z', '1 day'],
+    ['2026-09-01T15:00:00Z', '54 days'],
+    ['2026-03-03T15:30:00Z', '7 months'],
+    ['2024-01-05T15:00:00Z', '2 years'],
+    ['2026-10-26T15:00:00Z', '0 days'],
+  ])('describes the time since %s as %s', (from, expected) => {
+    expect(formatElapsed(from, now)).toBe(expected)
   })
 })
