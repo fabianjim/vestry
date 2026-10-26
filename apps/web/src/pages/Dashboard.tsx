@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { refreshAfterTrade, refreshJournal } from '../services/queryUpdates'
@@ -21,6 +21,7 @@ import DashboardDigest from '../components/DashboardDigest'
 import { useDigest } from '../hooks/useDigest'
 import { useDashboardLayout } from '../hooks/useDashboardLayout'
 import { useMediaQuery } from '../hooks/useMediaQuery'
+import { buildTimeline } from '../utils/chartData'
 
 export default function Dashboard() {
   const queryClient = useQueryClient()
@@ -41,6 +42,11 @@ export default function Dashboard() {
   const results = holdingsQuery.data
   const pnlQuery = useQuery(portfolioQueries.pnl())
   const pnlSummary = pnlQuery.data
+  const historyQuery = useQuery(portfolioQueries.history())
+  const transactionsQuery = useQuery(portfolioQueries.transactions())
+  const trades = useMemo(() => historyQuery.data && transactionsQuery.data
+    ? { timeline: buildTimeline(historyQuery.data, transactionsQuery.data), transactions: transactionsQuery.data }
+    : undefined, [historyQuery.data, transactionsQuery.data])
   const queryError = (holdingsQuery.error ?? pnlQuery.error)?.message
   const [showAddModal, setShowAddModal] = useState(false)
   const [newTicker, setNewTicker] = useState('')
@@ -308,7 +314,7 @@ export default function Dashboard() {
       {preferences.save.error && <p role="alert" className="text-sm text-error mb-4">Could not save your change.{' '}
         <button className="underline" onClick={() => preferences.save.variables && preferences.save.mutate(preferences.save.variables)}>Retry</button></p>}
       <p role="status" className="sr-only">{preferences.save.isPending ? 'Saving…' : ''}</p>
-      <DashboardSummary metrics={layout.metrics} holdings={results} pnl={pnlSummary}
+      <DashboardSummary metrics={layout.metrics} holdings={results} pnl={pnlSummary} trades={trades}
         disabled={!preferences.query.data || preferences.save.isPending}
         onMetricChange={(index, metric) => {
           const metrics = [...layout.metrics] as typeof layout.metrics

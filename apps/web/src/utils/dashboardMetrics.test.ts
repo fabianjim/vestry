@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { ValuedHolding } from './holdingsAnalysis'
-import { dashboardMetrics } from './dashboardMetrics'
+import { buildTimeline } from './chartData'
+import { dashboardMetrics, sinceLastTrade } from './dashboardMetrics'
+import type { Transaction } from '../types/transaction'
 
 const holding = (ticker: string, shares: number, price: number, prevClose = price): ValuedHolding => ({
   ticker, shares,
@@ -52,4 +54,23 @@ describe('dashboard summary metrics', () => {
     expect(dashboardMetrics([], undefined)['total-pnl'].value).toBeNull()
   })
 
+  it('measures gain since the latest trade without counting the money it moved', () => {
+    const history = [
+      { timestamp: '2026-10-20T14:00:00Z', portfolioValue: 1000 },
+      { timestamp: '2026-10-20T15:00:00Z', portfolioValue: 1600 },
+      { timestamp: '2026-10-20T16:00:00Z', portfolioValue: 1650 },
+      { timestamp: '2026-10-20T17:00:00Z', portfolioValue: 1100 },
+    ]
+    const trade = (id: number, type: 'BUY' | 'SELL', totalValue: number, timestamp: string): Transaction =>
+      ({ id, ticker: 'A', shares: 1, price: totalValue, totalValue, type, timestamp })
+    const buys = [trade(1, 'BUY', 1000, '2026-10-20T13:30:00Z'), trade(2, 'BUY', 500, '2026-10-20T14:30:00Z')]
+    const afterBuy = { timeline: buildTimeline(history.slice(0, 3), buys), transactions: buys }
+    expect(sinceLastTrade(afterBuy)).toEqual({ amount: 150, percent: 10, day: '2026-10-20' })
+
+    const all = [...buys, trade(3, 'SELL', 600, '2026-10-20T16:30:00Z')]
+    expect(sinceLastTrade({ timeline: buildTimeline(history, all), transactions: all })?.amount).toBe(50)
+    expect(dashboardMetrics([], pnl, true, afterBuy)['since-last-trade']).toMatchObject({ value: 150, percent: 10, detail: 'Oct 20' })
+    expect(sinceLastTrade({ timeline: buildTimeline(history, []), transactions: [] })).toBeNull()
+    expect(dashboardMetrics([], pnl)['since-last-trade'].value).toBeNull()
+  })
 })

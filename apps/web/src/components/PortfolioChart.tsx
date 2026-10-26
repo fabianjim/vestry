@@ -330,7 +330,7 @@ function ChartDatePicker({ dates, shown, bounds, onChange }: {
         label="Choose dates"
         glass
         width={224}
-        triggerClassName={`px-1.5! py-1! ${dates ? 'bg-primary/15 text-foreground' : 'text-secondary hover:text-foreground'}`}
+        triggerClassName={`flex items-center px-1.5! py-1! ${dates ? 'bg-primary/15 text-foreground' : 'text-secondary hover:text-foreground'}`}
         trigger={<CalendarIcon className="w-4 h-4" />}
       >
         <div className="space-y-2 p-1">
