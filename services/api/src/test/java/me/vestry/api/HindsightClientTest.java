@@ -42,6 +42,7 @@ class HindsightClientTest {
     private final List<String> requests = new CopyOnWriteArrayList<>();
     private final List<String> tokens = new CopyOnWriteArrayList<>();
     private final List<String> bodies = new CopyOnWriteArrayList<>();
+    private final List<String> upgrades = new CopyOnWriteArrayList<>();
     private final MutableClock clock = new MutableClock();
     private volatile int status = 200;
     private volatile String body = "{\"insights\": []}";
@@ -53,6 +54,7 @@ class HindsightClientTest {
         server.createContext("/", exchange -> {
             requests.add(exchange.getRequestURI().getRawPath() + "?" + exchange.getRequestURI().getRawQuery());
             tokens.add(exchange.getRequestHeaders().getFirst("Authorization"));
+            upgrades.add(String.valueOf(exchange.getRequestHeaders().getFirst("Upgrade")));
             bodies.add(exchange.getRequestMethod() + " " + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             try {
                 Thread.sleep(delayMillis);
@@ -214,6 +216,8 @@ class HindsightClientTest {
 
         assertEquals("/v1/users/4/entries/7/reflection-aid?null", requests.get(0));
         assertEquals(List.of("Bearer " + TOKEN), tokens);
+        // uvicorn drops a POST body that asks for an h2c upgrade
+        assertEquals(List.of("null"), upgrades);
         var sent = new ObjectMapper().readTree(bodies.get(0).substring("POST ".length()));
         assertTrue(bodies.get(0).startsWith("POST "));
         assertEquals(List.of(52), List.of(sent.get("laterEntryIds").get(0).asInt()));

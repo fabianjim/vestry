@@ -73,7 +73,8 @@ public class HindsightClient {
         this.url = url.strip().replaceAll("/+$", "");
         this.token = token.strip();
         this.clock = clock;
-        var transport = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(1))
+        // hindsight's uvicorn can't take the default h2c upgrade: it drops the body of a POST
+        var transport = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(1))
                 .followRedirects(HttpClient.Redirect.NEVER).build();
         var factory = new JdkClientHttpRequestFactory(transport);
         factory.setReadTimeout(Duration.ofSeconds(2));
