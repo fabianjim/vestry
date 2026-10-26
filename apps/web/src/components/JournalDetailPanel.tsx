@@ -193,30 +193,33 @@ export default function JournalDetailPanel({ entry, onClose, onEntryClick, onEnt
       </div>
 
       {/* Record */}
-      <div className="mb-6">
-        <div className="text-sm text-foreground mb-1">
-          <span className="font-130">Date:</span>{' '}
-          {new Date(entry.timestamp).toLocaleDateString('en-US', {
-            month: '2-digit',
-            day: '2-digit',
-            year: 'numeric',
-          })}
-          <span className="font-130">Time:</span>{' '}
-          {new Date(entry.timestamp).toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true,
-          })}
-        </div>
-        <div className="text-sm text-foreground mb-1">
-          <span className="font-130">Snapshot:</span>{' '}
-          {entry.priceSnapshot != null && entry.priceSnapshot > 0 ? formatCurrency(entry.priceSnapshot) : '—'}
+      <div className="mb-5 pb-5 border-b border-border">
+        <h4 className="text-lg font-130 mb-3">Your entry</h4>
+        <div className="space-y-2">
+          <div className="flex max-md:flex-wrap justify-between gap-3 text-sm">
+            <span className="text-muted">Date</span>
+            <span className="text-foreground">{formatDateTime(entry.timestamp)}</span>
+          </div>
+          <div className="flex max-md:flex-wrap justify-between gap-3 text-sm">
+            <span className="text-muted">Price snapshot</span>
+            <span className="text-foreground">
+              {entry.priceSnapshot != null && entry.priceSnapshot > 0 ? formatCurrency(entry.priceSnapshot) : '—'}
+            </span>
+          </div>
           {(entry.entryType === 'BUY' || entry.entryType === 'SELL') && (
             <>
-              <span className="font-130">Shares:</span>{' '}
-              {matchedTransaction ? matchedTransaction.shares : '-'}
-              <span className="font-130">Total:</span>{' '}
-              {matchedTransaction ? formatCurrency(matchedTransaction.totalValue) : '-'}
+              <div className="flex max-md:flex-wrap justify-between gap-3 text-sm">
+                <span className="text-muted">Shares</span>
+                <span className="text-foreground">
+                  {matchedTransaction ? matchedTransaction.shares.toLocaleString('en-US', { maximumFractionDigits: 9 }) : '—'}
+                </span>
+              </div>
+              <div className="flex max-md:flex-wrap justify-between gap-3 text-sm">
+                <span className="text-muted">Total</span>
+                <span className="text-foreground">
+                  {matchedTransaction ? formatCurrency(matchedTransaction.totalValue) : '—'}
+                </span>
+              </div>
             </>
           )}
         </div>
