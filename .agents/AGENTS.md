@@ -52,6 +52,10 @@ Vestry is a portfolio journal for casual, reflective investors. It connects port
 - Preserve `AiBudgetService` reservation and settlement, the per-user/day duplicate prevention, and the content-tracing boundary in `BriefingTracing` (demo/eval runs only).
 - Users generate at most one briefing per New York day, on request. The demo's briefing is scheduled (weekdays from 10:00 New York, retried through the hour), and on weekdays user jobs leave one daily slot and allowance free until it starts.
 
+**Hindsight (AI service)**
+- `HindsightClient` never throws; a blank `HINDSIGHT_URL` or `HINDSIGHT_SERVICE_TOKEN` turns it off. Page reads (`insights`) use a 2 s timeout and a circuit breaker. Reflect with AI (`reflectionAid`) runs on a click, so it waits up to 45 s and skips the breaker.
+- `ReflectionAidService` computes the facts hindsight sees (latest price, shares from the ledger, trades since) and picks the later entries; hindsight enforces the daily limits. Demo visitors don't get it until pregenerated demo aids exist.
+
 ## Frontend conventions
 
 - Use `services/api.ts` for requests, `services/queries.ts` for query keys/options, and `services/queryUpdates.ts` for invalidation. `Login.tsx` and `Portfolio.tsx` still call `fetch` directly; don't copy that.
