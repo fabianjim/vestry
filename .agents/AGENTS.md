@@ -25,7 +25,7 @@ Vestry is a portfolio journal for casual, reflective investors. It connects port
 - The browser calls relative `/api/*`, which Vercel rewrites to EB over HTTPS at `api.vestry.me` (`apps/web/vercel.json`). Keep every API route under `/api`.
 - `aws.yml` deploys a zip of the jar with `services/api/Procfile`, `.platform` and `.ebextensions`; a bare jar would drop them. Nginx on the instance terminates TLS with a Let's Encrypt cert from `.platform/hooks`, which must never fail a deploy. Port 80 only answers Let's Encrypt checks and redirects everything else to HTTPS.
 - Keep `credentials: 'include'` and SSE `withCredentials`.
-- `services/api/src/main/resources/db/core_read.sql` defines `core_read.journal_entries`, hindsight's only way to read vestry data. Its columns are a contract with hindsight. Postgres won't alter the type of a column a view uses, so a manual type change needs `drop view core_read.journal_entries` first; startup recreates it.
+- `services/api/src/main/resources/db/core_read.sql` defines `core_read.journal_entries`, hindsight's only way to read vestry data. Its columns are a contract with hindsight. Postgres won't alter the type of a column a view uses, so a manual type change needs `drop view core_read.journal_entries` first; startup recreates it. Dropping it also drops the `hindsight` login's grant, so rerun hindsight's `scripts/runtime_role.sql` as `postgres` afterwards.
 - The EB names `portfolio-monitor-api(-env)` and the `RDS_*` env vars are intentionally legacy. Do not rename them; that is an infrastructure migration.
 
 **Auth**
