@@ -1,46 +1,48 @@
 name: Deploy to AWS
 
+# deploys only after the backend tests pass on main
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: [Build and Test]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+# hindsight's ci uses the same name, but concurrency groups are per repository; deploy.sh waits instead
+concurrency:
+  group: deploy
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    # the instance is a graviton t4g, so images build natively on arm
+    runs-on: ubuntu-24.04-arm
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+      COMMIT: ${{ github.event.workflow_run.head_sha }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'corretto'
-          cache: maven
-          cache-dependency-path: services/api/pom.xml
+          ref: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Build with Maven
-        working-directory: services/api
-        run: ./mvnw clean package -DskipTests
-
-      # the platform only reads .platform, .ebextensions and Procfile from a bundle, not a bare jar
-      - name: Bundle for Elastic Beanstalk
-        working-directory: services/api
+      - name: Install the AWS CLI and zip if missing
         run: |
-          mkdir target/bundle
-          cp target/vestry-api-0.0.1-SNAPSHOT.jar target/bundle/vestry-api.jar
-          cp -R Procfile .platform .ebextensions target/bundle/
-          cd target/bundle && zip -r ../deploy.zip .
+          command -v zip >/dev/null || sudo apt-get install -y -qq zip
+          if ! command -v aws >/dev/null; then
+            curl -sSfL https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip -o /tmp/awscli.zip
+            unzip -q /tmp/awscli.zip -d /tmp && sudo /tmp/aws/install
+          fi
+
+      - name: Push the vestry image
+        run: deploy/push-image.sh vestry-api services/api services/api/Dockerfile.dev "$COMMIT"
 
       - name: Deploy to Elastic Beanstalk
-        uses: einaregilsson/beanstalk-deploy@v22
-        with:
-          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          application_name: portfolio-monitor-api
-          environment_name: portfolio-monitor-api-env
-          region: us-east-1
-          version_label: ${{ github.sha }}
-          deployment_package: services/api/target/deploy.zip
+        run: deploy/deploy.sh "vestry ${COMMIT:0:12}"
