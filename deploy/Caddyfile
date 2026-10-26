@@ -1,0 +1,13 @@
+# caddy gets and renews the let's encrypt certificate, and redirects plain http
+api.vestry.me {
+	reverse_proxy vestry:5000
+}
+
+# the environment's own hostname, over plain http, only answers the session check,
+# so a new environment can be checked before dns moves
+http://vestry-api.us-east-1.elasticbeanstalk.com {
+	handle /api/auth/me {
+		reverse_proxy vestry:5000
+	}
+	respond 404
+}

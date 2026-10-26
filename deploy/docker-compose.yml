@@ -1,0 +1,56 @@
+# Elastic Beanstalk runs this on the instance. bundle.sh pins both images by digest.
+# EB writes its environment properties to .env: vestry reads all of them, hindsight only its own.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+x-hindsight-env: &hindsight-env
+  HINDSIGHT_SERVICE_TOKEN: ${HINDSIGHT_SERVICE_TOKEN:?}
+  HINDSIGHT_DATABASE_URL: ${HINDSIGHT_DATABASE_URL:?}
+  HINDSIGHT_OPENAI_API_KEY: ${HINDSIGHT_OPENAI_API_KEY:-}
+  HINDSIGHT_LANGFUSE_PUBLIC_KEY: ${HINDSIGHT_LANGFUSE_PUBLIC_KEY:-}
+  HINDSIGHT_LANGFUSE_SECRET_KEY: ${HINDSIGHT_LANGFUSE_SECRET_KEY:-}
+  HINDSIGHT_LANGFUSE_ENVIRONMENT: production
+  HINDSIGHT_DAILY_GENERATIONS: ${HINDSIGHT_DAILY_GENERATIONS:-300}
+
+services:
+  caddy:
+    image: caddy:2.11.7
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # certificates live on the host, so redeploys don't request new ones
+      - /var/lib/caddy:/data
+    depends_on:
+      - vestry
+    restart: unless-stopped
+    logging: *logging
+
+  vestry:
+    image: __VESTRY_IMAGE__
+    env_file: .env
+    environment:
+      HINDSIGHT_URL: http://hindsight:8000
+    restart: unless-stopped
+    logging: *logging
+
+  hindsight:
+    image: __HINDSIGHT_IMAGE__
+    environment: *hindsight-env
+    restart: unless-stopped
+    logging: *logging
+
+  worker:
+    image: __HINDSIGHT_IMAGE__
+    command: ["python", "-m", "hindsight.worker"]
+    environment: *hindsight-env
+    # the image's check probes the api's port, which the worker doesn't serve
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+    logging: *logging
