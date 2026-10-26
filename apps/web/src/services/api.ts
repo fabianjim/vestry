@@ -7,6 +7,7 @@ import type { HoldingsLayout } from '../utils/holdingsLayout'
 import type { DashboardLayout } from '../utils/dashboardLayout'
 
 import type { DigestState } from '../types/digest'
+import type { ReflectionAidResult } from '../types/reflectionAid'
 
 const API_BASE = '/api';
 
@@ -170,6 +171,12 @@ export const journalApi = {
 
   getEntry: (id: number, signal?: AbortSignal): Promise<JournalEntry> =>
     apiClient(`/journal/entries/${id}`, { signal }),
+
+  reflectAvailability: (signal?: AbortSignal): Promise<{ available: boolean }> =>
+    apiClient('/journal/reflect-with-ai/availability', { signal }),
+
+  reflectWithAi: (id: number): Promise<ReflectionAidResult> =>
+    apiClient(`/journal/entries/${id}/reflect-with-ai`, { method: 'POST', body: {} }),
 
   getEntriesForTicker: (ticker: string, signal?: AbortSignal): Promise<JournalEntry[]> =>
     apiClient(`/journal/${encodeURIComponent(ticker)}`, { signal }),
