@@ -42,8 +42,19 @@ aws s3 cp "$staging/deploy.zip" "s3://$bucket/$app/$label.zip" --only-show-error
 aws elasticbeanstalk create-application-version --application-name "$app" --version-label "$label" \
   --description "${1:-deploy}" --source-bundle "S3Bucket=$bucket,S3Key=$app/$label.zip" --process >/dev/null
 
-wait_until_ready
-aws elasticbeanstalk update-environment --environment-name "$environment" --version-label "$label" >/dev/null
+# the other repo's deploy can start between the check and the update, so retry while it's busy
+for attempt in $(seq 1 30); do
+  wait_until_ready
+  if aws elasticbeanstalk update-environment --environment-name "$environment" \
+    --version-label "$label" >/dev/null 2>"$staging/error"; then
+    break
+  fi
+  if ! grep -q "invalid state" "$staging/error" || ((attempt == 30)); then
+    cat "$staging/error" >&2
+    exit 1
+  fi
+  sleep 10
+done
 sleep 20
 wait_until_ready
 
