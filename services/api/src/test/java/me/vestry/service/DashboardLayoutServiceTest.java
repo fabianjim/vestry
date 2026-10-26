@@ -26,7 +26,7 @@ class DashboardLayoutServiceTest {
     @Autowired EntityManager entities;
     private final ObjectMapper mapper = new ObjectMapper();
     private static final String DEFAULTS = """
-        {"v":1,"metrics":["value","day-change","total-pnl"],
+        {"v":1,"metrics":["day-change","total-pnl","since-last-trade"],
          "showPerformance":true,"showJournal":true,"showBriefing":true}
         """;
     private static final String CUSTOM = """
@@ -76,7 +76,8 @@ class DashboardLayoutServiceTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-        "value", "day-change", "total-pnl", "realized-pnl", "unrealized-pnl", "holding-count", "largest-weight"
+        "value", "day-change", "total-pnl", "realized-pnl", "unrealized-pnl", "holding-count", "largest-weight",
+        "since-last-trade"
     })
     void acceptsEverySupportedMetric(String metric) throws Exception {
         ObjectNode layout = (ObjectNode) mapper.readTree(DEFAULTS);

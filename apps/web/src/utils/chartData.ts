@@ -249,6 +249,11 @@ const yearDateFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month
 /** "Mon, Oct 19" for a YYYY-MM-DD market date. */
 export const formatMarketDay = (day: string) => longDateFormat.format(dayDate(day))
 
+/** "Oct 12" for a market date, with the year when it differs from `today`'s. */
+export function formatShortMarketDay(day: string, today: string): string {
+  return (day.slice(0, 4) === today.slice(0, 4) ? dateFormat : yearDateFormat).format(dayDate(day))
+}
+
 /** "Fri, Oct 16" for one day, "Sep 1 – Oct 16" for a span, with years when they differ. */
 export function formatDateWindow({ from, to }: DateWindow): string {
   if (from === to) return formatMarketDay(from)

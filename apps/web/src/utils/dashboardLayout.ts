@@ -1,7 +1,9 @@
+// Menu order: the default three, left to right, then the rest.
 export const DASHBOARD_METRICS = {
-  value: 'Portfolio value',
   'day-change': 'Day’s change',
   'total-pnl': 'Total gain/loss',
+  'since-last-trade': 'Since last trade',
+  value: 'Portfolio value',
   'unrealized-pnl': 'Unrealized gain/loss',
   'realized-pnl': 'Realized gain/loss',
   'holding-count': 'Number of holdings',
@@ -19,7 +21,7 @@ export type DashboardLayout = {
 
 export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
   v: 1,
-  metrics: ['value', 'day-change', 'total-pnl'],
+  metrics: ['day-change', 'total-pnl', 'since-last-trade'],
   showPerformance: true,
   showJournal: true,
   showBriefing: true,

@@ -1,7 +1,7 @@
 import GlassSelect from './GlassSelect'
 import type { PnLSummary } from '../types/transaction'
 import { DASHBOARD_METRICS, type DashboardLayout } from '../utils/dashboardLayout'
-import { dashboardMetrics, type SummaryMetric } from '../utils/dashboardMetrics'
+import { dashboardMetrics, type SummaryMetric, type TradeHistory } from '../utils/dashboardMetrics'
 import type { ValuedHolding } from '../utils/holdingsAnalysis'
 import { formatCurrency, formatSignedCurrencyWithPercent } from '../utils/formatUtils'
 
@@ -13,17 +13,17 @@ function display(metric: SummaryMetric) {
   return String(metric.value)
 }
 
-export default function DashboardSummary({ metrics, holdings, pnl, ready, onMetricChange, disabled }: {
-  metrics: DashboardLayout['metrics']; holdings: ValuedHolding[]; pnl?: PnLSummary; ready: boolean
+export default function DashboardSummary({ metrics, holdings, pnl, trades, ready, onMetricChange, disabled }: {
+  metrics: DashboardLayout['metrics']; holdings: ValuedHolding[]; pnl?: PnLSummary; trades?: TradeHistory; ready: boolean
   onMetricChange: (index: number, metric: DashboardLayout['metrics'][number]) => void; disabled: boolean
 }) {
-  const values = dashboardMetrics(holdings, pnl, ready)
-  return <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+  const values = dashboardMetrics(holdings, pnl, ready, trades)
+  return <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6">
     {metrics.map((id, index) => {
       const metric = values[id]
       const color = metric.format !== 'change' || metric.value == null || metric.value === 0 ? 'text-foreground'
         : metric.value > 0 ? 'text-gain-emphasis' : 'text-loss-emphasis'
-      return <div key={index} className="p-3 md:p-4 bg-surface rounded-lg border border-border">
+      return <div key={index} className="px-3 py-2.5 md:px-3.5 md:py-3 bg-surface rounded-lg border border-border">
         <div className="flex items-center gap-1 text-sm text-muted [&_button:disabled]:opacity-100">
           <GlassSelect label={`Choose ${['left', 'middle', 'right'][index]} summary metric`} value={id} disabled={disabled}
             onChange={value => onMetricChange(index, value)}
@@ -32,7 +32,7 @@ export default function DashboardSummary({ metrics, holdings, pnl, ready, onMetr
             }))} />
           {metric.detail && <span> {metric.detail}</span>}
         </div>
-        <div className={`text-xl md:text-2xl font-130 tabular-nums ${color}`}>{display(metric)}</div>
+        <div className={`text-lg md:text-xl font-130 tabular-nums ${color}`}>{display(metric)}</div>
       </div>
     })}
   </div>

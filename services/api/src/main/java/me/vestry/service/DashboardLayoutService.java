@@ -16,7 +16,8 @@ import java.util.Set;
 @Transactional
 public class DashboardLayoutService {
     private static final Set<String> METRICS = Set.of(
-            "value", "day-change", "total-pnl", "unrealized-pnl", "realized-pnl", "holding-count", "largest-weight");
+            "value", "day-change", "total-pnl", "unrealized-pnl", "realized-pnl", "holding-count", "largest-weight",
+            "since-last-trade");
     private final UserRepository users;
 
     public DashboardLayoutService(UserRepository users) {
@@ -44,7 +45,7 @@ public class DashboardLayoutService {
     private static JsonNode defaultLayout() {
         var layout = JsonNodeFactory.instance.objectNode().put("v", 1)
                 .put("showPerformance", true).put("showJournal", true).put("showBriefing", true);
-        layout.putArray("metrics").add("value").add("day-change").add("total-pnl");
+        layout.putArray("metrics").add("day-change").add("total-pnl").add("since-last-trade");
         return layout;
     }
 
