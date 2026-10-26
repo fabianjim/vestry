@@ -54,7 +54,7 @@ Vestry is a portfolio journal for casual, reflective investors. It connects port
 
 **Hindsight (AI service)**
 - `HindsightClient` never throws; a blank `HINDSIGHT_URL` or `HINDSIGHT_SERVICE_TOKEN` turns it off. Page reads (`insights`) use a 2 s timeout and a circuit breaker. Reflect with AI (`reflectionAid`) runs on a click, so it waits up to 45 s and skips the breaker.
-- `ReflectionAidService` computes the facts hindsight sees (latest price, shares from the ledger, trades since) and picks the later entries; hindsight enforces the daily limits. Demo visitors don't get it until pregenerated demo aids exist.
+- `ReflectionAidService` computes the facts hindsight sees (latest price, shares from the ledger, trades since) and picks the later entries; hindsight enforces the daily limits. Demo visitors only read the template account's saved aids (`reflectDemo`, mapped through `DemoSession.templateEntryIds`) and never cause a model call; `DemoScheduler` refreshes them nightly within hindsight's daily limit.
 
 ## Frontend conventions
 

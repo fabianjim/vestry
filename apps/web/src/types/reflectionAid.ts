@@ -6,7 +6,8 @@ export type ReflectionAidResult = {
     questions: string[]
   }
   generatedOn: string
-  remainingToday: number
+  // null for demo visitors, who only read pregenerated aids
+  remainingToday: number | null
   // vestry's own numbers, recomputed on every request
   since: {
     priceNow: number | null

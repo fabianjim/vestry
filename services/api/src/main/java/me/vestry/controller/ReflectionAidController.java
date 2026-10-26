@@ -1,5 +1,6 @@
 package me.vestry.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import me.vestry.api.HindsightClient.ReflectionAid;
 import me.vestry.api.HindsightClient.Since;
@@ -20,26 +21,28 @@ public class ReflectionAidController {
     private final ReflectionAidService aids;
     private final DemoSessionResolver sessions;
 
-    public record Result(ReflectionAid aid, LocalDate generatedOn, int remainingToday, Since since) {}
+    /** remainingToday is null for demo visitors, who never spend. */
+    public record Result(ReflectionAid aid, LocalDate generatedOn, Integer remainingToday, Since since) {}
 
-    // demo visitors get pregenerated aids in a later step; until then the button stays hidden for them
     @GetMapping("/reflect-with-ai/availability")
     public ResponseEntity<Map<String, Boolean>> availability() {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(Map.of("available", !sessions.isDemoUser() && aids.available()));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Map.of("available", aids.available()));
     }
 
     @PostMapping(value = "/entries/{id}/reflect-with-ai", consumes = "application/json")
-    public ResponseEntity<?> reflect(@PathVariable int id) {
-        if (sessions.isDemoUser()) return error(HttpStatus.FORBIDDEN, "Reflect with AI isn't available in the demo yet");
-        var reflection = aids.reflect(sessions.getCurrentUser(), id);
-        var response = reflection.response();
-        return switch (response.status()) {
+    public ResponseEntity<?> reflect(@PathVariable int id, HttpServletRequest request) {
+        var user = sessions.getCurrentUser();
+        var reflection = sessions.isDemoUser()
+                ? aids.reflectDemo(sessions.resolveSession(request), user, id)
+                : aids.reflect(user, id);
+        return switch (reflection.status()) {
             case READY -> ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new Result(
-                    response.result().aid(), response.result().generatedOn(), response.result().remainingToday(), reflection.since()));
+                    reflection.aid(), reflection.generatedOn(), reflection.remainingToday(), reflection.since()));
             case LIMITED -> error(HttpStatus.TOO_MANY_REQUESTS, "You've used today's AI reflections");
             case NOT_FOUND -> error(HttpStatus.NOT_FOUND, "Journal entry not found");
             case UNAVAILABLE -> error(HttpStatus.SERVICE_UNAVAILABLE, "Couldn't reflect right now");
+            case NOT_READY -> error(HttpStatus.CONFLICT, "Reflect with AI isn't ready for this entry yet");
+            case DEMO_OWN_ENTRY -> error(HttpStatus.UNPROCESSABLE_ENTITY, "In the demo, Reflect with AI is ready on the sample entries");
         };
     }
 

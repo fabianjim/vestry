@@ -57,6 +57,8 @@ public class HindsightClient {
         public static AidResponse of(AidStatus status) { return new AidResponse(status, null); }
     }
     record AidRequest(List<Integer> laterEntryIds, Since since) {}
+    public record SavedAid(int entryId, ReflectionAid aid, LocalDate generatedOn) {}
+    record SavedAidPage(List<SavedAid> aids) {}
 
     private final RestTemplate http;
     private final RestTemplate aidHttp;
@@ -123,6 +125,39 @@ public class HindsightClient {
             log.warn("Hindsight reflection aid request failed: {}", failure.getClass().getSimpleName());
         }
         return AidResponse.of(AidStatus.UNAVAILABLE);
+    }
+
+    /**
+     * The newest saved aid per entry, from any day. Never generates, so demo visitors can be shown
+     * the template's aids for free. Entries without one, or a failed request, are absent.
+     */
+    public Map<Integer, SavedAid> savedReflectionAids(int userId, Collection<Integer> entryIds) {
+        if (!isEnabled() || entryIds.isEmpty()) return Map.of();
+        var ids = entryIds.stream().distinct().sorted().toList();
+        var found = new HashMap<Integer, SavedAid>();
+        for (int start = 0; start < ids.size(); start += MAX_BATCH) {
+            var batch = ids.subList(start, Math.min(start + MAX_BATCH, ids.size()));
+            var uri = UriComponentsBuilder.fromUriString(url).path("/v1/users/{userId}/reflection-aids")
+                    .queryParam("entryIds", batch.toArray()).buildAndExpand(userId).toUri();
+            var headers = new HttpHeaders();
+            headers.setBearerAuth(token);
+            headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+            try {
+                var page = http.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), SavedAidPage.class).getBody();
+                if (page == null || page.aids() == null) throw new IllegalStateException("empty response");
+                var requested = new HashSet<>(batch);
+                for (var saved : page.aids()) {
+                    if (saved.aid() != null && requested.contains(saved.entryId())) found.put(saved.entryId(), saved);
+                }
+            } catch (RestClientResponseException failure) {
+                int status = failure.getStatusCode().value();
+                if (status == 401) log.warn("Hindsight rejected the service token (HTTP 401)");
+                else log.warn("Hindsight saved reflection aids request failed: HTTP {}", status);
+            } catch (RuntimeException failure) {
+                log.warn("Hindsight saved reflection aids request failed: {}", failure.getClass().getSimpleName());
+            }
+        }
+        return found;
     }
 
     private void fetch(int userId, List<Integer> ids, Map<Integer, EntryInsight> found) {

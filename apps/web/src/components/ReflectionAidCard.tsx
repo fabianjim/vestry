@@ -91,9 +91,11 @@ export default function ReflectionAidCard({ entry, result, knownEntries, onEntry
         </p>
       )}
 
-      <p className="mt-4 text-xs text-muted">
-        {`${result.remainingToday} AI ${result.remainingToday === 1 ? 'reflection' : 'reflections'} left today`}
-      </p>
+      {result.remainingToday != null && (
+        <p className="mt-4 text-xs text-muted">
+          {`${result.remainingToday} AI ${result.remainingToday === 1 ? 'reflection' : 'reflections'} left today`}
+        </p>
+      )}
     </section>
   )
 }

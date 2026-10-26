@@ -280,6 +280,37 @@ class HindsightClientTest {
         assertEquals(before + 1, requests.size(), "aid failures never pause page reads");
     }
 
+    @Test
+    void readsSavedReflectionAidsWithoutGenerating() {
+        body = """
+                {"aids": [{"entryId": 7, "aid": {"recap": [], "questions": ["Why then?"]}, "generatedOn": "2026-10-22"},
+                          {"entryId": 9, "aid": {"recap": [], "questions": []}, "generatedOn": "2026-10-22"}]}
+                """;
+
+        var found = client().savedReflectionAids(5, List.of(8, 7, 7));
+
+        assertEquals(List.of("/v1/users/5/reflection-aids?entryIds=7&entryIds=8"), requests);
+        assertEquals("GET ", bodies.get(0));
+        assertEquals(Set.of(7), found.keySet(), "ids it didn't ask for are ignored");
+        assertEquals(LocalDate.of(2026, 10, 22), found.get(7).generatedOn());
+        assertEquals(List.of("Why then?"), found.get(7).aid().questions());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 422, 500})
+    void savedReflectionAidFailuresReturnNothing(int code) {
+        status = code;
+
+        assertEquals(Map.of(), client().savedReflectionAids(5, List.of(7)));
+    }
+
+    @Test
+    void savedReflectionAidsAreOffWithoutConfigurationOrIds() {
+        assertEquals(Map.of(), new HindsightClient("", TOKEN, clock).savedReflectionAids(5, List.of(7)));
+        assertEquals(Map.of(), client().savedReflectionAids(5, List.of()));
+        assertTrue(requests.isEmpty());
+    }
+
     static final class MutableClock extends Clock {
         private Instant now = Instant.parse("2026-10-25T12:00:00Z");
 

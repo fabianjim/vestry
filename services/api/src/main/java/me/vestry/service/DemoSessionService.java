@@ -144,6 +144,9 @@ public class DemoSessionService {
             }
         }
         session.setJournalEntries(journalCopy);
+        Map<Integer, Integer> templateEntryIds = new HashMap<>();
+        journalIds.forEach((templateId, copyId) -> templateEntryIds.put(copyId, templateId));
+        session.setTemplateEntryIds(templateEntryIds);
 
         List<WatchlistItem> watchlistCopy = new ArrayList<>();
         for (WatchlistItem item : watchlistItemRepository.findByUserId(user.getId())) {

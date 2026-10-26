@@ -60,3 +60,9 @@ it('omits price rows without a ticker and says when there is nothing to work wit
   expect(html).toContain('much in this entry to reflect on yet')
   expect(html).toContain('1 AI reflection left today')
 })
+
+it('shows no daily count for demo visitors, who never spend', () => {
+  const html = render({ ...result, remainingToday: null })
+  expect(html).not.toContain('left today')
+  expect(html).toContain('What made this look like a dip?')
+})

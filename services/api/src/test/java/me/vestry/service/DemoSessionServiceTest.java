@@ -30,6 +30,7 @@ import java.time.LocalDate;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -177,6 +178,8 @@ public class DemoSessionServiceTest {
         JournalEntry copiedSource = session.getJournalEntries().get(1);
         assertEquals(copiedSource.getId(), copiedReflection.getSourceEntryId());
         assertTrue(copiedReflection.getSourceEntryId() < 0);
+        // pregenerated reflection aids are keyed by the template's ids
+        assertEquals(Map.of(copiedReflection.getId(), 301, copiedSource.getId(), 300), session.getTemplateEntryIds());
         demoSessionService.deleteJournalEntry(session, copiedSource.getId());
         assertEquals(JournalEntryType.INSIGHT, copiedReflection.getEntryType());
         assertEquals(JournalEntryType.REFLECTION, reflection.getEntryType());

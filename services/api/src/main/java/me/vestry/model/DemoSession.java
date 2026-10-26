@@ -3,8 +3,10 @@ package me.vestry.model;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class DemoSession implements Serializable {
@@ -20,6 +22,8 @@ public class DemoSession implements Serializable {
     private int remainingTrades = 3;
     private int nextId = -1;
     private Set<String> sessionTrackedTickers = new HashSet<>();
+    // copied entry id to the template entry it came from; entries the visitor writes have none
+    private Map<Integer, Integer> templateEntryIds = new HashMap<>();
 
     public JsonNode getHoldingsLayout() {
         return holdingsLayout;
@@ -83,6 +87,14 @@ public class DemoSession implements Serializable {
 
     public void setRemainingTrades(int remainingTrades) {
         this.remainingTrades = remainingTrades;
+    }
+
+    public Map<Integer, Integer> getTemplateEntryIds() {
+        return templateEntryIds;
+    }
+
+    public void setTemplateEntryIds(Map<Integer, Integer> templateEntryIds) {
+        this.templateEntryIds = templateEntryIds;
     }
 
     public int nextId() {

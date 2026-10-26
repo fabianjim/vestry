@@ -1,8 +1,5 @@
 package me.vestry.controller;
 
-import me.vestry.api.HindsightClient.AidResponse;
-import me.vestry.api.HindsightClient.AidResult;
-import me.vestry.api.HindsightClient.AidStatus;
 import me.vestry.api.HindsightClient.ReflectionAid;
 import me.vestry.api.HindsightClient.Since;
 import me.vestry.api.HindsightClient.Trade;
@@ -11,6 +8,8 @@ import me.vestry.security.SecurityConfig;
 import me.vestry.service.DemoSessionResolver;
 import me.vestry.service.DemoSessionStore;
 import me.vestry.service.ReflectionAidService;
+import me.vestry.service.ReflectionAidService.Reflection;
+import me.vestry.service.ReflectionAidService.Status;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -19,6 +18,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
+import me.vestry.model.DemoSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,6 +29,8 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -66,8 +68,7 @@ class ReflectionAidControllerTest {
     @Test
     void returnsTheAidWithVestrysOwnFacts() throws Exception {
         var aid = new ReflectionAid(List.of(), List.of("What made this look like a dip?"));
-        when(aids.reflect(any(), anyInt())).thenReturn(new ReflectionAidService.Reflection(
-                new AidResponse(AidStatus.READY, new AidResult(aid, LocalDate.of(2026, 10, 25), 9)), SINCE));
+        when(aids.reflect(any(), anyInt())).thenReturn(new Reflection(Status.READY, aid, LocalDate.of(2026, 10, 25), 9, SINCE));
 
         mvc.perform(post(URL).with(as(user(false))).contentType(MediaType.APPLICATION_JSON).content("{\"userId\":99}"))
                 .andExpect(status().isOk())
@@ -82,9 +83,9 @@ class ReflectionAidControllerTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"LIMITED, 429", "NOT_FOUND, 404", "UNAVAILABLE, 503"})
-    void mapsEachOutcomeToAStatus(AidStatus outcome, int code) throws Exception {
-        when(aids.reflect(any(), anyInt())).thenReturn(new ReflectionAidService.Reflection(AidResponse.of(outcome), SINCE));
+    @CsvSource({"LIMITED, 429", "NOT_FOUND, 404", "UNAVAILABLE, 503", "NOT_READY, 409", "DEMO_OWN_ENTRY, 422"})
+    void mapsEachOutcomeToAStatus(Status outcome, int code) throws Exception {
+        when(aids.reflect(any(), anyInt())).thenReturn(new Reflection(outcome, null, null, null, SINCE));
 
         mvc.perform(post(URL).with(as(user(false))).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().is(code))
@@ -107,17 +108,24 @@ class ReflectionAidControllerTest {
     }
 
     @Test
-    void demoVisitorsCannotUseItYet() throws Exception {
+    void demoVisitorsReadTheirSessionsAidWithNoRemainingCount() throws Exception {
         var demo = user(true);
         var session = new MockHttpSession();
         session.setAttribute(DemoSessionResolver.DEMO_SESSION_KEY, "demo");
-        when(demos.findAndTouch("demo", 4)).thenReturn(new me.vestry.model.DemoSession());
+        var demoSession = new DemoSession();
+        when(demos.findAndTouch("demo", 4)).thenReturn(demoSession);
         when(aids.available()).thenReturn(true);
+        var aid = new ReflectionAid(List.of(), List.of("Why then?"));
+        when(aids.reflectDemo(same(demoSession), argThat(u -> u.getId() == 4), eq(-1)))
+                .thenReturn(new Reflection(Status.READY, aid, LocalDate.of(2026, 10, 23), null, SINCE));
 
         mvc.perform(get("/api/journal/reflect-with-ai/availability").with(as(demo)).session(session))
-                .andExpect(jsonPath("$.available").value(false));
-        mvc.perform(post(URL).with(as(demo)).session(session).contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isForbidden());
+                .andExpect(jsonPath("$.available").value(true));
+        mvc.perform(post("/api/journal/entries/-1/reflect-with-ai").with(as(demo)).session(session)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.aid.questions[0]").value("Why then?"))
+                .andExpect(jsonPath("$.remainingToday").doesNotExist());
         verify(aids, never()).reflect(any(), anyInt());
     }
 }
