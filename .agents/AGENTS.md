@@ -75,3 +75,19 @@ Vestry is a portfolio journal for casual, reflective investors. It connects port
   - Tailwind v4 `hover:` never fires on touch, so pair hover-only reveals with `pointer-coarse:`. Use `useMediaQuery` only when the rendered tree must differ.
   - Touch gestures are deliberate: one finger scrolls the page over the relationship graph (two fingers pan and zoom) and over the journal calendar (taps and sideways drags select).
   - `npm run test:e2e` (Playwright, `apps/web/e2e`) checks overflow at phone, tablet and desktop widths and the phone gestures. Workspace pages sign in to the demo account through the local API and skip without it.
+
+## Agent skills
+
+These conventions are written for the optional [mattpocock/skills](https://github.com/mattpocock/skills) plugin (slash commands like `/triage`), but apply to any agent working in this repo.
+
+### Issue tracker
+
+Issues live as local markdown files in `/Users/fabian/ves/vestry/.scratch/` (gitignored, so private; always use this absolute path, including from worktrees). See `.agents/docs/issue-tracker.md`.
+
+### Triage labels
+
+Default triage states, written as a `Status:` line in each issue file: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `.agents/docs/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root, created only when needed. See `.agents/docs/domain.md`.

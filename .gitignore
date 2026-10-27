@@ -39,3 +39,6 @@ application-dev.properties
 
 # Local AI diagnostic credentials
 /services/api/.env.ai-diagnostic
+
+# Local issue tracker (private)
+.scratch/
