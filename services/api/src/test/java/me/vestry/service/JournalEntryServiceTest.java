@@ -617,4 +617,27 @@ public class JournalEntryServiceTest {
         });
         assertEquals("Journal entry not found", exception.getMessage());
     }
+
+    @Test
+    void autoWrittenOnlyWhileTheGeneratedBodyIsUnchanged() {
+        assertTrue(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.BUY, "Initial portfolio creation")));
+        assertTrue(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.SELL, "Sold 2.5 NVDA")));
+        assertTrue(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.SELL, "Sold 1.0E-4 NVDA")));
+
+        assertFalse(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.BUY, "Initial portfolio creation, on a hunch")));
+        assertFalse(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.SELL, "Sold 2.5 NVDA too early")));
+        assertFalse(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.SELL, "Sold some NVDA")));
+        // the generator writes 3.0, so a hand-written 3 is the user's
+        assertFalse(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.SELL, "Sold 3 NVDA")));
+        assertFalse(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.SELL, "Sold 2.5 AAPL")));
+        assertFalse(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.INSIGHT, "Initial portfolio creation")));
+    }
+
+    private static JournalEntry autoEntry(JournalEntryType type, String body) {
+        JournalEntry entry = new JournalEntry();
+        entry.setEntryType(type);
+        entry.setTicker("NVDA");
+        entry.setBody(body);
+        return entry;
+    }
 }

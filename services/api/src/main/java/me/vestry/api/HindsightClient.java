@@ -60,6 +60,18 @@ public class HindsightClient {
     public record SavedAid(int entryId, ReflectionAid aid, LocalDate generatedOn) {}
     record SavedAidPage(List<SavedAid> aids) {}
 
+    /** Insights: vestry's market and ledger facts. Hindsight reads entry text itself. */
+    public record PatternReportRequest(@JsonFormat(shape = JsonFormat.Shape.STRING) LocalDate asOf,
+                                       List<EntryOutcome> outcomes, List<LedgerTrade> trades,
+                                       List<HoldingPeriod> holdingPeriods, List<Integer> autoEntryIds) {}
+    /** {@code kind} is SOLD (the entry's holding period closed at {@code price}) or LATEST. */
+    public record EntryOutcome(int entryId, double price, String kind,
+                               @JsonFormat(shape = JsonFormat.Shape.STRING) LocalDate on) {}
+    public record LedgerTrade(int tradeId, String ticker, String side, double shares, double price,
+                              @JsonFormat(shape = JsonFormat.Shape.STRING) Instant timestamp, boolean initial) {}
+    public record HoldingPeriod(String ticker, @JsonFormat(shape = JsonFormat.Shape.STRING) Instant openedAt,
+                                @JsonFormat(shape = JsonFormat.Shape.STRING) Instant closedAt, Double pnl) {}
+
     private final RestTemplate http;
     private final RestTemplate aidHttp;
     private final String url;

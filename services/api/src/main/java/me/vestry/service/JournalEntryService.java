@@ -109,10 +109,39 @@ public class JournalEntryService {
         return journalEntryRepository.save(entry);
     }
 
+    static final String INITIAL_ENTRY_BODY = "Initial portfolio creation";
+
+    static String autoSellBody(double shares, String ticker) {
+        return "Sold " + shares + " " + ticker;
+    }
+
+    /** True while the body is still the one vestry generated, i.e. the user never wrote anything. */
+    static boolean isAutoWritten(JournalEntry entry) {
+        String body = entry.getBody();
+        if (body == null || entry.getTicker() == null) {
+            return false;
+        }
+        if (entry.getEntryType() == JournalEntryType.BUY) {
+            return body.equals(INITIAL_ENTRY_BODY);
+        }
+        String prefix = "Sold ";
+        String suffix = " " + entry.getTicker();
+        if (entry.getEntryType() != JournalEntryType.SELL || !body.startsWith(prefix) || !body.endsWith(suffix)
+                || body.length() <= prefix.length() + suffix.length()) {
+            return false;
+        }
+        try {
+            double shares = Double.parseDouble(body.substring(prefix.length(), body.length() - suffix.length()));
+            return body.equals(autoSellBody(shares, entry.getTicker()));
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
     public JournalEntry createInitialEntry(User user, String ticker, double price, Instant timestamp) {
         JournalEntry entry = new JournalEntry();
         entry.setEntryType(JournalEntryType.BUY);
-        entry.setBody("Initial portfolio creation");
+        entry.setBody(INITIAL_ENTRY_BODY);
         entry.setTicker(ticker);
         entry.setTimestamp(timestamp != null ? timestamp : Instant.now());
         entry.setPriceSnapshot(price);
@@ -124,7 +153,7 @@ public class JournalEntryService {
     public JournalEntry createAutoSellEntry(User user, String ticker, double shares, double price, Instant timestamp) {
         JournalEntry entry = new JournalEntry();
         entry.setEntryType(JournalEntryType.SELL);
-        entry.setBody("Sold " + shares + " " + ticker);
+        entry.setBody(autoSellBody(shares, ticker));
         entry.setTicker(ticker);
         entry.setTimestamp(timestamp != null ? timestamp : Instant.now());
         entry.setPriceSnapshot(price);
