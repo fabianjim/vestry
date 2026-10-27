@@ -5,18 +5,30 @@ updates:
     schedule:
       interval: weekly
     groups:
-      npm-dependencies:
-        patterns:
-          - '*'
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # typescript-eslint doesn't support TypeScript 7 yet
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: maven
     directory: /services/api
     schedule:
       interval: weekly
     groups:
-      maven-dependencies:
-        patterns:
-          - '*'
+      maven-minor-patch:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Spring Boot 4 moves to Jackson 3; migrate deliberately, not via Dependabot
+      - dependency-name: org.springframework.boot:spring-boot-starter-parent
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /
