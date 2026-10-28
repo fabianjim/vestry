@@ -32,6 +32,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,6 +55,9 @@ public class JournalEntryServiceTest {
 
     @Mock
     private Authentication authentication;
+
+    @Mock
+    private EntryEvents entryEvents;
 
     @Spy
     private RealizedPnlCalculator realizedPnlCalculator = new RealizedPnlCalculator();
@@ -177,7 +181,9 @@ public class JournalEntryServiceTest {
         JournalEntry first = newReflection();
         first.setPriceSnapshot(125.0);
         first.setTimestamp(Instant.EPOCH);
+        first.setId(8);
         JournalEntry second = newReflection();
+        second.setId(9);
         when(journalEntryRepository.findByUserIdAndSourceEntryId(1, 7)).thenReturn(List.of(first, second));
 
         journalEntryService.deleteEntry(7);
@@ -190,6 +196,10 @@ public class JournalEntryServiceTest {
         assertEquals(125.0, first.getPriceSnapshot());
         assertEquals(Instant.EPOCH, first.getTimestamp());
         verify(journalEntryRepository).deleteById(7);
+        // the retyped reflections are re-read by hindsight as well as the deleted source
+        verify(entryEvents).changed(7);
+        verify(entryEvents).changed(8);
+        verify(entryEvents).changed(9);
     }
 
     @Test
@@ -283,6 +293,7 @@ public class JournalEntryServiceTest {
         ArgumentCaptor<JournalEntry> captor = ArgumentCaptor.forClass(JournalEntry.class);
         verify(journalEntryRepository).save(captor.capture());
         assertEquals(price, captor.getValue().getPriceSnapshot(), 0.01);
+        verify(entryEvents).changed(1);
     }
 
     @Test
@@ -430,6 +441,7 @@ public class JournalEntryServiceTest {
 
         verify(tagService, never()).resolveTags(any(User.class), any());
         verify(journalEntryRepository).save(any(JournalEntry.class));
+        verify(entryEvents).changed(anyInt());
     }
 
     @Test
@@ -454,6 +466,7 @@ public class JournalEntryServiceTest {
         verify(tagService).resolveTags(eq(mockUser), tagCaptor.capture());
         assertEquals(List.of("win"), tagCaptor.getValue());
         verify(journalEntryRepository).save(any(JournalEntry.class));
+        verify(entryEvents).changed(1);
     }
 
     @Test
@@ -546,6 +559,7 @@ public class JournalEntryServiceTest {
         journalEntryService.deleteEntry(1);
 
         verify(journalEntryRepository).deleteById(1);
+        verify(entryEvents).changed(1);
     }
 
     @Test
@@ -588,6 +602,7 @@ public class JournalEntryServiceTest {
 
         assertEquals("Updated body", result.getBody());
         verify(journalEntryRepository).save(entry);
+        verify(entryEvents).changed(1);
     }
 
     @Test

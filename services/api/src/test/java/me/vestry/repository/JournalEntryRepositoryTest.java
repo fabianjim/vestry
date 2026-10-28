@@ -45,7 +45,8 @@ class JournalEntryRepositoryTest {
         org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
             new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(user, null, List.of()));
         try {
-            new me.vestry.service.JournalEntryService(journalEntryRepository, null, null, null, null)
+            new me.vestry.service.JournalEntryService(journalEntryRepository, null, null, null, null,
+                    org.mockito.Mockito.mock(me.vestry.service.EntryEvents.class))
                 .deleteEntry(source.getId());
             entityManager.flush();
             entityManager.clear();

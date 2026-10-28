@@ -36,13 +36,15 @@ public class JournalEntryService {
     private final TagService tagService;
     private final TransactionRepository transactionRepository;
     private final RealizedPnlCalculator realizedPnlCalculator;
+    private final EntryEvents entryEvents;
 
-    public JournalEntryService(JournalEntryRepository journalEntryRepository, StockService stockService, TagService tagService, TransactionRepository transactionRepository, RealizedPnlCalculator realizedPnlCalculator) {
+    public JournalEntryService(JournalEntryRepository journalEntryRepository, StockService stockService, TagService tagService, TransactionRepository transactionRepository, RealizedPnlCalculator realizedPnlCalculator, EntryEvents entryEvents) {
         this.journalEntryRepository = journalEntryRepository;
         this.stockService = stockService;
         this.tagService = tagService;
         this.transactionRepository = transactionRepository;
         this.realizedPnlCalculator = realizedPnlCalculator;
+        this.entryEvents = entryEvents;
     }
 
     private User getCurrentUser() {
@@ -106,7 +108,7 @@ public class JournalEntryService {
         }
 
         entry.setTags(tagService.resolveTags(user, combinedTags));
-        return journalEntryRepository.save(entry);
+        return saveAndNotify(entry);
     }
 
     static final String INITIAL_ENTRY_BODY = "Initial portfolio creation";
@@ -147,7 +149,7 @@ public class JournalEntryService {
         entry.setPriceSnapshot(price);
         entry.setUser(user);
         entry.setTags(Set.of());
-        return journalEntryRepository.save(entry);
+        return saveAndNotify(entry);
     }
 
     public JournalEntry createAutoSellEntry(User user, String ticker, double shares, double price, Instant timestamp) {
@@ -163,7 +165,7 @@ public class JournalEntryService {
         Double realizedPnl = realizedPnlCalculator.computeRealizedPnl(transactions, ticker, entry.getTimestamp(), shares, price);
         String resultTag = realizedPnlCalculator.resultTagFor(realizedPnl);
         entry.setTags(tagService.resolveTags(user, resultTag != null ? List.of(resultTag) : List.of()));
-        return journalEntryRepository.save(entry);
+        return saveAndNotify(entry);
     }
 
     public List<JournalEntry> getEntriesForUser() {
@@ -225,8 +227,17 @@ public class JournalEntryService {
         for (JournalEntry reflection : journalEntryRepository.findByUserIdAndSourceEntryId(userId, id)) {
             reflection.setSourceEntryId(null);
             reflection.setEntryType(JournalEntryType.INSIGHT);
+            // hindsight reads the type, so the orphaned reflection is re-read too
+            entryEvents.changed(reflection.getId());
         }
         journalEntryRepository.deleteById(id);
+        entryEvents.changed(id);
+    }
+
+    private JournalEntry saveAndNotify(JournalEntry entry) {
+        JournalEntry saved = journalEntryRepository.save(entry);
+        entryEvents.changed(saved.getId());
+        return saved;
     }
 
     public JournalEntry updateEntry(int id, String body, List<String> tagNames) {
@@ -246,7 +257,7 @@ public class JournalEntryService {
             combinedTags.add(autoTag);
         }
         entry.setTags(tagService.resolveTags(getCurrentUser(), combinedTags));
-        return journalEntryRepository.save(entry);
+        return saveAndNotify(entry);
     }
 
     private String computeAutoTagForSellEntry(User user, JournalEntry entry) {
