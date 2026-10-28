@@ -14,6 +14,7 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Clock;
 import java.time.Duration;
@@ -37,6 +38,8 @@ public class HindsightClient {
     static final Duration BREAKER_PAUSE = Duration.ofSeconds(30);
     /** A model call takes seconds and hindsight's own provider timeout is 30 s. */
     static final Duration AID_READ_TIMEOUT = Duration.ofSeconds(45);
+    /** Building a report is one model call plus citation checks. */
+    static final Duration REPORT_READ_TIMEOUT = Duration.ofSeconds(60);
 
     public record Citation(int entryId, String quote) {}
     public record Claim(String summary, List<Citation> citations) {}
@@ -71,9 +74,23 @@ public class HindsightClient {
                               @JsonFormat(shape = JsonFormat.Shape.STRING) Instant timestamp, boolean initial) {}
     public record HoldingPeriod(String ticker, @JsonFormat(shape = JsonFormat.Shape.STRING) Instant openedAt,
                                 @JsonFormat(shape = JsonFormat.Shape.STRING) Instant closedAt, Double pnl) {}
+    /** Kinds, subjects, keys and units stay strings, so a kind hindsight adds later parses; callers skip it. */
+    public record Figure(String key, double value, String unit) {}
+    public record Pattern(String kind, String subject, List<Figure> figures, String observation, String question,
+                          List<Citation> citations) {}
+    public record Need(String kind, int more) {}
+    public record PatternReport(LocalDate generatedOn, LocalDate asOf, Instant entriesUpTo, boolean saved,
+                                List<Pattern> patterns, List<Need> needs) {}
+    record SavedPatternReport(PatternReport report) {}
+    public enum ReportStatus { READY, UNAVAILABLE }
+    /** READY with no report means hindsight has none saved for the user yet. */
+    public record ReportResponse(ReportStatus status, PatternReport report) {
+        static final ReportResponse UNAVAILABLE = new ReportResponse(ReportStatus.UNAVAILABLE, null);
+    }
 
     private final RestTemplate http;
     private final RestTemplate aidHttp;
+    private final RestTemplate reportHttp;
     private final String url;
     private final String token;
     private final Clock clock;
@@ -94,6 +111,9 @@ public class HindsightClient {
         var aidFactory = new JdkClientHttpRequestFactory(transport);
         aidFactory.setReadTimeout(AID_READ_TIMEOUT);
         aidHttp = new RestTemplate(aidFactory);
+        var reportFactory = new JdkClientHttpRequestFactory(transport);
+        reportFactory.setReadTimeout(REPORT_READ_TIMEOUT);
+        reportHttp = new RestTemplate(reportFactory);
     }
 
     public boolean isEnabled() {
@@ -171,6 +191,60 @@ public class HindsightClient {
             }
         }
         return found;
+    }
+
+    /** The user's saved Insights report. A page read, so it shares the 2 s timeout and the breaker. Never generates. */
+    public ReportResponse patternReport(int userId) {
+        if (!isEnabled() || paused()) return ReportResponse.UNAVAILABLE;
+        var headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        try {
+            var saved = http.exchange(patternReportUri(userId), HttpMethod.GET, new HttpEntity<>(headers),
+                    SavedPatternReport.class).getBody();
+            if (saved == null) throw new IllegalStateException("empty response");
+            failures.set(0);
+            return new ReportResponse(ReportStatus.READY, saved.report());
+        } catch (RestClientResponseException failure) {
+            int status = failure.getStatusCode().value();
+            if (status == 401) log.warn("Hindsight rejected the service token (HTTP 401)");
+            else log.warn("Hindsight pattern report request failed: HTTP {}", status);
+            failed();
+        } catch (RuntimeException failure) {
+            log.warn("Hindsight pattern report request failed: {}", failure.getClass().getSimpleName());
+            failed();
+        }
+        return ReportResponse.UNAVAILABLE;
+    }
+
+    /**
+     * Runs on a user's click, so like {@link #reflectionAid} it waits for the model and skips the breaker.
+     * Hindsight returns today's saved report without a model call if there is one.
+     */
+    public ReportResponse createPatternReport(int userId, PatternReportRequest facts) {
+        if (!isEnabled()) return ReportResponse.UNAVAILABLE;
+        var headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        try {
+            var report = reportHttp.exchange(patternReportUri(userId), HttpMethod.POST, new HttpEntity<>(facts, headers),
+                    PatternReport.class).getBody();
+            if (report == null) throw new IllegalStateException("empty response");
+            return new ReportResponse(ReportStatus.READY, report);
+        } catch (RestClientResponseException failure) {
+            // 503: AI off or out of budget; 404: hindsight predates Insights; 422: vestry sent facts it shouldn't
+            int status = failure.getStatusCode().value();
+            if (status == 401) log.warn("Hindsight rejected the service token (HTTP 401)");
+            else log.warn("Hindsight pattern report generation failed: HTTP {}", status);
+        } catch (RuntimeException failure) {
+            log.warn("Hindsight pattern report generation failed: {}", failure.getClass().getSimpleName());
+        }
+        return ReportResponse.UNAVAILABLE;
+    }
+
+    private URI patternReportUri(int userId) {
+        return UriComponentsBuilder.fromUriString(url).path("/v1/users/{userId}/pattern-report").buildAndExpand(userId).toUri();
     }
 
     private void fetch(int userId, List<Integer> ids, Map<Integer, EntryInsight> found) {

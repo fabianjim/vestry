@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -40,6 +41,8 @@ public class InsightFactsService {
     static final int MAX_PERIODS = 1000;
     static final int MAX_AUTO_ENTRIES = 1000;
     private static final double EPSILON = 1e-9;
+    /** Hindsight's ticker rule; one row it rejects fails the whole request. */
+    private static final Pattern TICKER = Pattern.compile("[A-Z][A-Z0-9.\\-]{0,9}");
     private static final Comparator<Transaction> CHRONOLOGICAL = Comparator.comparing(Transaction::getTimestamp)
             .thenComparingInt(Transaction::getId);
 
@@ -97,16 +100,20 @@ public class InsightFactsService {
                 .filter(e -> e.getTicker() != null)
                 .map(e -> key(e.getTicker()) + "@" + e.getTimestamp())
                 .collect(Collectors.toSet());
-        var trades = ledger.subList(Math.max(0, ledger.size() - MAX_TRADES), ledger.size()).stream()
-                .map(t -> new LedgerTrade(t.getId(), t.getTicker(), t.getType().name(), t.getShares(), t.getPrice(),
+        // ownership above comes from the full ledger; only rows hindsight can't accept are left out
+        var sendable = ledger.stream()
+                .filter(t -> sendable(t.getTicker()) && t.getShares() > 0 && t.getPrice() > 0).toList();
+        var trades = sendable.subList(Math.max(0, sendable.size() - MAX_TRADES), sendable.size()).stream()
+                .map(t -> new LedgerTrade(t.getId(), key(t.getTicker()), t.getType().name(), t.getShares(), t.getPrice(),
                         t.getTimestamp(), t.getType() == Transaction.TransactionType.BUY
                                 && initialBuys.contains(key(t.getTicker()) + "@" + t.getTimestamp())))
                 .toList();
 
         var allPeriods = periods.values().stream().flatMap(List::stream)
+                .filter(p -> sendable(p.ticker))
                 .sorted(Comparator.comparing((Period p) -> p.openedAt)).toList();
         var holdingPeriods = allPeriods.subList(Math.max(0, allPeriods.size() - MAX_PERIODS), allPeriods.size()).stream()
-                .map(p -> new HoldingPeriod(p.ticker, p.openedAt, p.closedAt, pnl(p, latest)))
+                .map(p -> new HoldingPeriod(key(p.ticker), p.openedAt, p.closedAt, pnl(p, latest)))
                 .toList();
 
         var autoEntryIds = journal.stream().filter(JournalEntryService::isAutoWritten)
@@ -196,6 +203,10 @@ public class InsightFactsService {
 
     private static LocalDate day(Instant instant) {
         return instant.atZone(JournalEntryFilters.MARKET_ZONE).toLocalDate();
+    }
+
+    private static boolean sendable(String ticker) {
+        return TICKER.matcher(key(ticker)).matches();
     }
 
     private static String key(String ticker) {

@@ -315,6 +315,172 @@ class HindsightClientTest {
         assertTrue(requests.isEmpty());
     }
 
+    private static final String REPORT = """
+            {"generatedOn": "2026-10-27", "asOf": "2026-10-27", "entriesUpTo": "2026-10-27T14:03:00+00:00",
+             "saved": true, "addedLater": 1,
+             "patterns": [{"kind": "felt_vs_did", "subject": "anxious",
+                           "figures": [{"key": "entries", "value": 4, "unit": "count"},
+                                       {"key": "addedLater", "value": 1, "unit": "weeks"}],
+                           "observation": "You often bought soon after writing that you felt anxious.",
+                           "question": "What did buying settle for you?",
+                           "citations": [{"entryId": 12, "quote": "I'm nervous about this"}]},
+                          {"kind": "news_drift", "subject": null, "figures": [], "observation": "o",
+                           "question": "q", "citations": [], "addedLater": true}],
+             "needs": [{"kind": "silent_trades", "more": 2}]}
+            """;
+    private static final HindsightClient.PatternReportRequest FACTS = new HindsightClient.PatternReportRequest(
+            LocalDate.of(2026, 10, 27),
+            List.of(new HindsightClient.EntryOutcome(12, 141.2, "LATEST", LocalDate.of(2026, 10, 27))),
+            List.of(new HindsightClient.LedgerTrade(7, "NVDA", "BUY", 3, 120.5, Instant.parse("2026-03-03T15:00:00Z"), false)),
+            List.of(new HindsightClient.HoldingPeriod("NVDA", Instant.parse("2026-03-03T15:00:00Z"), null, 62.1)),
+            List.of(3, 9));
+
+    @Test
+    void readsTheSavedReportAndKeepsWhatItDoesNotKnow() {
+        body = "{\"report\": " + REPORT + "}";
+
+        var response = client().patternReport(4);
+
+        assertEquals(List.of("/v1/users/4/pattern-report?null"), requests);
+        assertEquals("GET ", bodies.get(0));
+        assertEquals(List.of("Bearer " + TOKEN), tokens);
+        assertEquals(HindsightClient.ReportStatus.READY, response.status());
+        var report = response.report();
+        assertEquals(LocalDate.of(2026, 10, 27), report.generatedOn());
+        assertEquals(Instant.parse("2026-10-27T14:03:00Z"), report.entriesUpTo());
+        assertTrue(report.saved());
+        var felt = report.patterns().get(0);
+        assertEquals("anxious", felt.subject());
+        assertEquals(new HindsightClient.Figure("entries", 4, "count"), felt.figures().get(0));
+        assertEquals(new HindsightClient.Citation(12, "I'm nervous about this"), felt.citations().get(0));
+        // unknown kinds, keys and units still parse; the service decides what to show
+        assertEquals("news_drift", report.patterns().get(1).kind());
+        assertEquals("weeks", felt.figures().get(1).unit());
+        assertEquals(List.of(new HindsightClient.Need("silent_trades", 2)), report.needs());
+    }
+
+    @Test
+    void noSavedReportIsReadyAndEmpty() {
+        body = "{\"report\": null}";
+
+        assertEquals(new HindsightClient.ReportResponse(HindsightClient.ReportStatus.READY, null), client().patternReport(4));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 404, 422, 500})
+    void reportReadFailuresAreUnavailable(int code) {
+        status = code;
+
+        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, client().patternReport(4));
+    }
+
+    @Test
+    void reportReadSurvivesBadResponsesSlownessAndOutages() {
+        body = "{\"report\": [";
+        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, client().patternReport(4));
+        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, new HindsightClient("", TOKEN, clock).patternReport(4));
+
+        body = "{\"report\": null}";
+        delayMillis = 5_000;
+        long started = System.nanoTime();
+        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, client().patternReport(4));
+        assertTrue(Duration.ofNanos(System.nanoTime() - started).toMillis() < 4_000, "read timeout should cut it off");
+
+        var client = client();
+        server.stop(0);
+        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, client.patternReport(4));
+    }
+
+    @Test
+    void reportReadSharesTheBreakerWithPageReads() {
+        var client = client();
+        status = 500;
+        for (int i = 0; i < HindsightClient.BREAKER_FAILURES; i++) client.patternReport(4);
+
+        status = 200;
+        client.insights(4, List.of(7));
+        client.patternReport(4);
+        assertEquals(HindsightClient.BREAKER_FAILURES, requests.size(), "paused calls never reach hindsight");
+    }
+
+    @Test
+    void postsTheFactsWithTheContractFieldNames() throws Exception {
+        body = REPORT;
+
+        var response = client().createPatternReport(4, FACTS);
+
+        assertEquals(List.of("/v1/users/4/pattern-report?null"), requests);
+        assertEquals(List.of("null"), upgrades);
+        assertTrue(bodies.get(0).startsWith("POST "));
+        var sent = new ObjectMapper().readTree(bodies.get(0).substring("POST ".length()));
+        assertEquals(List.of("asOf", "outcomes", "trades", "holdingPeriods", "autoEntryIds"), fieldNames(sent));
+        assertEquals("2026-10-27", sent.get("asOf").asText());
+        var outcome = sent.get("outcomes").get(0);
+        assertEquals(List.of("entryId", "price", "kind", "on"), fieldNames(outcome));
+        assertEquals("2026-10-27", outcome.get("on").asText());
+        var trade = sent.get("trades").get(0);
+        assertEquals(List.of("tradeId", "ticker", "side", "shares", "price", "timestamp", "initial"), fieldNames(trade));
+        assertEquals("2026-03-03T15:00:00Z", trade.get("timestamp").asText());
+        var period = sent.get("holdingPeriods").get(0);
+        assertEquals(List.of("ticker", "openedAt", "closedAt", "pnl"), fieldNames(period));
+        assertEquals("2026-03-03T15:00:00Z", period.get("openedAt").asText());
+        assertTrue(period.get("closedAt").isNull(), "an open period sends closedAt as null, not absent");
+        assertEquals(3, sent.get("autoEntryIds").get(0).asInt());
+
+        assertEquals(HindsightClient.ReportStatus.READY, response.status());
+        assertEquals("felt_vs_did", response.report().patterns().get(0).kind());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 404, 422, 500, 503})
+    void reportGenerationFailuresAreUnavailable(int code) {
+        status = code;
+        body = "{\"detail\": \"AI is off\"}";
+
+        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, client().createPatternReport(4, FACTS));
+    }
+
+    @Test
+    void reportGenerationSurvivesBadResponsesAndOutages() {
+        body = "{\"patterns\": [";
+        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, client().createPatternReport(4, FACTS));
+        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE,
+                new HindsightClient("", TOKEN, clock).createPatternReport(4, FACTS));
+
+        var client = client();
+        server.stop(0);
+        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, client.createPatternReport(4, FACTS));
+    }
+
+    @Test
+    void reportGenerationWaitsForTheModelAndIgnoresTheBreaker() {
+        var client = client();
+        status = 500;
+        for (int i = 0; i < HindsightClient.BREAKER_FAILURES; i++) client.insights(4, List.of(7));
+
+        status = 200;
+        body = REPORT;
+        delayMillis = 3_000;
+        assertEquals(HindsightClient.ReportStatus.READY, client.createPatternReport(4, FACTS).status());
+
+        clock.advance(HindsightClient.BREAKER_PAUSE.plusSeconds(1));
+        delayMillis = 0;
+        status = 500;
+        client.createPatternReport(4, FACTS);
+        client.createPatternReport(4, FACTS);
+        status = 200;
+        body = "{\"insights\": []}";
+        int before = requests.size();
+        client.insights(4, List.of(7));
+        assertEquals(before + 1, requests.size(), "generation failures never pause page reads");
+    }
+
+    private static List<String> fieldNames(com.fasterxml.jackson.databind.JsonNode node) {
+        var names = new java.util.ArrayList<String>();
+        node.fieldNames().forEachRemaining(names::add);
+        return names;
+    }
+
     static final class MutableClock extends Clock {
         private Instant now = Instant.parse("2026-10-25T12:00:00Z");
 

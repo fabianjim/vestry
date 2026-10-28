@@ -156,6 +156,22 @@ class InsightFactsServiceTest {
     }
 
     @Test
+    void leavesOutRowsHindsightWouldRejectButKeepsTheirShares() {
+        trade(1, "nvda", TransactionType.BUY, 2, 0, "2026-03-02T15:00:00Z");
+        trade(2, "NVDA", TransactionType.BUY, 2, 100, "2026-03-03T15:00:00Z");
+        trade(3, "NVDA", TransactionType.SELL, 4, 110, "2026-03-04T15:00:00Z");
+        trade(4, "1ABC", TransactionType.BUY, 1, 10, "2026-03-05T15:00:00Z");
+
+        var facts = service.build(user);
+
+        // the free shares still count, so selling all 4 closes the period: 4 × (110 − 50)
+        assertEquals(List.of(new HoldingPeriod("NVDA", at("2026-03-02T15:00:00Z"), at("2026-03-04T15:00:00Z"), 240.0)),
+                facts.holdingPeriods());
+        assertEquals(List.of(2, 3), facts.trades().stream().map(LedgerTrade::tradeId).toList());
+        assertEquals(List.of("NVDA", "NVDA"), facts.trades().stream().map(LedgerTrade::ticker).toList());
+    }
+
+    @Test
     void capsKeepTheNewestAndTradesGoOutOldestFirst() {
         var start = at("2024-01-01T15:00:00Z");
         int pairs = InsightFactsService.MAX_PERIODS + 2;
