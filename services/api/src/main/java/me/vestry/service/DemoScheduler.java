@@ -1,6 +1,7 @@
 package me.vestry.service;
 
 import lombok.RequiredArgsConstructor;
+import me.vestry.api.HindsightClient;
 import me.vestry.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +16,7 @@ public class DemoScheduler {
     private final UserRepository users;
     private final DashboardDigestService briefings;
     private final ReflectionAidService reflectionAids;
+    private final InsightsService insights;
 
     // Retries within the hour: a user briefing running at 10:00 would otherwise skip the day.
     // generateDemo starts at most one job per day.
@@ -40,6 +42,24 @@ public class DemoScheduler {
                 log.info("Refreshed {} demo reflection aids", reflectionAids.refreshDemo(user));
             } catch (RuntimeException failure) {
                 log.warn("Scheduled demo reflection aids could not be refreshed");
+            }
+        }
+    }
+
+    // After the reflection aids. Hindsight keeps the first report of each New York day, so a rerun costs nothing.
+    @Scheduled(cron = "0 45 3 * * *", zone = "America/New_York")
+    public void refreshInsights() {
+        if (!insights.available()) return;
+        for (var user : users.findByDemoTrue()) {
+            try {
+                var response = insights.refreshDemo(user);
+                if (response.status() == HindsightClient.ReportStatus.READY) {
+                    log.info("Refreshed demo insights: {} patterns", response.report().patterns().size());
+                } else {
+                    log.warn("Scheduled demo insights could not be refreshed");
+                }
+            } catch (RuntimeException failure) {
+                log.warn("Scheduled demo insights could not be refreshed");
             }
         }
     }

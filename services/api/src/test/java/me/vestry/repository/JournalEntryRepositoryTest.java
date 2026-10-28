@@ -42,6 +42,8 @@ class JournalEntryRepositoryTest {
 
         assertEquals(source.getId(), journalEntryRepository.findById(reflection.getId()).orElseThrow().getSourceEntryId());
         assertTrue(journalEntryRepository.findOwnedEntryForUpdate(source.getId(), user.getId() + 1).isEmpty());
+        assertEquals(List.of(source.getId()), journalEntryRepository.findOwnedIds(user.getId(), List.of(source.getId(), -5)));
+        assertTrue(journalEntryRepository.findOwnedIds(user.getId() + 1, List.of(source.getId())).isEmpty());
         org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
             new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(user, null, List.of()));
         try {

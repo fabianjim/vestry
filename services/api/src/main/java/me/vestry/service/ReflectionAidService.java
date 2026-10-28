@@ -18,7 +18,6 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -140,8 +139,7 @@ public class ReflectionAidService {
 
     // quotes cite template entries; the visitor's panel knows their copies
     private static ReflectionAid toCopyIds(ReflectionAid aid, DemoSession session) {
-        var copies = new HashMap<Integer, Integer>();
-        session.getTemplateEntryIds().forEach((copy, template) -> copies.put(template, copy));
+        var copies = session.copyIdsByTemplateId();
         var recap = aid.recap().stream().map(claim -> new Claim(claim.summary(), claim.citations().stream()
                 .map(c -> new Citation(copies.getOrDefault(c.entryId(), c.entryId()), c.quote())).toList())).toList();
         return new ReflectionAid(recap, aid.questions());

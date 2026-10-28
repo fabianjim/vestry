@@ -9,6 +9,7 @@ import jakarta.persistence.LockModeType;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +22,9 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, Inte
     Optional<JournalEntry> findOwnedEntryForUpdate(@Param("id") int id, @Param("userId") int userId);
 
     List<JournalEntry> findByUserIdAndSourceEntryId(int userId, int sourceEntryId);
+
+    @Query("select e.id from JournalEntry e where e.user.id = :userId and e.id in :ids")
+    List<Integer> findOwnedIds(@Param("userId") int userId, @Param("ids") Collection<Integer> ids);
 
     List<JournalEntry> findTop6ByUserIdOrderByTimestampDescIdDesc(int userId);
 

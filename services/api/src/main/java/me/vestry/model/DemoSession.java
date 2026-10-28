@@ -97,6 +97,13 @@ public class DemoSession implements Serializable {
         this.templateEntryIds = templateEntryIds;
     }
 
+    /** Template entry id to the visitor's copy, for AI output that cites the template's entries. */
+    public Map<Integer, Integer> copyIdsByTemplateId() {
+        var copies = new HashMap<Integer, Integer>();
+        templateEntryIds.forEach((copy, template) -> copies.put(template, copy));
+        return copies;
+    }
+
     public int nextId() {
         return nextId--;
     }
