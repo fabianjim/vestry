@@ -60,7 +60,7 @@ class InsightsServiceTest {
         var patterns = insights.report().patterns();
         assertEquals(List.of("felt_vs_did"), patterns.stream().map(InsightsService.Pattern::kind).toList());
         assertEquals(List.of(new Citation(12, "quote 12", true), new Citation(13, "quote 13", false)), patterns.get(0).citations());
-        assertEquals(List.of(new Need("silent_trades", 2)), insights.report().needs());
+        assertEquals(List.of(new Need("silent_trades", null, 2, null)), insights.report().needs());
         assertEquals(new Insights(insights.report(), true, false), insights);
     }
 
@@ -123,7 +123,7 @@ class InsightsServiceTest {
 
     private static PatternReport report(LocalDate generatedOn, boolean saved, HindsightClient.Pattern... patterns) {
         return new PatternReport(generatedOn, generatedOn, Instant.parse("2026-10-20T14:00:00Z"), saved, List.of(patterns),
-                List.of(new Need("silent_trades", 2), new Need("news_drift", 1)));
+                List.of(new Need("silent_trades", null, 2, null), new Need("news_drift", null, 1, null)));
     }
 
     private static HindsightClient.Pattern pattern(String kind, int... cited) {

@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** Calls hindsight, the AI service. Vestry must work without it, so nothing here throws. */
@@ -40,8 +41,10 @@ public class HindsightClient {
     static final Duration BREAKER_PAUSE = Duration.ofSeconds(30);
     /** A model call takes seconds and hindsight's own provider timeout is 30 s. */
     static final Duration AID_READ_TIMEOUT = Duration.ofSeconds(45);
-    /** Building a report is one model call plus citation checks. */
-    static final Duration REPORT_READ_TIMEOUT = Duration.ofSeconds(60);
+    /** Building a report is one model call plus citation checks; the contract allows up to 120 s. */
+    static final Duration REPORT_READ_TIMEOUT = Duration.ofSeconds(120);
+    /** Hindsight's code for a POST on a day whose attempt failed, then or earlier. */
+    static final String ATTEMPTED_TODAY = "ATTEMPTED_TODAY";
 
     public record Citation(int entryId, String quote) {}
     public record Claim(String summary, List<Citation> citations) {}
@@ -92,14 +95,40 @@ public class HindsightClient {
     public record Figure(String key, double value, String unit) {}
     public record Pattern(String kind, String subject, List<Figure> figures, String observation, String question,
                           List<Citation> citations) {}
-    public record Need(String kind, int more) {}
+    /** {@code reason} is ENTRIES, TRADES, PRICES or FIELDS. */
+    public record Need(String kind, String subject, int more, String reason) {}
     public record PatternReport(LocalDate generatedOn, LocalDate asOf, Instant entriesUpTo, boolean saved,
                                 List<Pattern> patterns, List<Need> needs) {}
     record SavedPatternReport(PatternReport report) {}
-    public enum ReportStatus { READY, UNAVAILABLE }
+    /** FAILED_TODAY only answers a POST: the day's attempt failed, so the day is used. */
+    public enum ReportStatus { READY, FAILED_TODAY, UNAVAILABLE }
     /** READY with no report means hindsight has none saved for the user yet. */
     public record ReportResponse(ReportStatus status, PatternReport report) {
         static final ReportResponse UNAVAILABLE = new ReportResponse(ReportStatus.UNAVAILABLE, null);
+    }
+
+    /** Behavior reports. Kinds, subjects and figure keys stay strings: the vocabulary is open, and callers skip what they don't know. */
+    public record Previous(LocalDate day, List<Figure> figures) {}
+    public record Behavior(String kind, String subject, List<Figure> figures, Previous previous, String observation,
+                           String question, List<Citation> citations, List<Integer> tradeIds, List<Integer> entryIds) {}
+    /** An unsaved report ({@code saved} false, no behaviors) means nothing qualified; it didn't use the day. */
+    public record BehaviorReport(LocalDate day, Instant generatedAt, LocalDate asOf, Instant entriesUpTo, boolean saved,
+                                 List<Behavior> behaviors, List<Need> needs) {}
+    public record BehaviorSummary(String kind, String subject, List<Figure> figures) {}
+    public record ReportSummary(LocalDate day, Instant generatedAt, List<BehaviorSummary> behaviors) {}
+    public enum AttemptStatus { SAVED, FAILED }
+    public record Attempt(LocalDate day, AttemptStatus status, Instant at) {}
+    /** Newest first. {@code lastAttempt} is null before the user's first attempt. */
+    public record BehaviorReportList(List<ReportSummary> reports, boolean hasOlder, Attempt lastAttempt) {}
+    record SavedBehaviorReport(BehaviorReport report) {}
+    record Problem(String code, String detail) {}
+    public record ReportListResponse(ReportStatus status, BehaviorReportList list) {
+        static final ReportListResponse UNAVAILABLE = new ReportListResponse(ReportStatus.UNAVAILABLE, null);
+    }
+    /** READY with no report: none saved that day (GET). */
+    public record BehaviorReportResponse(ReportStatus status, BehaviorReport report) {
+        static final BehaviorReportResponse UNAVAILABLE = new BehaviorReportResponse(ReportStatus.UNAVAILABLE, null);
+        static final BehaviorReportResponse FAILED_TODAY = new BehaviorReportResponse(ReportStatus.FAILED_TODAY, null);
     }
 
     private final RestTemplate http;
@@ -255,6 +284,96 @@ public class HindsightClient {
             log.warn("Hindsight pattern report generation failed: {}", failure.getClass().getSimpleName());
         }
         return ReportResponse.UNAVAILABLE;
+    }
+
+    /** The user's saved reports, newest first and strictly before {@code before} if given. A page read: 2 s and the breaker. */
+    public ReportListResponse listBehaviorReports(int userId, LocalDate before, int limit) {
+        if (!isEnabled() || paused()) return ReportListResponse.UNAVAILABLE;
+        var uri = UriComponentsBuilder.fromUriString(url).path("/v1/users/{userId}/behavior-reports")
+                .queryParamIfPresent("before", Optional.ofNullable(before))
+                .queryParam("limit", limit).buildAndExpand(userId).toUri();
+        try {
+            var list = http.exchange(uri, HttpMethod.GET, new HttpEntity<>(readHeaders()), BehaviorReportList.class).getBody();
+            if (list == null || list.reports() == null) throw new IllegalStateException("empty response");
+            failures.set(0);
+            return new ReportListResponse(ReportStatus.READY, list);
+        } catch (RestClientResponseException failure) {
+            readFailed("list", failure.getStatusCode().value());
+        } catch (RuntimeException failure) {
+            log.warn("Hindsight behavior report list failed: {}", failure.getClass().getSimpleName());
+            failed();
+        }
+        return ReportListResponse.UNAVAILABLE;
+    }
+
+    /** The report saved on {@code day}, or READY with none. A page read: 2 s and the breaker. Never generates. */
+    public BehaviorReportResponse getBehaviorReport(int userId, LocalDate day) {
+        if (!isEnabled() || paused()) return BehaviorReportResponse.UNAVAILABLE;
+        var uri = UriComponentsBuilder.fromUriString(url).path("/v1/users/{userId}/behavior-reports/{day}")
+                .buildAndExpand(userId, day.toString()).toUri();
+        try {
+            var saved = http.exchange(uri, HttpMethod.GET, new HttpEntity<>(readHeaders()), SavedBehaviorReport.class).getBody();
+            if (saved == null) throw new IllegalStateException("empty response");
+            failures.set(0);
+            return new BehaviorReportResponse(ReportStatus.READY, saved.report());
+        } catch (RestClientResponseException failure) {
+            readFailed("read", failure.getStatusCode().value());
+        } catch (RuntimeException failure) {
+            log.warn("Hindsight behavior report read failed: {}", failure.getClass().getSimpleName());
+            failed();
+        }
+        return BehaviorReportResponse.UNAVAILABLE;
+    }
+
+    /**
+     * Generates today's report. Runs in the background after a user's click, so it waits for the model and skips
+     * the breaker. READY is today's new or already saved report, or an unsaved empty one; FAILED_TODAY means the
+     * day's attempt failed (now or earlier) and counts; UNAVAILABLE means nothing was recorded.
+     */
+    public BehaviorReportResponse createBehaviorReport(int userId, BehaviorReportRequest facts) {
+        if (!isEnabled()) return BehaviorReportResponse.UNAVAILABLE;
+        var uri = UriComponentsBuilder.fromUriString(url).path("/v1/users/{userId}/behavior-reports")
+                .buildAndExpand(userId).toUri();
+        var headers = readHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        try {
+            var report = reportHttp.exchange(uri, HttpMethod.POST, new HttpEntity<>(facts, headers), BehaviorReport.class).getBody();
+            if (report == null) throw new IllegalStateException("empty response");
+            return new BehaviorReportResponse(ReportStatus.READY, report);
+        } catch (RestClientResponseException failure) {
+            int status = failure.getStatusCode().value();
+            if (status == 409 && ATTEMPTED_TODAY.equals(problemCode(failure))) return BehaviorReportResponse.FAILED_TODAY;
+            // 503: AI off, budget refused or a failure before the model call; 404: hindsight predates behavior reports
+            if (status == 401) log.warn("Hindsight rejected the service token (HTTP 401)");
+            else if (status == 422) log.error("Hindsight rejected vestry's behavior report facts (HTTP 422); a row should have been left out");
+            else log.warn("Hindsight behavior report generation failed: HTTP {}", status);
+        } catch (RuntimeException failure) {
+            log.warn("Hindsight behavior report generation failed: {}", failure.getClass().getSimpleName());
+        }
+        return BehaviorReportResponse.UNAVAILABLE;
+    }
+
+    private HttpHeaders readHeaders() {
+        var headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        return headers;
+    }
+
+    private void readFailed(String what, int status) {
+        if (status == 401) log.warn("Hindsight rejected the service token (HTTP 401)");
+        else log.warn("Hindsight behavior report {} failed: HTTP {}", what, status);
+        failed();
+    }
+
+    /** The Problem body's code, or null if there is none to read. */
+    private static String problemCode(RestClientResponseException failure) {
+        try {
+            var problem = failure.getResponseBodyAs(Problem.class);
+            return problem == null ? null : problem.code();
+        } catch (RuntimeException unreadable) {
+            return null;
+        }
     }
 
     private URI patternReportUri(int userId) {
