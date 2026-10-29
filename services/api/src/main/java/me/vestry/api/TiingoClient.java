@@ -6,10 +6,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import me.vestry.model.Stock;
 import me.vestry.model.Stock.StockType;
 
+import java.time.DateTimeException;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -26,6 +29,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 @Component
@@ -206,6 +210,46 @@ public class TiingoClient implements MarketDataClient {
                 throw new IllegalArgumentException("Invalid " + field);
             }
         }
+    }
+
+    @Override
+    public List<DailyClose> getDailyCloses(String ticker, LocalDate start, LocalDate end) {
+        String symbol = ticker.trim().toUpperCase(Locale.ROOT);
+        if (!TICKER_FORMAT.matcher(symbol).matches()) throw new UnknownTickerException(ticker);
+        String url = baseUrl + "/tiingo/daily/" + symbol + "/prices?startDate=" + start + "&endDate=" + end;
+        try {
+            ResponseEntity<String> response = batchRestTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(createAuthHeaders()), String.class);
+            return parseDailyCloses(response.getBody(), ticker);
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new UnknownTickerException(ticker);
+        }
+    }
+
+    public List<DailyClose> parseDailyCloses(String json, String ticker) {
+        JsonNode root;
+        try {
+            root = objectMapper.readTree(json == null ? "" : json);
+        } catch (JsonProcessingException e) {
+            throw new PriceFetchException(ticker, "Invalid daily prices response", e);
+        }
+        if (root == null || !root.isArray()) {
+            throw new PriceFetchException(ticker, "Expected a daily prices array");
+        }
+        List<DailyClose> closes = new ArrayList<>();
+        for (JsonNode row : root) {
+            String date = row.path("date").asText("");
+            JsonNode close = row.path("adjClose");
+            if (date.length() < 10 || !close.isNumber() || !Double.isFinite(close.asDouble()) || close.asDouble() <= 0) continue;
+            try {
+                // "2026-03-02T00:00:00.000Z" or "2026-03-02": the trading day either way
+                closes.add(new DailyClose(LocalDate.parse(date.substring(0, 10)), close.asDouble()));
+            } catch (DateTimeException e) {
+                // a row without a readable day can't be placed, so it's left out
+            }
+        }
+        closes.sort(Comparator.comparing(DailyClose::date));
+        return closes;
     }
 
     // Old method

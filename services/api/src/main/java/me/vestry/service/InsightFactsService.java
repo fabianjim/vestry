@@ -205,7 +205,7 @@ public class InsightFactsService {
         return instant.atZone(JournalEntryFilters.MARKET_ZONE).toLocalDate();
     }
 
-    private static boolean sendable(String ticker) {
+    static boolean sendable(String ticker) {
         return TICKER.matcher(key(ticker)).matches();
     }
 

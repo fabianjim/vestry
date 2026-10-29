@@ -35,4 +35,8 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, Inte
     List<JournalEntry> findByUserIdAndTimestampGreaterThanEqualAndTimestampLessThan(int userId, Instant start, Instant end);
 
     List<JournalEntry> findByUserIdAndTimestampBetween(int userId, Instant start, Instant end);
+
+    @Query("select e.user.id as userId, e.ticker as ticker, e.timestamp as timestamp from JournalEntry e"
+            + " where e.entryType = me.vestry.model.JournalEntryType.BUY and e.body = :body and e.ticker is not null")
+    List<TickerMoment> findBuyEntriesWithBody(@Param("body") String body);
 }

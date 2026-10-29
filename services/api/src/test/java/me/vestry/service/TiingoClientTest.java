@@ -6,10 +6,14 @@ import me.vestry.exception.UnknownTickerException;
 import me.vestry.model.Stock;
 import me.vestry.model.Stock.StockType;
 
+import me.vestry.api.DailyClose;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDate;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -54,5 +58,18 @@ public class TiingoClientTest {
         });
 
         assertTrue(exception.getMessage().contains("Error parsing JSON response"));
+    }
+
+    @Test
+    void parseDailyClosesReadsTheTradingDayAndAdjustedCloseOldestFirst() {
+        String json = "[{\"date\":\"2026-03-03T00:00:00.000Z\",\"close\":120.0,\"adjClose\":119.5},"
+                + "{\"date\":\"2026-03-02T00:00:00.000Z\",\"adjClose\":118.0},"
+                + "{\"date\":\"2026-03-04\",\"adjClose\":null},{\"adjClose\":121.0},"
+                + "{\"date\":\"2026-03-05T00:00:00.000Z\",\"adjClose\":0}]";
+
+        assertEquals(List.of(new DailyClose(LocalDate.of(2026, 3, 2), 118.0), new DailyClose(LocalDate.of(2026, 3, 3), 119.5)),
+                tiingoClient.parseDailyCloses(json, "NVDA"));
+        assertEquals(List.of(), tiingoClient.parseDailyCloses("[]", "NVDA"));
+        assertThrows(PriceFetchException.class, () -> tiingoClient.parseDailyCloses("{\"detail\":\"x\"}", "NVDA"));
     }
 }
