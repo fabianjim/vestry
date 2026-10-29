@@ -14,6 +14,15 @@ public class CreateJournalEntryRequest {
     private Double priceSnapshot;
     private List<String> tags;
     private Integer sourceEntryId;
+    private String behaviorKey;
+
+    public String getBehaviorKey() {
+        return behaviorKey;
+    }
+
+    public void setBehaviorKey(String behaviorKey) {
+        this.behaviorKey = behaviorKey;
+    }
 
     public Integer getSourceEntryId() {
         return sourceEntryId;

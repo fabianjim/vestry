@@ -69,6 +69,38 @@ class JournalEntryRepositoryTest {
         }
     }
 
+    @Test
+    void behaviorEntriesAreOnlyTheUsersKeyedEntriesNewestFirst() {
+        User user = new User();
+        user.setUsername("behavioruser");
+        user.setPassword("password");
+        userRepository.save(user);
+        User other = new User();
+        other.setUsername("otherbehavioruser");
+        other.setPassword("password");
+        userRepository.save(other);
+        JournalEntry older = behaviorEntry(user, "fomo", Instant.parse("2026-10-01T12:00:00Z"));
+        JournalEntry newer = behaviorEntry(user, "emotional:anxious", Instant.parse("2026-10-02T12:00:00Z"));
+        behaviorEntry(user, null, Instant.parse("2026-10-03T12:00:00Z"));
+        behaviorEntry(other, "fomo", Instant.parse("2026-10-04T12:00:00Z"));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertEquals(List.of(newer.getId(), older.getId()),
+            journalEntryRepository.findTop500ByUserIdAndBehaviorKeyIsNotNullOrderByTimestampDescIdDesc(user.getId())
+                .stream().map(JournalEntry::getId).toList());
+    }
+
+    private JournalEntry behaviorEntry(User user, String behaviorKey, Instant timestamp) {
+        JournalEntry entry = new JournalEntry();
+        entry.setUser(user);
+        entry.setEntryType(JournalEntryType.INSIGHT);
+        entry.setBody("About a behavior");
+        entry.setBehaviorKey(behaviorKey);
+        entry.setTimestamp(timestamp);
+        return journalEntryRepository.save(entry);
+    }
+
     private JournalEntry savedEntry(User user, JournalEntryType type, Integer sourceId) {
         JournalEntry entry = new JournalEntry();
         entry.setUser(user);

@@ -24,6 +24,12 @@ public class DemoSession implements Serializable {
     private Set<String> sessionTrackedTickers = new HashSet<>();
     // copied entry id to the template entry it came from; entries the visitor writes have none
     private Map<Integer, Integer> templateEntryIds = new HashMap<>();
+    // the visitor's reactions to the template's behaviors, never saved
+    private Map<BehaviorKey, BehaviorFeedback> insightFeedback = new HashMap<>();
+
+    public Map<BehaviorKey, BehaviorFeedback> getInsightFeedback() {
+        return insightFeedback;
+    }
 
     public JsonNode getHoldingsLayout() {
         return holdingsLayout;

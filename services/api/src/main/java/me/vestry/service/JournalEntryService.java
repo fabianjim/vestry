@@ -1,5 +1,6 @@
 package me.vestry.service;
 
+import me.vestry.model.BehaviorKey;
 import me.vestry.model.JournalEntry;
 import me.vestry.model.JournalEntryType;
 import me.vestry.model.Stock;
@@ -88,6 +89,7 @@ public class JournalEntryService {
         } else if (entry.getSourceEntryId() != null) {
             throw new IllegalArgumentException("Only reflections can link to a source entry");
         }
+        checkBehaviorKey(entry);
         if (entry.getTimestamp() == null) {
             entry.setTimestamp(Instant.now());
         }
@@ -112,6 +114,15 @@ public class JournalEntryService {
     }
 
     static final String INITIAL_ENTRY_BODY = "Initial portfolio creation";
+
+    /** Only an INSIGHT can be written about a behavior; the key is stored in its canonical form. */
+    static void checkBehaviorKey(JournalEntry entry) {
+        if (entry.getBehaviorKey() == null) return;
+        if (entry.getEntryType() != JournalEntryType.INSIGHT) {
+            throw new IllegalArgumentException("Only insights can be written about a behavior");
+        }
+        entry.setBehaviorKey(BehaviorKey.parse(entry.getBehaviorKey()).toString());
+    }
 
     static String autoSellBody(double shares, String ticker) {
         return "Sold " + shares + " " + ticker;

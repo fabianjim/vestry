@@ -176,6 +176,33 @@ public class JournalEntryServiceTest {
     }
 
     @Test
+    void insightKeepsItsBehaviorKey() {
+        when(journalEntryRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        JournalEntry entry = behaviorEntry(JournalEntryType.INSIGHT, "emotional:anxious");
+        journalEntryService.createEntry(entry, List.of());
+        ArgumentCaptor<JournalEntry> captor = ArgumentCaptor.forClass(JournalEntry.class);
+        verify(journalEntryRepository).save(captor.capture());
+        assertEquals("emotional:anxious", captor.getValue().getBehaviorKey());
+    }
+
+    @Test
+    void onlyInsightsWithValidKeysCanBeAboutABehavior() {
+        JournalEntry buy = behaviorEntry(JournalEntryType.BUY, "fomo");
+        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(buy, List.of()));
+        JournalEntry invalid = behaviorEntry(JournalEntryType.INSIGHT, "Emotional");
+        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(invalid, List.of()));
+        verify(journalEntryRepository, never()).save(any());
+    }
+
+    private static JournalEntry behaviorEntry(JournalEntryType type, String behaviorKey) {
+        JournalEntry entry = new JournalEntry();
+        entry.setEntryType(type);
+        entry.setBody("About a behavior");
+        entry.setBehaviorKey(behaviorKey);
+        return entry;
+    }
+
+    @Test
     void deletingSourceConvertsAllLinkedReflectionsAndPreservesTheirContent() {
         reflectionSource();
         JournalEntry first = newReflection();

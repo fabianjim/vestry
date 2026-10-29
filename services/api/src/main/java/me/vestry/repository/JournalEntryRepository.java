@@ -28,6 +28,8 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, Inte
 
     List<JournalEntry> findTop6ByUserIdOrderByTimestampDescIdDesc(int userId);
 
+    List<JournalEntry> findTop500ByUserIdAndBehaviorKeyIsNotNullOrderByTimestampDescIdDesc(int userId);
+
     List<JournalEntry> findByUserIdOrderByTimestampDesc(int userId);
 
     List<JournalEntry> findByUserIdAndTicker(int userId, String ticker);

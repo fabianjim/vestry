@@ -186,6 +186,39 @@ public class DemoSessionServiceTest {
         assertEquals(300, reflection.getSourceEntryId());
     }
 
+    @Test
+    void onlyInsightsCarryABehaviorKeyInSession() {
+        DemoSession session = new DemoSession();
+        JournalEntry buy = new JournalEntry();
+        buy.setEntryType(JournalEntryType.BUY);
+        buy.setBody("Bought");
+        buy.setBehaviorKey("fomo");
+        assertThrows(IllegalArgumentException.class,
+            () -> demoSessionService.createJournalEntry(session, demoUser, buy, List.of()));
+        assertTrue(session.getJournalEntries().isEmpty());
+
+        JournalEntry insight = new JournalEntry();
+        insight.setEntryType(JournalEntryType.INSIGHT);
+        insight.setBody("Felt anxious");
+        insight.setBehaviorKey("emotional:anxious");
+        demoSessionService.createJournalEntry(session, demoUser, insight, List.of());
+        assertEquals("emotional:anxious", session.getJournalEntries().get(0).getBehaviorKey());
+        verifyNoInteractions(journalEntryRepository);
+    }
+
+    @Test
+    void sessionCopyKeepsBehaviorKey() {
+        JournalEntry template = new JournalEntry();
+        template.setId(400);
+        template.setEntryType(JournalEntryType.INSIGHT);
+        template.setBehaviorKey("emotional:anxious");
+        when(journalEntryRepository.findByUserIdOrderByTimestampDesc(demoUser.getId())).thenReturn(List.of(template));
+
+        DemoSession session = demoSessionService.createSession(demoUser);
+
+        assertEquals("emotional:anxious", session.getJournalEntries().get(0).getBehaviorKey());
+    }
+
     @BeforeEach
     void setUp() {
         demoSessionService = new DemoSessionService(portfolioRepository,
