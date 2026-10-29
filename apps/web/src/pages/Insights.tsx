@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Navigate, useOutletContext } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import InsightCard from '../components/InsightCard'
 import JournalDetailPanel from '../components/JournalDetailPanel'
+import JournalHistory from '../components/JournalHistory'
 import type { LayoutContext } from '../components/Layout'
 import { useInsights } from '../hooks/useInsights'
 import { journalQueries } from '../services/queries'
@@ -15,12 +16,16 @@ const UNREACHABLE: InsightsState = { report: null, canRefresh: false, unavailabl
 const CARD = 'rounded-lg border border-border bg-surface p-4'
 const DISABLED = 'disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed'
 const PRIMARY = `px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors text-sm ${DISABLED}`
-const SECONDARY = `w-full px-3 py-2 bg-surface border border-border rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors text-sm ${DISABLED}`
+const QUIET = 'text-sm text-link hover:text-primary-hover transition-colors pointer-coarse:min-h-[40px] disabled:text-muted disabled:cursor-default'
+// the right column is a margin beside the report: plain sections under a rule, no cards
+const MARGIN = 'border-t border-border pt-4'
 const BUILDING = 'Building your Insights. This can take a little while.'
 
 type ViewProps = {
   state: InsightsState | undefined
   loading: boolean
+  entries: JournalEntry[] | undefined
+  entriesLoading: boolean
   isDemo: boolean
   refreshing: boolean
   refreshError: string | null
@@ -28,7 +33,7 @@ type ViewProps = {
   onOpenEntry: (entryId: number) => void
 }
 
-export function InsightsView({ state, loading, isDemo, refreshing, refreshError, onRefresh, onOpenEntry }: ViewProps) {
+export function InsightsView({ state, loading, entries, entriesLoading, isDemo, refreshing, refreshError, onRefresh, onOpenEntry }: ViewProps) {
   if (loading) return <p className="text-sm text-muted">Loading Insights…</p>
 
   const report = state?.report ?? null
@@ -85,19 +90,23 @@ export function InsightsView({ state, loading, isDemo, refreshing, refreshError,
   if (isDemo) {
     action = <p className="text-sm text-muted">Prepared for the demo</p>
   } else if (refreshing) {
-    action = <button type="button" disabled className={SECONDARY}>Building…</button>
+    action = <button type="button" disabled className={QUIET}>Building…</button>
   } else if (state?.canRefresh) {
-    action = <button type="button" onClick={onRefresh} className={SECONDARY}>Refresh</button>
+    action = <button type="button" onClick={onRefresh} className={QUIET}>Refresh</button>
   } else {
-    action = <button type="button" disabled className={SECONDARY}>Refreshed today</button>
+    action = <button type="button" disabled className={QUIET}>Refreshed today</button>
   }
   const upTo = journalUpTo(report.entriesUpTo)
 
   return (
     <div>
       <header className="mb-6">
-        <h2 className="text-2xl font-90 tracking-tight">Your Insights</h2>
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="text-2xl font-90 tracking-tight">Your Insights</h2>
+          <div className="shrink-0">{action}</div>
+        </div>
         <p className="text-sm text-muted mt-1">{refreshing ? BUILDING : upTo && `Your journal up to ${upTo}`}</p>
+        {error && <div className="mt-2">{error}</div>}
       </header>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-10">
         <article aria-label="Your Insights" className="min-w-0 lg:col-span-2 border-t border-border">
@@ -123,21 +132,12 @@ export function InsightsView({ state, loading, isDemo, refreshing, refreshError,
           <About />
         </article>
 
-        {/* contents below lg, so the summary leads the page on phones and Still forming closes it */}
+        {/* contents below lg, so the history leads the page on phones and Still forming closes it */}
         <aside className="contents lg:block lg:self-start lg:sticky lg:top-6 lg:space-y-6">
-          <section aria-label="This report" className={`${CARD} max-lg:order-first`}>
-            <p className="flex items-baseline gap-2">
-              <span className="text-3xl font-90 tabular-nums">{patterns.length}</span>
-              <span className="text-sm text-muted">{patterns.length === 1 ? 'pattern' : 'patterns'} found</span>
-            </p>
-            <div className="mt-4 space-y-3">
-              {action}
-              {error}
-            </div>
-          </section>
+          <JournalHistory report={report} entries={entries} loading={entriesLoading} className={`${MARGIN} max-lg:order-first`} />
 
           {patterns.length > 1 && (
-            <nav aria-label="Findings" className={`${CARD} max-lg:hidden`}>
+            <nav aria-label="Findings" className={`${MARGIN} max-lg:hidden`}>
               <h2 className="text-sm font-130 mb-1">Findings</h2>
               <ul>
                 {patterns.map((pattern, i) => (
@@ -154,7 +154,7 @@ export function InsightsView({ state, loading, isDemo, refreshing, refreshError,
           )}
 
           {patterns.length > 0 && needs.length > 0 && (
-            <section aria-label="Still forming" className={`${CARD} max-lg:order-last`}>
+            <section aria-label="Still forming" className={`${MARGIN} max-lg:order-last`}>
               <h2 className="text-sm font-130">Still forming</h2>
               <NeedList needs={needs} />
             </section>
@@ -222,6 +222,7 @@ export default function Insights() {
   const client = useQueryClient()
   const { availability, available, query, refresh } = useInsights()
   const [selected, setSelected] = useState<JournalEntry | null>(null)
+  const entries = useQuery({ ...journalQueries.entries(), enabled: !!query.data?.report?.entriesUpTo })
 
   if (availability.data?.available === false) return <Navigate to="/dashboard" replace />
 
@@ -238,6 +239,8 @@ export default function Insights() {
       <InsightsView
         state={availability.isError || query.isError ? UNREACHABLE : query.data}
         loading={availability.isPending || (available && query.isPending)}
+        entries={entries.data}
+        entriesLoading={entries.isPending}
         isDemo={isDemo}
         refreshing={refresh.isPending}
         refreshError={refresh.error ? refresh.error.message : null}

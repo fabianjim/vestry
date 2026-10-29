@@ -3,6 +3,7 @@ import { renderToString } from 'react-dom/server'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createQueryClient } from '../services/queryClient'
 import type { InsightReport, InsightsState } from '../types/insights'
+import type { JournalEntry } from '../types/journal'
 import { InsightsView } from './Insights'
 
 const report: InsightReport = {
@@ -22,11 +23,17 @@ const report: InsightReport = {
   ],
   needs: [{ kind: 'silent_trades', more: 2 }, { kind: 'news_drift', more: 1 }],
 }
+const entry = (id: number, timestamp: string): JournalEntry => ({
+  id, timestamp, entryType: 'INSIGHT', body: '', ticker: null, priceSnapshot: null, tags: [],
+})
+const entries = [entry(12, '2026-10-12T14:00:00Z'), entry(14, '2026-10-20T14:00:00Z'), entry(15, '2026-10-20T16:00:00Z')]
 const noop = () => {}
-const render = (state: InsightsState | undefined, options: Partial<{ loading: boolean; isDemo: boolean; refreshing: boolean; refreshError: string }> = {}) =>
+type Options = Partial<{ loading: boolean; entries: JournalEntry[]; entriesLoading: boolean; isDemo: boolean; refreshing: boolean; refreshError: string }>
+const render = (state: InsightsState | undefined, options: Options = {}) =>
   renderToString(
     <QueryClientProvider client={createQueryClient()}>
-      <InsightsView state={state} loading={options.loading ?? false} isDemo={options.isDemo ?? false}
+      <InsightsView state={state} loading={options.loading ?? false} entries={'entries' in options ? options.entries : entries}
+        entriesLoading={options.entriesLoading ?? false} isDemo={options.isDemo ?? false}
         refreshing={options.refreshing ?? false} refreshError={options.refreshError ?? null} onRefresh={noop} onOpenEntry={noop} />
     </QueryClientProvider>,
   )
@@ -84,5 +91,22 @@ describe('Insights page states', () => {
     expect(html).not.toContain('Refreshed today')
     expect(html).not.toContain('>Refresh<')
     expect(render({ report: null, canRefresh: false, unavailable: false }, { isDemo: true })).toContain('being prepared')
+  })
+
+  it('shows the journal the report read beside the findings, with quoted days explained', () => {
+    const html = render({ report, canRefresh: true, unavailable: false })
+    const history = html.indexOf('aria-label="Your journal in this report"')
+    expect(history).toBeGreaterThan(html.indexOf('<aside'))
+    expect(history).toBeLessThan(html.indexOf('</aside>'))
+    expect(html).toMatch(/<button[^>]*aria-label="Oct 12, 2026: 1 entry, 1 quoted in 01"/)
+    expect(html).toContain('aria-label="Oct 20, 2026: 2 entries"')
+  })
+
+  it('leaves the history out without a report or entries, and holds its space while entries load', () => {
+    expect(render({ report: null, canRefresh: true, unavailable: false })).not.toContain('Your journal in this report')
+    expect(render({ report, canRefresh: true, unavailable: false }, { entries: [] })).not.toContain('Your journal in this report')
+    const loading = render({ report, canRefresh: true, unavailable: false }, { entries: undefined, entriesLoading: true })
+    expect(loading).not.toContain('Your journal in this report')
+    expect(loading).toMatch(/<div aria-hidden="true"[^>]*><div class="h-\[148px\]"><\/div><\/div>/)
   })
 })

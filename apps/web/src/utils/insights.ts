@@ -1,4 +1,7 @@
-import type { InsightNeed, InsightPattern } from '../types/insights'
+import type { InsightNeed, InsightPattern, InsightReport } from '../types/insights'
+import type { JournalEntry } from '../types/journal'
+import { dateRange } from './calendarSelection'
+import { marketDay } from './dateUtils'
 
 // Titles and figures are written here, never by the model, so they stay fixed and plain.
 const KIND_NAMES = {
@@ -125,4 +128,72 @@ const reportDate = new Intl.DateTimeFormat('en-US', {
 /** The last day of journal a report read, in New York time like the rest of the journal. */
 export function journalUpTo(entriesUpTo: string | null): string | null {
   return entriesUpTo ? reportDate.format(new Date(entriesUpTo)) : null
+}
+
+/** One square in the journal history: a New York day, its entries and the findings quoting one of them. */
+export type HistoryDay = { date: string; entries: number; quoted: number; findings: number[]; inSpan: boolean }
+export type JournalHistory = { weeks: HistoryDay[][]; months: { label: string; column: number }[] }
+
+// hindsight reads at most the user's newest 1000 entries
+const HISTORY_ENTRIES = 1000
+const DAY_MS = 86_400_000
+// date keys are calendar days, so they're formatted in UTC to stay on the same day
+const monthName = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short' })
+const dayName = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' })
+
+const weekStart = (date: string) => new Date(Date.parse(date) - new Date(date).getUTCDay() * DAY_MS).toISOString().slice(0, 10)
+
+/**
+ * The journal a report read, as Sunday-starting weeks from the oldest entry read to the report's week.
+ * Findings are numbered as the page numbers them; null when the report read no entries.
+ */
+export function journalHistory(entries: JournalEntry[], report: InsightReport): JournalHistory | null {
+  if (!report.entriesUpTo) return null
+  const upTo = Date.parse(report.entriesUpTo)
+  const read = entries
+    .filter(entry => Date.parse(entry.timestamp) <= upTo)
+    .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))
+    .slice(0, HISTORY_ENTRIES)
+  if (!read.length) return null
+
+  const dayOf = new Map(read.map(entry => [entry.id, marketDay(entry.timestamp)]))
+  const counts = new Map<string, number>()
+  dayOf.forEach(date => counts.set(date, (counts.get(date) ?? 0) + 1))
+  const quoted = new Map<string, Set<number>>()
+  const findings = new Map<string, number[]>()
+  report.patterns.filter(pattern => isKnownKind(pattern.kind)).forEach((pattern, i) => {
+    pattern.citations.forEach(({ entryId }) => {
+      const date = dayOf.get(entryId)
+      if (!date) return
+      quoted.set(date, (quoted.get(date) ?? new Set()).add(entryId))
+      const numbers = findings.get(date) ?? []
+      if (!numbers.includes(i + 1)) findings.set(date, [...numbers, i + 1])
+    })
+  })
+
+  const last = marketDay(upTo)
+  const end = new Date(Date.parse(weekStart(last)) + 6 * DAY_MS).toISOString().slice(0, 10)
+  const days = dateRange(weekStart(dayOf.get(read[read.length - 1].id)!), end).map(date => ({
+    date,
+    entries: counts.get(date) ?? 0,
+    quoted: quoted.get(date)?.size ?? 0,
+    findings: findings.get(date) ?? [],
+    inSpan: date <= last,
+  }))
+  const weeks = Array.from({ length: days.length / 7 }, (_, i) => days.slice(i * 7, i * 7 + 7))
+  const months = weeks.flatMap((week, column) => week
+    .filter(day => day.inSpan && day.date.endsWith('-01'))
+    .map(day => ({ label: monthName.format(Date.parse(day.date)), column })))
+  return { weeks, months }
+}
+
+const numberList = (numbers: number[]) => {
+  const padded = numbers.map(n => String(n).padStart(2, '0'))
+  return padded.length > 1 ? `${padded.slice(0, -1).join(', ')} and ${padded[padded.length - 1]}` : padded[0]
+}
+
+/** What a day in the history holds, e.g. "Oct 12, 2026: 2 entries, 1 quoted in 01 and 03". */
+export function historyDayLabel(day: HistoryDay): string {
+  const label = `${dayName.format(Date.parse(day.date))}: ${plural(day.entries, 'entry', 'entries')}`
+  return day.findings.length ? `${label}, ${day.quoted} quoted in ${numberList(day.findings)}` : label
 }
