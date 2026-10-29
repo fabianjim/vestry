@@ -36,6 +36,11 @@ public class StockService {
         return stockRepository.findByTickerOrderByTimestampDesc(ticker);
     }
 
+    /** The ticker's end-of-day observations, oldest first. */
+    public List<Stock> getEodStockData(String ticker) {
+        return stockRepository.findByTickerAndTypeOrderByTimestampAsc(ticker, StockType.EOD);
+    }
+
     public Stock updateStockData(String ticker, StockType type) {
         Stock freshData = marketDataClient.getStockData(ticker, type);
         return saveFetchedStock(freshData);

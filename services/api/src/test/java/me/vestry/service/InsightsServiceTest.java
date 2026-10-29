@@ -4,7 +4,7 @@ import me.vestry.api.HindsightClient;
 import me.vestry.api.HindsightClient.Figure;
 import me.vestry.api.HindsightClient.Need;
 import me.vestry.api.HindsightClient.PatternReport;
-import me.vestry.api.HindsightClient.PatternReportRequest;
+import me.vestry.api.HindsightClient.BehaviorReportRequest;
 import me.vestry.api.HindsightClient.ReportResponse;
 import me.vestry.api.HindsightClient.ReportStatus;
 import me.vestry.model.DemoSession;
@@ -82,7 +82,7 @@ class InsightsServiceTest {
 
     @Test
     void refreshSendsVestrysFactsAndReportsWhenHindsightCannot() {
-        var request = new PatternReportRequest(TODAY, List.of(), List.of(), List.of(), List.of());
+        var request = new BehaviorReportRequest(TODAY, null, List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         when(facts.build(user)).thenReturn(request);
         when(hindsight.createPatternReport(4, request)).thenReturn(ready(report(TODAY, true)));
         assertFalse(service.refresh(user).canRefresh());

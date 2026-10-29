@@ -1,6 +1,8 @@
 package me.vestry.api;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import me.vestry.model.BehaviorFeedback;
+import me.vestry.model.RunUp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -63,17 +65,29 @@ public class HindsightClient {
     public record SavedAid(int entryId, ReflectionAid aid, LocalDate generatedOn) {}
     record SavedAidPage(List<SavedAid> aids) {}
 
-    /** Insights: vestry's market and ledger facts. Hindsight reads entry text itself. */
-    public record PatternReportRequest(@JsonFormat(shape = JsonFormat.Shape.STRING) LocalDate asOf,
-                                       List<EntryOutcome> outcomes, List<LedgerTrade> trades,
-                                       List<HoldingPeriod> holdingPeriods, List<Integer> autoEntryIds) {}
-    /** {@code kind} is SOLD (the entry's holding period closed at {@code price}) or LATEST. */
-    public record EntryOutcome(int entryId, double price, String kind,
-                               @JsonFormat(shape = JsonFormat.Shape.STRING) LocalDate on) {}
+    /** Insights: vestry's market and ledger facts. Hindsight reads entry text itself and trusts these numbers. */
+    public record BehaviorReportRequest(@JsonFormat(shape = JsonFormat.Shape.STRING) LocalDate asOf,
+                                        Double portfolioValue, List<LedgerTrade> trades,
+                                        List<HoldingPeriod> holdingPeriods, List<Position> holdings,
+                                        List<Integer> autoEntryIds, List<Feedback> feedback,
+                                        List<BehaviorNote> behaviorNotes) {}
+    /**
+     * The run-up, weight and outcome fields describe buys only. {@code outcomeKind} is SOLD (the buy's holding
+     * period closed at {@code outcomePrice}) or LATEST (the period is open), all three null when unknown.
+     */
     public record LedgerTrade(int tradeId, String ticker, String side, double shares, double price,
-                              @JsonFormat(shape = JsonFormat.Shape.STRING) Instant timestamp, boolean initial) {}
+                              @JsonFormat(shape = JsonFormat.Shape.STRING) Instant timestamp, boolean initial,
+                              Double runUp, RunUp.Status runUpStatus, Double weightAtBuy, Double outcomePrice,
+                              String outcomeKind, @JsonFormat(shape = JsonFormat.Shape.STRING) LocalDate outcomeOn) {}
+    /** {@code cost} is the period's total buy cost. */
     public record HoldingPeriod(String ticker, @JsonFormat(shape = JsonFormat.Shape.STRING) Instant openedAt,
-                                @JsonFormat(shape = JsonFormat.Shape.STRING) Instant closedAt, Double pnl) {}
+                                @JsonFormat(shape = JsonFormat.Shape.STRING) Instant closedAt, double cost, Double pnl) {}
+    /** An open position now; {@code weight} is its share of the portfolio value. */
+    public record Position(String ticker, double marketValue, double weight, String sector, Double possibleMonthlyLoss) {}
+    public record Feedback(String kind, String subject, BehaviorFeedback.Reaction reaction, String note,
+                           @JsonFormat(shape = JsonFormat.Shape.STRING) LocalDate reportDay,
+                           @JsonFormat(shape = JsonFormat.Shape.STRING) Instant at) {}
+    public record BehaviorNote(String kind, String subject, int entryId) {}
     /** Kinds, subjects, keys and units stay strings, so a kind hindsight adds later parses; callers skip it. */
     public record Figure(String key, double value, String unit) {}
     public record Pattern(String kind, String subject, List<Figure> figures, String observation, String question,
@@ -221,7 +235,7 @@ public class HindsightClient {
      * Runs on a user's click, so like {@link #reflectionAid} it waits for the model and skips the breaker.
      * Hindsight returns today's saved report without a model call if there is one.
      */
-    public ReportResponse createPatternReport(int userId, PatternReportRequest facts) {
+    public ReportResponse createPatternReport(int userId, BehaviorReportRequest facts) {
         if (!isEnabled()) return ReportResponse.UNAVAILABLE;
         var headers = new HttpHeaders();
         headers.setBearerAuth(token);

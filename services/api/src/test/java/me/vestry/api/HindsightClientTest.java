@@ -2,6 +2,7 @@ package me.vestry.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
+import me.vestry.model.RunUp;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -328,12 +329,12 @@ class HindsightClientTest {
                            "question": "q", "citations": [], "addedLater": true}],
              "needs": [{"kind": "silent_trades", "more": 2}]}
             """;
-    private static final HindsightClient.PatternReportRequest FACTS = new HindsightClient.PatternReportRequest(
-            LocalDate.of(2026, 10, 27),
-            List.of(new HindsightClient.EntryOutcome(12, 141.2, "LATEST", LocalDate.of(2026, 10, 27))),
-            List.of(new HindsightClient.LedgerTrade(7, "NVDA", "BUY", 3, 120.5, Instant.parse("2026-03-03T15:00:00Z"), false)),
-            List.of(new HindsightClient.HoldingPeriod("NVDA", Instant.parse("2026-03-03T15:00:00Z"), null, 62.1)),
-            List.of(3, 9));
+    private static final HindsightClient.BehaviorReportRequest FACTS = new HindsightClient.BehaviorReportRequest(
+            LocalDate.of(2026, 10, 27), null,
+            List.of(new HindsightClient.LedgerTrade(7, "NVDA", "BUY", 3, 120.5, Instant.parse("2026-03-03T15:00:00Z"), false,
+                    null, RunUp.Status.PENDING, 1.0, 141.2, "LATEST", LocalDate.of(2026, 10, 27))),
+            List.of(new HindsightClient.HoldingPeriod("NVDA", Instant.parse("2026-03-03T15:00:00Z"), null, 361.5, 62.1)),
+            List.of(), List.of(3, 9), List.of(), List.of());
 
     @Test
     void readsTheSavedReportAndKeepsWhatItDoesNotKnow() {
@@ -413,16 +414,16 @@ class HindsightClientTest {
         assertEquals(List.of("null"), upgrades);
         assertTrue(bodies.get(0).startsWith("POST "));
         var sent = new ObjectMapper().readTree(bodies.get(0).substring("POST ".length()));
-        assertEquals(List.of("asOf", "outcomes", "trades", "holdingPeriods", "autoEntryIds"), fieldNames(sent));
+        assertEquals(List.of("asOf", "portfolioValue", "trades", "holdingPeriods", "holdings", "autoEntryIds", "feedback",
+                "behaviorNotes"), fieldNames(sent));
         assertEquals("2026-10-27", sent.get("asOf").asText());
-        var outcome = sent.get("outcomes").get(0);
-        assertEquals(List.of("entryId", "price", "kind", "on"), fieldNames(outcome));
-        assertEquals("2026-10-27", outcome.get("on").asText());
         var trade = sent.get("trades").get(0);
-        assertEquals(List.of("tradeId", "ticker", "side", "shares", "price", "timestamp", "initial"), fieldNames(trade));
+        assertEquals(List.of("tradeId", "ticker", "side", "shares", "price", "timestamp", "initial", "runUp", "runUpStatus",
+                "weightAtBuy", "outcomePrice", "outcomeKind", "outcomeOn"), fieldNames(trade));
         assertEquals("2026-03-03T15:00:00Z", trade.get("timestamp").asText());
+        assertEquals("2026-10-27", trade.get("outcomeOn").asText());
         var period = sent.get("holdingPeriods").get(0);
-        assertEquals(List.of("ticker", "openedAt", "closedAt", "pnl"), fieldNames(period));
+        assertEquals(List.of("ticker", "openedAt", "closedAt", "cost", "pnl"), fieldNames(period));
         assertEquals("2026-03-03T15:00:00Z", period.get("openedAt").asText());
         assertTrue(period.get("closedAt").isNull(), "an open period sends closedAt as null, not absent");
         assertEquals(3, sent.get("autoEntryIds").get(0).asInt());
