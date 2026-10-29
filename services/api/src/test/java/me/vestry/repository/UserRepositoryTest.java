@@ -6,6 +6,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import jakarta.persistence.EntityManager;
+
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -16,6 +19,9 @@ class UserRepositoryTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Test
     void testSaveAndFindUser() {
@@ -68,5 +74,26 @@ class UserRepositoryTest {
         
         assertFalse(userRepository.existsById(userId));
         assertFalse(userRepository.existsByUsername("delete_test"));
+    }
+
+    @Test
+    void insightInputsChangedAtIsWrittenOnlyByTheMarkUpdate() {
+        int id = userRepository.saveAndFlush(new User("gate_user", "password")).getId();
+        assertTrue(userRepository.findInsightInputsChangedAt(id).isEmpty());
+        entityManager.clear();
+        User stale = userRepository.findById(id).orElseThrow();
+        entityManager.clear();
+
+        Instant changed = Instant.parse("2026-10-28T15:00:00Z");
+        userRepository.markInsightInputsChanged(id, changed);
+        assertEquals(Optional.of(changed), userRepository.findInsightInputsChangedAt(id));
+
+        // a User loaded before the mark (like the session's principal) is saved again later
+        stale.setUsername("gate_renamed");
+        userRepository.saveAndFlush(stale);
+        entityManager.clear();
+
+        assertEquals("gate_renamed", userRepository.findById(id).orElseThrow().getUsername());
+        assertEquals(Optional.of(changed), userRepository.findInsightInputsChangedAt(id));
     }
 }

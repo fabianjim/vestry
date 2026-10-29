@@ -59,6 +59,9 @@ public class JournalEntryServiceTest {
     @Mock
     private EntryEvents entryEvents;
 
+    @Mock
+    private InsightGate insightGate;
+
     @Spy
     private RealizedPnlCalculator realizedPnlCalculator = new RealizedPnlCalculator();
 
@@ -321,6 +324,7 @@ public class JournalEntryServiceTest {
         verify(journalEntryRepository).save(captor.capture());
         assertEquals(price, captor.getValue().getPriceSnapshot(), 0.01);
         verify(entryEvents).changed(1);
+        verify(insightGate).inputsChanged(mockUser.getId());
     }
 
     @Test
@@ -587,6 +591,7 @@ public class JournalEntryServiceTest {
 
         verify(journalEntryRepository).deleteById(1);
         verify(entryEvents).changed(1);
+        verify(insightGate).inputsChanged(mockUser.getId());
     }
 
     @Test

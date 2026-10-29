@@ -7,6 +7,8 @@ import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.*;
 
+import java.time.Instant;
+
 @Entity
 @Table(name = "users")
 public class User {
@@ -38,6 +40,12 @@ public class User {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "dashboard_layout")
     private JsonNode dashboardLayout;
+
+    // Insights' change gate. Written only by UserRepository.markInsightInputsChanged and read through
+    // UserRepository.findInsightInputsChangedAt, so saving a stale User never overwrites it.
+    @JsonIgnore
+    @Column(name = "insight_inputs_changed_at", insertable = false, updatable = false)
+    private Instant insightInputsChangedAt;
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     @JsonIgnore

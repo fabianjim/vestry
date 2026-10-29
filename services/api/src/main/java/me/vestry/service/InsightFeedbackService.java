@@ -23,20 +23,25 @@ public class InsightFeedbackService {
 
     private final InsightFeedbackRepository repository;
     private final Clock clock;
+    private final InsightGate insightGate;
 
-    public InsightFeedbackService(InsightFeedbackRepository repository, Clock clock) {
+    public InsightFeedbackService(InsightFeedbackRepository repository, Clock clock, InsightGate insightGate) {
         this.repository = repository;
         this.clock = clock;
+        this.insightGate = insightGate;
     }
 
     public BehaviorFeedback save(User user, BehaviorKey behavior, LocalDate reportDay, BehaviorFeedback.Reaction reaction, String note) {
         var feedback = feedback(behavior, reportDay, reaction, note);
+        BehaviorFeedback saved;
         try {
-            return upsert(user, feedback);
+            saved = upsert(user, feedback);
         } catch (DataIntegrityViolationException e) {
             // a concurrent first reaction to the same behavior inserted the row; replace it instead
-            return upsert(user, feedback);
+            saved = upsert(user, feedback);
         }
+        insightGate.inputsChanged(user.getId());
+        return saved;
     }
 
     /** Newest first, at most MAX_FEEDBACK. */

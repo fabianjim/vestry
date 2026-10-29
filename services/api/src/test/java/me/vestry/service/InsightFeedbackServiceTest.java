@@ -23,6 +23,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 @DataJpaTest
@@ -42,12 +44,13 @@ class InsightFeedbackServiceTest {
     private jakarta.persistence.EntityManager entityManager;
 
     private final MutableClock clock = new MutableClock(Instant.parse("2026-10-28T14:00:00Z"));
+    private final InsightGate gate = mock(InsightGate.class);
     private InsightFeedbackService service;
     private User user;
 
     @BeforeEach
     void setUp() {
-        service = new InsightFeedbackService(repository, clock);
+        service = new InsightFeedbackService(repository, clock, gate);
         user = savedUser("feedbackuser");
     }
 
@@ -66,6 +69,8 @@ class InsightFeedbackServiceTest {
         assertEquals("second", stored.note());
         assertEquals(DAY.plusDays(1), stored.reportDay());
         assertEquals(Instant.parse("2026-10-28T15:00:00Z"), stored.updatedAt());
+        // each reaction is a new input for the next insights report
+        verify(gate, times(2)).inputsChanged(user.getId());
     }
 
     @Test
@@ -119,7 +124,7 @@ class InsightFeedbackServiceTest {
     @Test
     void demoFeedbackStaysInTheSession() {
         InsightFeedbackRepository mockRepository = mock(InsightFeedbackRepository.class);
-        InsightFeedbackService demoService = new InsightFeedbackService(mockRepository, clock);
+        InsightFeedbackService demoService = new InsightFeedbackService(mockRepository, clock, gate);
         DemoSession session = new DemoSession();
 
         demoService.saveDemo(session, FOMO, DAY, Reaction.FITS, "first");
@@ -131,7 +136,7 @@ class InsightFeedbackServiceTest {
         assertEquals(2, session.getInsightFeedback().size());
         assertEquals("second", session.getInsightFeedback().get(FOMO).note());
         assertEquals(List.of(FOMO, ANXIOUS), demoService.listDemo(session).stream().map(BehaviorFeedback::behavior).toList());
-        verifyNoInteractions(mockRepository);
+        verifyNoInteractions(mockRepository, gate);
     }
 
     private User savedUser(String username) {

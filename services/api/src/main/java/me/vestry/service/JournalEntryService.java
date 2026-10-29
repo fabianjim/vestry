@@ -38,14 +38,16 @@ public class JournalEntryService {
     private final TransactionRepository transactionRepository;
     private final RealizedPnlCalculator realizedPnlCalculator;
     private final EntryEvents entryEvents;
+    private final InsightGate insightGate;
 
-    public JournalEntryService(JournalEntryRepository journalEntryRepository, StockService stockService, TagService tagService, TransactionRepository transactionRepository, RealizedPnlCalculator realizedPnlCalculator, EntryEvents entryEvents) {
+    public JournalEntryService(JournalEntryRepository journalEntryRepository, StockService stockService, TagService tagService, TransactionRepository transactionRepository, RealizedPnlCalculator realizedPnlCalculator, EntryEvents entryEvents, InsightGate insightGate) {
         this.journalEntryRepository = journalEntryRepository;
         this.stockService = stockService;
         this.tagService = tagService;
         this.transactionRepository = transactionRepository;
         this.realizedPnlCalculator = realizedPnlCalculator;
         this.entryEvents = entryEvents;
+        this.insightGate = insightGate;
     }
 
     private User getCurrentUser() {
@@ -243,11 +245,13 @@ public class JournalEntryService {
         }
         journalEntryRepository.deleteById(id);
         entryEvents.changed(id);
+        insightGate.inputsChanged(userId);
     }
 
     private JournalEntry saveAndNotify(JournalEntry entry) {
         JournalEntry saved = journalEntryRepository.save(entry);
         entryEvents.changed(saved.getId());
+        insightGate.inputsChanged(saved.getUser().getId());
         return saved;
     }
 

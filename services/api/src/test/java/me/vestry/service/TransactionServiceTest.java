@@ -32,6 +32,9 @@ public class TransactionServiceTest {
     private TransactionRepository transactionRepository;
 
     @Mock
+    private InsightGate insightGate;
+
+    @Mock
     private SecurityContext securityContext;
 
     @Mock
@@ -86,6 +89,7 @@ public class TransactionServiceTest {
         verify(transactionRepository).save(captor.capture());
         Transaction savedTransaction = captor.getValue();
         assertEquals(TransactionType.BUY, savedTransaction.getType());
+        verify(insightGate).inputsChanged(1);
     }
 
     @Test
