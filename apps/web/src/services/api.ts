@@ -8,6 +8,7 @@ import type { DashboardLayout } from '../utils/dashboardLayout'
 
 import type { DigestState } from '../types/digest'
 import type { ReflectionAidResult } from '../types/reflectionAid'
+import type { InsightsState } from '../types/insights'
 
 const API_BASE = '/api';
 
@@ -157,6 +158,19 @@ export const stockApi = {
     const queryParams = from ? `?from=${encodeURIComponent(from)}` : ''
     return apiClient(`/stock/history/${ticker}${queryParams}`, { signal })
   },
+}
+
+// Insights API
+export const insightsApi = {
+  availability: (signal?: AbortSignal): Promise<{ available: boolean }> =>
+    apiClient('/insights/availability', { signal }),
+
+  get: (signal?: AbortSignal): Promise<InsightsState> =>
+    apiClient('/insights', { signal }),
+
+  // builds today's report on the server, which can take several seconds
+  refresh: (): Promise<InsightsState> =>
+    apiClient('/insights/refresh', { method: 'POST', body: {} }),
 }
 
 import type { CalendarDay, Tag, CreateJournalEntryRequest, JournalEntry, JournalFilters, UpdateJournalEntryRequest } from '../types/journal'

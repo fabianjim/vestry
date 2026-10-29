@@ -45,7 +45,7 @@ test.describe('workspace pages', () => {
     test.skip(!response?.ok(), 'Demo login needs the local API (make dev).')
   })
 
-  for (const name of ['dashboard', 'analysis', 'transactions', 'journal']) {
+  for (const name of ['dashboard', 'analysis', 'transactions', 'journal', 'insights']) {
     test(`${name} fits the viewport`, async ({ page }) => {
       await page.goto(`/${name}`)
       await page.locator('main').waitFor()

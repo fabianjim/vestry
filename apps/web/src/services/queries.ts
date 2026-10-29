@@ -1,6 +1,6 @@
 import type { JournalFilters } from '../types/journal'
 import { queryOptions } from '@tanstack/react-query'
-import { journalApi, portfolioApi, stockApi, watchlistApi } from './api'
+import { insightsApi, journalApi, portfolioApi, stockApi, watchlistApi } from './api'
 
 // Cache raw responses so every screen can reuse the same request and derive its own view.
 export const portfolioQueries = {
@@ -114,5 +114,20 @@ export const journalQueries = {
   tags: (query = '') => queryOptions({
     queryKey: [...journalQueries.all, 'tags', query],
     queryFn: ({ signal }) => journalApi.getPopularTags(query, signal),
+  }),
+}
+
+export const insightsQueries = {
+  availability: () => queryOptions({
+    queryKey: ['insights-availability'],
+    queryFn: ({ signal }) => insightsApi.availability(signal),
+    staleTime: 60_000,
+    retry: false,
+  }),
+  report: () => queryOptions({
+    queryKey: ['insights'],
+    queryFn: ({ signal }) => insightsApi.get(signal),
+    staleTime: 60_000,
+    retry: false,
   }),
 }
