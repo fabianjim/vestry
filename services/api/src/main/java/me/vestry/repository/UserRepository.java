@@ -33,6 +33,17 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     @Query(value = "update users set insight_inputs_changed_at = :at where id = :userId", nativeQuery = true)
     void markInsightInputsChanged(@Param("userId") int userId, @Param("at") Instant at);
 
-    @Query("select u.insightInputsChangedAt from User u where u.id = :userId")
-    Optional<Instant> findInsightInputsChangedAt(@Param("userId") int userId);
+    @Transactional
+    @Modifying
+    @Query(value = "update users set insight_report_facts_at = :at where id = :userId", nativeQuery = true)
+    void markInsightReportFacts(@Param("userId") int userId, @Param("at") Instant at);
+
+    interface InsightGateTimes {
+        Instant getInputsChangedAt();
+        Instant getReportFactsAt();
+    }
+
+    @Query("select u.insightInputsChangedAt as inputsChangedAt, u.insightReportFactsAt as reportFactsAt"
+            + " from User u where u.id = :userId")
+    Optional<InsightGateTimes> findInsightGate(@Param("userId") int userId);
 }

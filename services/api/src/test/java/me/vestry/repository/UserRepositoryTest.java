@@ -77,23 +77,31 @@ class UserRepositoryTest {
     }
 
     @Test
-    void insightInputsChangedAtIsWrittenOnlyByTheMarkUpdate() {
+    void insightGateTimesAreWrittenOnlyByTheMarkUpdates() {
         int id = userRepository.saveAndFlush(new User("gate_user", "password")).getId();
-        assertTrue(userRepository.findInsightInputsChangedAt(id).isEmpty());
+        var fresh = userRepository.findInsightGate(id).orElseThrow();
+        assertNull(fresh.getInputsChangedAt());
+        assertNull(fresh.getReportFactsAt());
         entityManager.clear();
         User stale = userRepository.findById(id).orElseThrow();
         entityManager.clear();
 
         Instant changed = Instant.parse("2026-10-28T15:00:00Z");
+        Instant factsAt = Instant.parse("2026-10-28T14:59:00Z");
         userRepository.markInsightInputsChanged(id, changed);
-        assertEquals(Optional.of(changed), userRepository.findInsightInputsChangedAt(id));
+        userRepository.markInsightReportFacts(id, factsAt);
+        var marked = userRepository.findInsightGate(id).orElseThrow();
+        assertEquals(changed, marked.getInputsChangedAt());
+        assertEquals(factsAt, marked.getReportFactsAt());
 
-        // a User loaded before the mark (like the session's principal) is saved again later
+        // a User loaded before the marks (like the session's principal) is saved again later
         stale.setUsername("gate_renamed");
         userRepository.saveAndFlush(stale);
         entityManager.clear();
 
         assertEquals("gate_renamed", userRepository.findById(id).orElseThrow().getUsername());
-        assertEquals(Optional.of(changed), userRepository.findInsightInputsChangedAt(id));
+        var afterSave = userRepository.findInsightGate(id).orElseThrow();
+        assertEquals(changed, afterSave.getInputsChangedAt());
+        assertEquals(factsAt, afterSave.getReportFactsAt());
     }
 }
