@@ -101,6 +101,7 @@ public class DemoSessionService {
             copy.setTotalValue(tx.getTotalValue());
             copy.setUser(user);
             txCopy.add(copy);
+            session.getTemplateTransactionIds().put(copy.getId(), tx.getId());
         }
         session.setTransactions(txCopy);
 

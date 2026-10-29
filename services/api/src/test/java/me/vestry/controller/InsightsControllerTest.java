@@ -1,13 +1,20 @@
 package me.vestry.controller;
 
+import me.vestry.model.BehaviorFeedback;
+import me.vestry.model.BehaviorFeedback.Reaction;
+import me.vestry.model.BehaviorKey;
 import me.vestry.model.DemoSession;
 import me.vestry.model.User;
 import me.vestry.security.SecurityConfig;
 import me.vestry.service.DemoSessionResolver;
 import me.vestry.service.DemoSessionStore;
+import me.vestry.service.InsightFeedbackService;
+import me.vestry.service.InsightGate;
 import me.vestry.service.InsightsService;
-import me.vestry.service.InsightsService.Insights;
-import me.vestry.service.InsightsService.Report;
+import me.vestry.service.InsightsService.ReportResult;
+import me.vestry.service.InsightsService.ReportView;
+import me.vestry.service.InsightsService.Start;
+import me.vestry.service.InsightsService.StartStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -24,11 +31,13 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(InsightsController.class)
@@ -36,10 +45,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class InsightsControllerTest {
     @Autowired MockMvc mvc;
     @MockitoBean InsightsService insights;
+    @MockitoBean InsightFeedbackService feedback;
     @MockitoBean DemoSessionStore demos;
 
-    private static final Report REPORT = new Report(LocalDate.of(2026, 10, 26), LocalDate.of(2026, 10, 26),
-            Instant.parse("2026-10-26T14:03:00Z"), true, List.of(), List.of());
+    private static final LocalDate DAY = LocalDate.of(2026, 10, 28);
+    private static final ReportView REPORT = new ReportView(DAY, Instant.parse("2026-10-28T14:10:00Z"), DAY,
+            Instant.parse("2026-10-28T13:58:00Z"), List.of(), List.of());
+    private static final String FEEDBACK = """
+            {"kind": "emotional", "subject": "anxious", "reportDay": "2026-10-28", "reaction": "FITS", "note": "true"}
+            """;
 
     private static RequestPostProcessor as(User user) {
         return authentication(new UsernamePasswordAuthenticationToken(user, null, List.of()));
@@ -52,11 +66,18 @@ class InsightsControllerTest {
         return user;
     }
 
+    private DemoSession demoSession(MockHttpSession session) {
+        session.setAttribute(DemoSessionResolver.DEMO_SESSION_KEY, "demo");
+        var demoSession = new DemoSession();
+        when(demos.findAndTouch("demo", 4)).thenReturn(demoSession);
+        return demoSession;
+    }
+
     @Test
     void requiresAuthentication() throws Exception {
         mvc.perform(get("/api/insights/availability")).andExpect(status().isForbidden());
         mvc.perform(get("/api/insights")).andExpect(status().isForbidden());
-        mvc.perform(post("/api/insights/refresh").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mvc.perform(post("/api/insights/generate").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(insights);
     }
@@ -71,56 +92,90 @@ class InsightsControllerTest {
     }
 
     @Test
-    void readsTheReportAndStillAnswersWhenHindsightIsDown() throws Exception {
-        when(insights.report(any())).thenReturn(new Insights(REPORT, true, false));
-        mvc.perform(get("/api/insights").with(as(user(false))))
-                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
-                .andExpect(jsonPath("$.report.generatedOn").value("2026-10-26"))
-                .andExpect(jsonPath("$.canRefresh").value(true));
+    void generateAnswersBeforeTheReportIsBuilt() throws Exception {
+        when(insights.generate(any())).thenReturn(new Start(StartStatus.STARTED, null),
+                new Start(StartStatus.BLOCKED, InsightGate.Blocked.NOTHING_NEW), new Start(StartStatus.UNAVAILABLE, null));
 
-        when(insights.report(any())).thenReturn(new Insights(null, false, true));
-        mvc.perform(get("/api/insights").with(as(user(false))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.unavailable").value(true));
+        mvc.perform(post("/api/insights/generate").with(as(user(false))).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isAccepted()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.status").value("GENERATING"));
+        mvc.perform(post("/api/insights/generate").with(as(user(false))).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isConflict()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.blockedReason").value("NOTHING_NEW"))
+                .andExpect(jsonPath("$.error").exists());
+        mvc.perform(post("/api/insights/generate").with(as(user(false))).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isServiceUnavailable()).andExpect(header().string("Cache-Control", "no-store"));
     }
 
     @Test
-    void refreshReturnsTheReportOrAQuietError() throws Exception {
-        when(insights.refresh(any())).thenReturn(new Insights(REPORT, false, false));
-        mvc.perform(post("/api/insights/refresh").with(as(user(false))).contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
-                .andExpect(jsonPath("$.canRefresh").value(false));
-
-        when(insights.refresh(any())).thenReturn(null);
-        mvc.perform(post("/api/insights/refresh").with(as(user(false))).contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.error").value("Couldn't refresh Insights right now"));
-    }
-
-    @Test
-    void refreshMustBeJson() throws Exception {
-        mvc.perform(post("/api/insights/refresh").with(as(user(false))).contentType(MediaType.TEXT_PLAIN).content("{}"))
+    void generateMustBeJson() throws Exception {
+        mvc.perform(post("/api/insights/generate").with(as(user(false))).contentType(MediaType.TEXT_PLAIN).content("{}"))
                 .andExpect(status().isUnsupportedMediaType());
         verifyNoInteractions(insights);
     }
 
     @Test
-    void demoVisitorsReadThePreparedReportAndCannotRefresh() throws Exception {
-        var demo = user(true);
+    void demoVisitorsCannotGenerate() throws Exception {
         var session = new MockHttpSession();
-        session.setAttribute(DemoSessionResolver.DEMO_SESSION_KEY, "demo");
-        var demoSession = new DemoSession();
-        when(demos.findAndTouch("demo", 4)).thenReturn(demoSession);
-        when(insights.reportDemo(same(demoSession), argThat(u -> u.getId() == 4))).thenReturn(new Insights(REPORT, false, false));
+        demoSession(session);
 
-        mvc.perform(get("/api/insights").with(as(demo)).session(session))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.canRefresh").value(false));
-        mvc.perform(post("/api/insights/refresh").with(as(demo)).session(session)
+        mvc.perform(post("/api/insights/generate").with(as(user(true))).session(session)
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("In the demo, Insights are prepared for you"));
-        verify(insights, never()).report(any());
-        verify(insights, never()).refresh(any());
+                .andExpect(jsonPath("$.error").value("In the demo, reports are prepared for you"));
+        verify(insights, never()).generate(any());
+    }
+
+    @Test
+    void readsADaysReportOrSaysWhyNot() throws Exception {
+        when(insights.report(any(), eq(DAY))).thenReturn(new ReportResult(REPORT, false), new ReportResult(null, false),
+                new ReportResult(null, true));
+
+        mvc.perform(get("/api/insights/reports/2026-10-28").with(as(user(false))))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.day").value("2026-10-28"));
+        mvc.perform(get("/api/insights/reports/2026-10-28").with(as(user(false))))
+                .andExpect(status().isNotFound()).andExpect(header().string("Cache-Control", "no-store"));
+        mvc.perform(get("/api/insights/reports/2026-10-28").with(as(user(false))))
+                .andExpect(status().isServiceUnavailable()).andExpect(header().string("Cache-Control", "no-store"));
+    }
+
+    @Test
+    void feedbackFromAUserIsSaved() throws Exception {
+        var behavior = new BehaviorKey("emotional", "anxious");
+        when(feedback.save(argThat(u -> u.getId() == 4), eq(behavior), eq(DAY), eq(Reaction.FITS), eq("true")))
+                .thenReturn(new BehaviorFeedback(behavior, DAY, Reaction.FITS, "true", Instant.parse("2026-10-29T15:00:00Z")));
+
+        mvc.perform(put("/api/insights/feedback").with(as(user(false))).contentType(MediaType.APPLICATION_JSON).content(FEEDBACK))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.reaction").value("FITS"));
+        verify(feedback, never()).saveDemo(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void feedbackFromADemoVisitorStaysInTheirSession() throws Exception {
+        var session = new MockHttpSession();
+        var demoSession = demoSession(session);
+
+        mvc.perform(put("/api/insights/feedback").with(as(user(true))).session(session)
+                        .contentType(MediaType.APPLICATION_JSON).content(FEEDBACK))
+                .andExpect(status().isOk());
+        verify(feedback).saveDemo(same(demoSession), eq(new BehaviorKey("emotional", "anxious")), eq(DAY),
+                eq(Reaction.FITS), eq("true"));
+        verify(feedback, never()).save(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void invalidBehaviorOrNoteIsABadRequest() throws Exception {
+        mvc.perform(put("/api/insights/feedback").with(as(user(false))).contentType(MediaType.APPLICATION_JSON)
+                        .content(FEEDBACK.replace("\"emotional\"", "\"Not A Kind\"")))
+                .andExpect(status().isBadRequest()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.error").value("Unknown behavior"));
+        verifyNoInteractions(feedback);
+
+        when(feedback.save(any(), any(), any(), any(), any())).thenThrow(new IllegalArgumentException("A note can be at most 1000 characters"));
+        mvc.perform(put("/api/insights/feedback").with(as(user(false))).contentType(MediaType.APPLICATION_JSON).content(FEEDBACK))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("A note can be at most 1000 characters"));
     }
 }

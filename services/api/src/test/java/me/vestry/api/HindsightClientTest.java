@@ -322,81 +322,12 @@ class HindsightClientTest {
         assertTrue(requests.isEmpty());
     }
 
-    private static final String REPORT = """
-            {"generatedOn": "2026-10-27", "asOf": "2026-10-27", "entriesUpTo": "2026-10-27T14:03:00+00:00",
-             "saved": true, "addedLater": 1,
-             "patterns": [{"kind": "felt_vs_did", "subject": "anxious",
-                           "figures": [{"key": "entries", "value": 4, "unit": "count"},
-                                       {"key": "addedLater", "value": 1, "unit": "weeks"}],
-                           "observation": "You often bought soon after writing that you felt anxious.",
-                           "question": "What did buying settle for you?",
-                           "citations": [{"entryId": 12, "quote": "I'm nervous about this"}]},
-                          {"kind": "news_drift", "subject": null, "figures": [], "observation": "o",
-                           "question": "q", "citations": [], "addedLater": true}],
-             "needs": [{"kind": "silent_trades", "more": 2}]}
-            """;
     private static final HindsightClient.BehaviorReportRequest FACTS = new HindsightClient.BehaviorReportRequest(
             LocalDate.of(2026, 10, 27), null,
             List.of(new HindsightClient.LedgerTrade(7, "NVDA", "BUY", 3, 120.5, Instant.parse("2026-03-03T15:00:00Z"), false,
                     null, RunUp.Status.PENDING, 1.0, 141.2, "LATEST", LocalDate.of(2026, 10, 27))),
             List.of(new HindsightClient.HoldingPeriod("NVDA", Instant.parse("2026-03-03T15:00:00Z"), null, 361.5, 62.1)),
             List.of(), List.of(3, 9), List.of(), List.of());
-
-    @Test
-    void readsTheSavedReportAndKeepsWhatItDoesNotKnow() {
-        body = "{\"report\": " + REPORT + "}";
-
-        var response = client().patternReport(4);
-
-        assertEquals(List.of("/v1/users/4/pattern-report?null"), requests);
-        assertEquals("GET ", bodies.get(0));
-        assertEquals(List.of("Bearer " + TOKEN), tokens);
-        assertEquals(HindsightClient.ReportStatus.READY, response.status());
-        var report = response.report();
-        assertEquals(LocalDate.of(2026, 10, 27), report.generatedOn());
-        assertEquals(Instant.parse("2026-10-27T14:03:00Z"), report.entriesUpTo());
-        assertTrue(report.saved());
-        var felt = report.patterns().get(0);
-        assertEquals("anxious", felt.subject());
-        assertEquals(new HindsightClient.Figure("entries", 4, "count"), felt.figures().get(0));
-        assertEquals(new HindsightClient.Citation(12, "I'm nervous about this"), felt.citations().get(0));
-        // unknown kinds, keys and units still parse; the service decides what to show
-        assertEquals("news_drift", report.patterns().get(1).kind());
-        assertEquals("weeks", felt.figures().get(1).unit());
-        assertEquals(List.of(new HindsightClient.Need("silent_trades", null, 2, null)), report.needs());
-    }
-
-    @Test
-    void noSavedReportIsReadyAndEmpty() {
-        body = "{\"report\": null}";
-
-        assertEquals(new HindsightClient.ReportResponse(HindsightClient.ReportStatus.READY, null), client().patternReport(4));
-    }
-
-    @ParameterizedTest
-    @ValueSource(ints = {401, 404, 422, 500})
-    void reportReadFailuresAreUnavailable(int code) {
-        status = code;
-
-        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, client().patternReport(4));
-    }
-
-    @Test
-    void reportReadSurvivesBadResponsesSlownessAndOutages() {
-        body = "{\"report\": [";
-        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, client().patternReport(4));
-        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, new HindsightClient("", TOKEN, clock).patternReport(4));
-
-        body = "{\"report\": null}";
-        delayMillis = 5_000;
-        long started = System.nanoTime();
-        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, client().patternReport(4));
-        assertTrue(Duration.ofNanos(System.nanoTime() - started).toMillis() < 4_000, "read timeout should cut it off");
-
-        var client = client();
-        server.stop(0);
-        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, client.patternReport(4));
-    }
 
     @Test
     void reportReadsShareTheBreakerWithPageReads() {
@@ -410,7 +341,6 @@ class HindsightClientTest {
         status = 200;
         body = "{\"report\": null}";
         client.insights(4, List.of(7));
-        client.patternReport(4);
         assertEquals(HindsightClient.ReportListResponse.UNAVAILABLE, client.listBehaviorReports(4, null, 10));
         assertEquals(HindsightClient.BehaviorReportResponse.UNAVAILABLE, client.getBehaviorReport(4, LocalDate.of(2026, 10, 28)));
         assertEquals(HindsightClient.BREAKER_FAILURES, requests.size(), "paused calls never reach hindsight");
@@ -442,27 +372,6 @@ class HindsightClientTest {
 
         assertEquals(new HindsightClient.BehaviorReportResponse(HindsightClient.ReportStatus.READY, PARSED_BEHAVIOR_REPORT),
                 response);
-    }
-
-    @ParameterizedTest
-    @ValueSource(ints = {401, 404, 422, 500, 503})
-    void reportGenerationFailuresAreUnavailable(int code) {
-        status = code;
-        body = "{\"detail\": \"AI is off\"}";
-
-        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, client().createPatternReport(4, FACTS));
-    }
-
-    @Test
-    void reportGenerationSurvivesBadResponsesAndOutages() {
-        body = "{\"patterns\": [";
-        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, client().createPatternReport(4, FACTS));
-        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE,
-                new HindsightClient("", TOKEN, clock).createPatternReport(4, FACTS));
-
-        var client = client();
-        server.stop(0);
-        assertEquals(HindsightClient.ReportResponse.UNAVAILABLE, client.createPatternReport(4, FACTS));
     }
 
     @Test
@@ -568,6 +477,42 @@ class HindsightClientTest {
 
         assertEquals(new HindsightClient.BehaviorReportResponse(HindsightClient.ReportStatus.READY, null),
                 client().getBehaviorReport(4, LocalDate.of(2026, 10, 28)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 404, 500})
+    void reportReadErrorsAreUnavailable(int code) {
+        status = code;
+        var client = client();
+
+        assertEquals(HindsightClient.ReportListResponse.UNAVAILABLE, client.listBehaviorReports(4, null, 10));
+        assertEquals(HindsightClient.BehaviorReportResponse.UNAVAILABLE, client.getBehaviorReport(4, LocalDate.of(2026, 10, 28)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"malformed", "empty", "slow"})
+    void reportReadsSurviveBadResponsesAndSlownessAndCountTowardTheBreaker(String failure) {
+        switch (failure) {
+            case "malformed" -> body = "{\"reports\": [";
+            case "empty" -> body = "";
+            // a valid answer to both reads, so only the timeout can fail them
+            default -> {
+                body = "{\"reports\": [], \"hasOlder\": false, \"lastAttempt\": null, \"report\": null}";
+                delayMillis = 3_000;
+            }
+        }
+        var client = client();
+        long started = System.nanoTime();
+
+        assertEquals(HindsightClient.ReportListResponse.UNAVAILABLE, client.listBehaviorReports(4, null, 10));
+        assertEquals(HindsightClient.BehaviorReportResponse.UNAVAILABLE, client.getBehaviorReport(4, LocalDate.of(2026, 10, 28)));
+        assertTrue(Duration.ofNanos(System.nanoTime() - started).toMillis() < 5_000, "the page timeout cuts both reads off");
+
+        delayMillis = 0;
+        status = 500;
+        client.listBehaviorReports(4, null, 10);
+        client.getBehaviorReport(4, LocalDate.of(2026, 10, 28));
+        assertEquals(3, requests.size(), "both failures counted, so one more pauses the reads");
     }
 
     @ParameterizedTest

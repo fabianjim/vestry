@@ -48,18 +48,19 @@ public class DemoScheduler {
 
     // After the reflection aids. Hindsight keeps the first report of each New York day, so a rerun costs nothing.
     @Scheduled(cron = "0 45 3 * * *", zone = "America/New_York")
-    public void refreshInsights() {
+    public void generateInsights() {
         if (!insights.available()) return;
         for (var user : users.findByDemoTrue()) {
             try {
-                var response = insights.refreshDemo(user);
+                var response = insights.generateDemo(user);
                 if (response.status() == HindsightClient.ReportStatus.READY) {
-                    log.info("Refreshed demo insights: {} patterns", response.report().patterns().size());
+                    log.info("Generated the demo behavior report: {} behaviors, {} still forming",
+                            response.report().behaviors().size(), response.report().needs().size());
                 } else {
-                    log.warn("Scheduled demo insights could not be refreshed");
+                    log.warn("Scheduled demo behavior report could not be generated: {}", response.status());
                 }
             } catch (RuntimeException failure) {
-                log.warn("Scheduled demo insights could not be refreshed");
+                log.warn("Scheduled demo behavior report could not be generated");
             }
         }
     }

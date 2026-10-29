@@ -16,7 +16,6 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Clock;
 import java.time.Duration;
@@ -93,19 +92,10 @@ public class HindsightClient {
     public record BehaviorNote(String kind, String subject, int entryId) {}
     /** Kinds, subjects, keys and units stay strings, so a kind hindsight adds later parses; callers skip it. */
     public record Figure(String key, double value, String unit) {}
-    public record Pattern(String kind, String subject, List<Figure> figures, String observation, String question,
-                          List<Citation> citations) {}
     /** {@code reason} is ENTRIES, TRADES, PRICES or FIELDS. */
     public record Need(String kind, String subject, int more, String reason) {}
-    public record PatternReport(LocalDate generatedOn, LocalDate asOf, Instant entriesUpTo, boolean saved,
-                                List<Pattern> patterns, List<Need> needs) {}
-    record SavedPatternReport(PatternReport report) {}
     /** FAILED_TODAY only answers a POST: the day's attempt failed, so the day is used. */
     public enum ReportStatus { READY, FAILED_TODAY, UNAVAILABLE }
-    /** READY with no report means hindsight has none saved for the user yet. */
-    public record ReportResponse(ReportStatus status, PatternReport report) {
-        static final ReportResponse UNAVAILABLE = new ReportResponse(ReportStatus.UNAVAILABLE, null);
-    }
 
     /** Behavior reports. Kinds, subjects and figure keys stay strings: the vocabulary is open, and callers skip what they don't know. */
     public record Previous(LocalDate day, List<Figure> figures) {}
@@ -236,56 +226,6 @@ public class HindsightClient {
         return found;
     }
 
-    /** The user's saved Insights report. A page read, so it shares the 2 s timeout and the breaker. Never generates. */
-    public ReportResponse patternReport(int userId) {
-        if (!isEnabled() || paused()) return ReportResponse.UNAVAILABLE;
-        var headers = new HttpHeaders();
-        headers.setBearerAuth(token);
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-        try {
-            var saved = http.exchange(patternReportUri(userId), HttpMethod.GET, new HttpEntity<>(headers),
-                    SavedPatternReport.class).getBody();
-            if (saved == null) throw new IllegalStateException("empty response");
-            failures.set(0);
-            return new ReportResponse(ReportStatus.READY, saved.report());
-        } catch (RestClientResponseException failure) {
-            int status = failure.getStatusCode().value();
-            if (status == 401) log.warn("Hindsight rejected the service token (HTTP 401)");
-            else log.warn("Hindsight pattern report request failed: HTTP {}", status);
-            failed();
-        } catch (RuntimeException failure) {
-            log.warn("Hindsight pattern report request failed: {}", failure.getClass().getSimpleName());
-            failed();
-        }
-        return ReportResponse.UNAVAILABLE;
-    }
-
-    /**
-     * Runs on a user's click, so like {@link #reflectionAid} it waits for the model and skips the breaker.
-     * Hindsight returns today's saved report without a model call if there is one.
-     */
-    public ReportResponse createPatternReport(int userId, BehaviorReportRequest facts) {
-        if (!isEnabled()) return ReportResponse.UNAVAILABLE;
-        var headers = new HttpHeaders();
-        headers.setBearerAuth(token);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-        try {
-            var report = reportHttp.exchange(patternReportUri(userId), HttpMethod.POST, new HttpEntity<>(facts, headers),
-                    PatternReport.class).getBody();
-            if (report == null) throw new IllegalStateException("empty response");
-            return new ReportResponse(ReportStatus.READY, report);
-        } catch (RestClientResponseException failure) {
-            // 503: AI off or out of budget; 404: hindsight predates Insights; 422: vestry sent facts it shouldn't
-            int status = failure.getStatusCode().value();
-            if (status == 401) log.warn("Hindsight rejected the service token (HTTP 401)");
-            else log.warn("Hindsight pattern report generation failed: HTTP {}", status);
-        } catch (RuntimeException failure) {
-            log.warn("Hindsight pattern report generation failed: {}", failure.getClass().getSimpleName());
-        }
-        return ReportResponse.UNAVAILABLE;
-    }
-
     /** The user's saved reports, newest first and strictly before {@code before} if given. A page read: 2 s and the breaker. */
     public ReportListResponse listBehaviorReports(int userId, LocalDate before, int limit) {
         if (!isEnabled() || paused()) return ReportListResponse.UNAVAILABLE;
@@ -374,10 +314,6 @@ public class HindsightClient {
         } catch (RuntimeException unreadable) {
             return null;
         }
-    }
-
-    private URI patternReportUri(int userId) {
-        return UriComponentsBuilder.fromUriString(url).path("/v1/users/{userId}/pattern-report").buildAndExpand(userId).toUri();
     }
 
     private void fetch(int userId, List<Integer> ids, Map<Integer, EntryInsight> found) {

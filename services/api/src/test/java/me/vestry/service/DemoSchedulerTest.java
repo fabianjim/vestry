@@ -78,8 +78,8 @@ class DemoSchedulerTest {
     }
 
     @Test
-    void refreshesInsightsNightlyAfterTheReflectionAids() throws Exception {
-        var schedule = DemoScheduler.class.getMethod("refreshInsights").getAnnotation(Scheduled.class);
+    void generatesInsightsNightlyAfterTheReflectionAids() throws Exception {
+        var schedule = DemoScheduler.class.getMethod("generateInsights").getAnnotation(Scheduled.class);
         assertEquals("America/New_York", schedule.zone());
         var aids = CronExpression.parse(DemoScheduler.class.getMethod("refreshReflectionAids").getAnnotation(Scheduled.class).cron());
         var night = ZonedDateTime.of(2026, 10, 31, 0, 0, 0, 0, ZoneId.of(schedule.zone()));
@@ -87,18 +87,18 @@ class DemoSchedulerTest {
     }
 
     @Test
-    void insightsRefreshSkipsWhenHindsightIsOffAndSurvivesFailures() {
-        scheduler.refreshInsights();
+    void insightsGenerationSkipsWhenHindsightIsOffAndSurvivesFailures() {
+        scheduler.generateInsights();
         verifyNoInteractions(users);
 
         when(insights.available()).thenReturn(true);
         var demo = demo();
         when(users.findByDemoTrue()).thenReturn(List.of(demo, demo, demo));
-        when(insights.refreshDemo(demo)).thenThrow(new IllegalStateException("boom"))
-                .thenReturn(new HindsightClient.ReportResponse(HindsightClient.ReportStatus.UNAVAILABLE, null))
-                .thenReturn(new HindsightClient.ReportResponse(HindsightClient.ReportStatus.READY,
-                        new HindsightClient.PatternReport(null, null, null, true, List.of(), List.of())));
-        assertDoesNotThrow(scheduler::refreshInsights);
-        verify(insights, times(3)).refreshDemo(demo);
+        when(insights.generateDemo(demo)).thenThrow(new IllegalStateException("boom"))
+                .thenReturn(new HindsightClient.BehaviorReportResponse(HindsightClient.ReportStatus.UNAVAILABLE, null))
+                .thenReturn(new HindsightClient.BehaviorReportResponse(HindsightClient.ReportStatus.READY,
+                        new HindsightClient.BehaviorReport(null, null, null, null, true, List.of(), List.of())));
+        assertDoesNotThrow(scheduler::generateInsights);
+        verify(insights, times(3)).generateDemo(demo);
     }
 }

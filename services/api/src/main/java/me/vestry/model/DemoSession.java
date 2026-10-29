@@ -24,6 +24,8 @@ public class DemoSession implements Serializable {
     private Set<String> sessionTrackedTickers = new HashSet<>();
     // copied entry id to the template entry it came from; entries the visitor writes have none
     private Map<Integer, Integer> templateEntryIds = new HashMap<>();
+    // copied transaction id to the template transaction it came from; the visitor's own trades have none
+    private Map<Integer, Integer> templateTransactionIds = new HashMap<>();
     // the visitor's reactions to the template's behaviors, never saved
     private Map<BehaviorKey, BehaviorFeedback> insightFeedback = new HashMap<>();
 
@@ -103,10 +105,23 @@ public class DemoSession implements Serializable {
         this.templateEntryIds = templateEntryIds;
     }
 
+    public Map<Integer, Integer> getTemplateTransactionIds() {
+        return templateTransactionIds;
+    }
+
     /** Template entry id to the visitor's copy, for AI output that cites the template's entries. */
     public Map<Integer, Integer> copyIdsByTemplateId() {
+        return inverse(templateEntryIds);
+    }
+
+    /** Template transaction id to the visitor's copy, for behavior reports that list the template's trades. */
+    public Map<Integer, Integer> copyTransactionIdsByTemplateId() {
+        return inverse(templateTransactionIds);
+    }
+
+    private static Map<Integer, Integer> inverse(Map<Integer, Integer> copyToTemplate) {
         var copies = new HashMap<Integer, Integer>();
-        templateEntryIds.forEach((copy, template) -> copies.put(template, copy));
+        copyToTemplate.forEach((copy, template) -> copies.put(template, copy));
         return copies;
     }
 

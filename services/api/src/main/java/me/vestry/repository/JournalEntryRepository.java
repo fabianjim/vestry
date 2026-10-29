@@ -32,6 +32,8 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, Inte
 
     List<JournalEntry> findByUserIdOrderByTimestampDesc(int userId);
 
+    List<JournalEntry> findByUserIdAndIdIn(int userId, Collection<Integer> ids);
+
     List<JournalEntry> findByUserIdAndTicker(int userId, String ticker);
 
     List<JournalEntry> findByUserIdAndTimestampGreaterThanEqualAndTimestampLessThan(int userId, Instant start, Instant end);

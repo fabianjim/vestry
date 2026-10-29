@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -15,6 +16,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Intege
             int userId, Instant start, Instant end);
 
     List<Transaction> findByUserIdOrderByTimestampDesc(int userId);
+
+    List<Transaction> findByUserIdAndIdIn(int userId, Collection<Integer> ids);
     
     List<Transaction> findByUserIdAndTicker(int userId, String ticker);
 

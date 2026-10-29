@@ -315,6 +315,7 @@ public class DemoSessionServiceTest {
         assertTrue(session.getPortfolio().getHoldings().get(0).getId() < 0);
         assertEquals(1, session.getTransactions().size());
         assertTrue(session.getTransactions().get(0).getId() < 0);
+        assertEquals(Map.of(200, session.getTransactions().get(0).getId()), session.copyTransactionIdsByTemplateId());
         assertEquals(1, session.getJournalEntries().size());
         assertTrue(session.getJournalEntries().get(0).getId() < 0);
         assertEquals(1, session.getWatchlistItems().size());
