@@ -84,10 +84,36 @@ class InsightFactsServiceTest {
         // the cost is everything bought; at 110 average cost, 5 × 40 + 15 × 20 realized
         assertEquals(List.of(new HoldingPeriod("NVDA", at("2026-03-02T15:00:00Z"), at("2026-05-02T01:00:00Z"), 2200, 500.0)),
                 facts.holdingPeriods());
-        // a closed position is not a holding and needs no price
+        // a closed position is not a holding
         assertNull(facts.portfolioValue());
         assertEquals(List.of(), facts.holdings());
-        verifyNoInteractions(stocks);
+    }
+
+    @Test
+    void sellsCarryTheLatestPriceFromALaterNewYorkDayWhetherOrNotStillHeld() {
+        trade(1, "NVDA", TransactionType.BUY, 10, 100, "2026-03-02T15:00:00Z");
+        trade(2, "NVDA", TransactionType.SELL, 4, 150, "2026-04-01T15:00:00Z");
+        trade(3, "AAPL", TransactionType.BUY, 2, 200, "2026-03-02T15:00:00Z");
+        trade(4, "AAPL", TransactionType.SELL, 2, 210, "2026-04-01T15:00:00Z");
+        price("NVDA", 140);
+        price("AAPL", 230);
+
+        var facts = service.build(user);
+
+        assertEquals(Arrays.<Object>asList(140.0, "LATEST", PRICED_ON), outcome(sent(facts, 2)));
+        assertEquals(Arrays.<Object>asList(230.0, "LATEST", PRICED_ON), outcome(sent(facts, 4)));
+        // buys keep theirs
+        assertEquals(Arrays.<Object>asList(210.0, "SOLD", LocalDate.of(2026, 4, 1)), outcome(sent(facts, 3)));
+    }
+
+    @Test
+    void aSellPricedOnItsOwnNewYorkDayHasNoOutcome() {
+        trade(1, "NVDA", TransactionType.BUY, 10, 100, "2026-03-02T15:00:00Z");
+        // oct 26 in new york, like the price, though the price is already oct 27 in utc
+        trade(2, "NVDA", TransactionType.SELL, 4, 150, "2026-10-26T15:00:00Z");
+        price("NVDA", 140);
+
+        assertEquals(Arrays.asList(null, null, null), outcome(sent(service.build(user), 2)));
     }
 
     @Test

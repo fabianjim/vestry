@@ -210,8 +210,10 @@ public class InsightFactsService {
                               Map<String, Optional<Stock>> latest) {
         String ticker = key(tx.getTicker());
         if (!isBuy(tx) || buy == null) {
+            var outcome = isBuy(tx) ? null : sinceSale(tx, latest);
             return new LedgerTrade(tx.getId(), ticker, tx.getType().name(), tx.getShares(), tx.getPrice(),
-                    tx.getTimestamp(), false, null, RunUp.Status.UNAVAILABLE, null, null, null, null);
+                    tx.getTimestamp(), false, null, RunUp.Status.UNAVAILABLE, null, outcome == null ? null : outcome.price(),
+                    outcome == null ? null : outcome.kind(), outcome == null ? null : outcome.on());
         }
         var runUp = initial ? null : runUpByKey.get(RunUp.Key.of(tx.getTicker(), tx.getTimestamp()));
         RunUp.Status status = runUp == null ? RunUp.Status.UNAVAILABLE : runUp.status();
@@ -235,6 +237,15 @@ public class InsightFactsService {
         }
         return latestPrice(period.ticker, latest)
                 .map(stock -> new Outcome(stock.getCurrentPrice(), "LATEST", day(stock.getTimestamp())))
+                .orElse(null);
+    }
+
+    /** A sell's price since: the latest stored price, held or not, only from a New York day after the sale's. */
+    private Outcome sinceSale(Transaction sell, Map<String, Optional<Stock>> latest) {
+        LocalDate soldOn = day(sell.getTimestamp());
+        return latestPrice(sell.getTicker(), latest)
+                .map(stock -> new Outcome(stock.getCurrentPrice(), "LATEST", day(stock.getTimestamp())))
+                .filter(outcome -> outcome.on().isAfter(soldOn))
                 .orElse(null);
     }
 
