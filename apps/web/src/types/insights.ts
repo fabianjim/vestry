@@ -1,38 +1,8 @@
+// Behavior reports, mirroring InsightsService's views.
 // Kinds, figure keys and units stay strings: hindsight may add new ones, and the page skips what it doesn't know.
-export type InsightFigure = { key: string; value: number; unit: string }
 
 // entryExists is false once the quoted entry has been deleted
 export type InsightCitation = { entryId: number; quote: string; entryExists: boolean }
-
-export type InsightPattern = {
-  kind: string
-  subject: string | null
-  figures: InsightFigure[]
-  observation: string
-  question: string
-  citations: InsightCitation[]
-}
-
-export type InsightNeed = { kind: string; more: number }
-
-export type InsightReport = {
-  generatedOn: string
-  asOf: string
-  entriesUpTo: string | null
-  // false only for an empty report hindsight didn't store
-  saved: boolean
-  patterns: InsightPattern[]
-  needs: InsightNeed[]
-}
-
-export type InsightsState = {
-  report: InsightReport | null
-  canRefresh: boolean
-  // hindsight couldn't be reached; the rest of vestry works as usual
-  unavailable: boolean
-}
-
-// Behavior reports, mirroring InsightsService's views. The pattern types above go once the page reads these.
 
 /** Figures are counted by vestry and hindsight, never written by the model. */
 export type BehaviorFigure = { key: string; value: number; unit: string }
@@ -110,4 +80,14 @@ export type BehaviorReport = {
   entriesUpTo: string | null
   behaviors: Behavior[]
   needs: BehaviorNeed[]
+}
+
+export type OlderReports = { reports: ReportSummary[]; hasOlder: boolean; unavailable: boolean }
+
+export type FeedbackRequest = {
+  kind: string
+  subject: string | null
+  reportDay: string
+  reaction: BehaviorReaction
+  note: string | null
 }

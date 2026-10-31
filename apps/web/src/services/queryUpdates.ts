@@ -1,5 +1,4 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { InsightsState } from '../types/insights'
 import { insightsQueries, journalQueries, portfolioQueries, stockQueries } from './queries'
 
 export function refreshPrices(client: QueryClient) {
@@ -29,7 +28,7 @@ export function refreshInsights(client: QueryClient) {
   return client.invalidateQueries({ queryKey: insightsQueries.overview().queryKey })
 }
 
-// A refresh answers with the new report, so the page shows it without reading it again.
-export function setInsights(client: QueryClient, state: InsightsState) {
-  client.setQueryData(insightsQueries.report().queryKey, state)
+// Feedback and notes count as new input for the gate, and the report carries both.
+export function refreshInsightsAll(client: QueryClient) {
+  return client.invalidateQueries({ queryKey: insightsQueries.all })
 }

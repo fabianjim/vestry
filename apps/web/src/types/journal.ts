@@ -25,6 +25,8 @@ export type CreateJournalEntryRequest = {
   priceSnapshot?: number
   tags?: string[]
   sourceEntryId?: number
+  // "kind" or "kind:subject", only on an INSIGHT written about a behavior
+  behaviorKey?: string
 }
 
 export type UpdateJournalEntryRequest = {

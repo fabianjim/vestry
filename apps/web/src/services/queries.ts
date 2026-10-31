@@ -124,12 +124,6 @@ export const insightsQueries = {
     staleTime: 60_000,
     retry: false,
   }),
-  report: () => queryOptions({
-    queryKey: ['insights'],
-    queryFn: ({ signal }) => insightsApi.get(signal),
-    staleTime: 60_000,
-    retry: false,
-  }),
   all: ['insights'] as const,
   overview: () => queryOptions({
     queryKey: [...insightsQueries.all, 'overview'],
@@ -137,7 +131,7 @@ export const insightsQueries = {
     staleTime: 60_000,
     retry: false,
   }),
-  // a saved report never changes, so it stays fresh until a generate invalidates the prefix
+  // a saved report's figures never change; feedback and notes invalidate the prefix
   behaviorReport: (day: string) => queryOptions({
     queryKey: [...insightsQueries.all, 'report', day],
     queryFn: ({ signal }) => insightsApi.report(day, signal),

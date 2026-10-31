@@ -1,146 +1,184 @@
 import { describe, expect, it } from 'vitest'
-import type { InsightPattern, InsightReport } from '../types/insights'
+import type { Behavior } from '../types/insights'
 import type { JournalEntry } from '../types/journal'
-import { journalHistory, journalUpTo, kindLabel, needHint, patternContext, patternMeasures, patternTitle } from './insights'
+import {
+  behaviorName, behaviorTitle, blockedReason, consequence, evidenceTimeline, isKnownKind, kindFacts, needHint,
+  paneKey, reportDayLong, shownBehaviors, sinceLast,
+} from './insights'
+import { behavior, demoReport } from './insights.fixtures'
 
-const pattern = (kind: string, subject: string | null, figures: Record<string, number>): InsightPattern => ({
-  kind, subject, observation: '', question: '', citations: [],
-  figures: Object.entries(figures).map(([key, value]) => ({ key, value, unit: key.endsWith('days') ? 'days' : 'count' })),
-})
+const [priceAction, anxious, concentration, sizing] = demoReport.behaviors
 
-describe('pattern titles', () => {
-  it('names each kind and subject in fixed words', () => {
-    expect(patternTitle(pattern('felt_vs_did', 'anxious', {}))).toBe('After feeling anxious')
-    expect(patternTitle(pattern('outcomes_by_state', 'emotion:fomo', {}))).toBe('Outcomes when you felt FOMO')
-    expect(patternTitle(pattern('outcomes_by_state', 'conviction:high', {}))).toBe('Outcomes with high conviction')
-    expect(patternTitle(pattern('outcomes_by_state', 'idea_source:social_media', {}))).toBe('Outcomes of ideas from social media')
-    expect(patternTitle(pattern('outcomes_by_state', 'mood:odd', {}))).toBe('Outcomes by state of mind')
-    expect(patternTitle(pattern('gains_vs_losses', null, {}))).toBe('Holding period: gains vs. losses')
-    expect(patternTitle(pattern('news_drift', null, {}))).toBe('')
+describe('behavior titles', () => {
+  it('gives each kind an observable title and its common name', () => {
+    expect(behaviorTitle(priceAction)).toBe('Buying because the price was moving')
+    expect(behaviorName(priceAction)).toBe('Momentum chasing')
+    expect(behaviorTitle(anxious)).toBe('Decisions where you wrote about feeling anxious')
+    expect(behaviorTitle({ kind: 'emotional', subject: 'fomo' })).toBe('Decisions where you wrote about feeling FOMO')
+    expect(behaviorTitle({ kind: 'emotional', subject: null })).toBe('Decisions made under a strong feeling')
+    expect(behaviorTitle({ kind: 'news_drift', subject: null })).toBe('')
+  })
+
+  it('shows only the kinds it can word, in hindsight’s order', () => {
+    expect(shownBehaviors(demoReport.behaviors).map(b => b.kind)).toEqual(['price_action', 'emotional', 'risk_concentration', 'position_sizing'])
   })
 })
 
-describe('pattern measures', () => {
-  it('writes counts as "N of M" and days as days, never as percentages', () => {
-    expect(patternMeasures(pattern('felt_vs_did', 'anxious', { entries: 4, followed_by_buy: 3, followed_by_sell: 1 }))).toEqual([
-      { lead: '3', rest: 'of 4 entries followed by a buy' },
-      { lead: '1', rest: 'of 4 entries followed by a sell' },
+describe('consequence', () => {
+  it('counts gains out of the decisions with a result, not out of all of them', () => {
+    const { group, baseline } = consequence(priceAction)
+    expect(group).toEqual({ label: 'These 5 decisions', noun: 'decision', known: { pnl: 1240, avgReturn: 0.084, avgPnl: 248, detail: '4 of 5 gained' } })
+    expect(baseline).toEqual({
+      label: 'Your other 6 decisions', noun: 'decision', known: { pnl: 2210, avgReturn: 0.121, avgPnl: 442, detail: '4 of 5 gained, 1 not known yet' },
+    })
+  })
+
+  it('shows a group without outcomes as unknown, even with gains or P/L present', () => {
+    expect(consequence(anxious).group).toEqual({ label: 'These 4 decisions', noun: 'decision', known: null })
+    expect(consequence(behavior('fomo', null, { decisions: 3, gains: 0, pnl: 0, avg_return: 0 })).group?.known).toBeNull()
+    expect(consequence(behavior('fomo', null, { decisions: 3, outcomes: 0, gains: 0, pnl: 0, avg_return: 0 })).group?.known).toBeNull()
+  })
+
+  it('names holdings and closed positions for the kinds made of them, and has no baseline without its figures', () => {
+    expect(consequence(concentration)).toEqual({
+      group: { label: 'These 2 holdings', noun: 'holding', known: { pnl: 3100, avgReturn: 0.22, avgPnl: 1550, detail: '2 of 2 gained' } }, baseline: null,
+    })
+    expect(consequence(behavior('loss_aversion', null, { decisions: 1 })).group?.label).toBe('This closed position')
+  })
+})
+
+describe('kind figures', () => {
+  it('words size and possible loss, and compares with the rest of the user’s buys', () => {
+    expect(kindFacts(sizing)).toEqual([
+      'Average size: 24% of the portfolio, against 7% for your other buys',
+      '2 written with low or no stated conviction',
+      'In a bad month (about 1 in 20), this could be about −$950',
     ])
-    expect(patternMeasures(pattern('gains_vs_losses', null, {
-      gains: 6, losses: 1, gains_median_days: 40.4, losses_median_days: 1, gains_with_entry: 2, losses_with_entry: 1,
-    }))).toEqual([
-      { lead: '40 days', rest: 'median hold for gains' },
-      { lead: '1 day', rest: 'median hold for losses' },
-      { lead: '2', rest: 'of 6 gains with a note' },
-      { lead: '1', rest: 'of 1 loss with a note' },
+    expect(kindFacts(concentration)).toEqual([
+      'Largest of these: 31% of the portfolio',
+      'Their sector: 58% of the portfolio',
+      'In a bad month (about 1 in 20), this could be about −$1,840',
     ])
   })
 
-  it('ignores figure keys it does not know and leaves out measures whose figures are missing', () => {
-    expect(patternMeasures(pattern('silent_trades', null, { trades: 10, without_entry: 4, streak: 9 }))).toEqual([
-      { lead: '4', rest: 'of 10 trades without a note' },
+  it('reads median days by kind and skips keys it does not know', () => {
+    expect(kindFacts(behavior('loss_aversion', null, { median_days: 40, baseline_median_days: 12, open_losses_held_longer: 1 }))).toEqual([
+      'Losses were held 40 days at the median, against 12 days for gains',
+      '1 open loss is already held longer than a typical gain',
     ])
-    expect(patternMeasures(pattern('open_theses', null, { not_revisited: 3 }))).toEqual([])
-    expect(patternMeasures(pattern('silent_trades', null, { trades: 0, without_entry: 0 }))).toEqual([])
-    expect(patternMeasures(pattern('news_drift', null, { entries: 2 }))).toEqual([])
-  })
-
-  it('labels a finding with its kind only when the title names a subject', () => {
-    expect(kindLabel(pattern('felt_vs_did', 'anxious', {}))).toBe('Feelings and what followed')
-    expect(kindLabel(pattern('silent_trades', null, {}))).toBeNull()
-    expect(patternContext(pattern('horizon_vs_holding', 'months', {}))).toBe('Stated horizon: months')
-    expect(patternContext(pattern('silent_trades', null, {}))).toBeNull()
+    expect(kindFacts(behavior('short_term', null, { median_days: 1, mystery: 3 }))).toEqual(['Sold after 1 day at the median'])
+    expect(kindFacts(behavior('run_up', null, { median_run_up: 0.153, baseline_median_run_up: -0.02 }))).toEqual([
+      'Typical rise in the five weeks before buying: +15.3%, against −2.0% for your other buys',
+    ])
   })
 })
 
-describe('needs', () => {
-  it('says what is missing, without nudging toward a trade', () => {
-    expect(needHint({ kind: 'felt_vs_did', more: 1 })).toEqual({ name: 'Feelings and what followed', hint: 'Name a feeling in 1 more entry' })
-    expect(needHint({ kind: 'silent_trades', more: 2 })?.hint).toBe('Appears after 2 more trades')
-    expect(needHint({ kind: 'gains_vs_losses', more: 3 })?.hint).toBe('Appears after 3 more closed positions')
-    expect(needHint({ kind: 'news_drift', more: 2 })).toBeNull()
+it('says what changed since the last report holding the same behavior', () => {
+  expect(sinceLast(priceAction)).toBe('Since your report on Oct 27: 1 new decision, average return from +6.1% to +8.4%')
+  expect(sinceLast(behavior('fomo', null, { decisions: 3 }, { previous: { day: '2026-10-20', figures: [{ key: 'decisions', value: 3, unit: 'count' }] } })))
+    .toBe('Since your report on Oct 20: no new decisions')
+  expect(sinceLast(anxious)).toBeNull()
+})
+
+it('explains why Generate isn’t offered', () => {
+  const latest = { day: '2026-10-27', generatedAt: '', behaviors: [] }
+  expect(blockedReason('UPDATED_TODAY', latest)).toBe('Updated today')
+  expect(blockedReason('NOTHING_NEW', latest)).toBe('Nothing new since Oct 27')
+  expect(blockedReason('FAILED_TODAY', latest)).toBeNull()
+  expect(blockedReason(null, undefined)).toBeNull()
+})
+
+it('hints at what a behavior still forming waits for, never at trading', () => {
+  expect(needHint(demoReport.needs[0])).toEqual({ name: 'Buying without an exit plan', hint: 'Write about 2 more trades' })
+  expect(needHint(demoReport.needs[1])).toEqual({ name: 'Holding losses longer than gains', hint: 'Appears after 1 more closed position' })
+  expect(needHint({ kind: 'run_up', subject: null, more: 3, reason: 'PRICES' })?.hint).toBe('Waiting on price history')
+  expect(needHint(demoReport.needs[2])).toBeNull()
+  expect(needHint({ kind: 'fomo', subject: null, more: 0, reason: 'TRADES' })).toBeNull()
+})
+
+it('moves between cards with the arrow keys and closes on Escape', () => {
+  expect(paneKey('ArrowRight', 0, 4)).toEqual({ move: 1 })
+  expect(paneKey('ArrowRight', 3, 4)).toBeNull()
+  expect(paneKey('ArrowLeft', 2, 4)).toEqual({ move: 1 })
+  expect(paneKey('ArrowLeft', 0, 4)).toBeNull()
+  expect(paneKey('Escape', 1, 4)).toBe('close')
+  expect(paneKey('Enter', 1, 4)).toBeNull()
+})
+
+it('uses no "·" separator in any worded string', () => {
+  const every = ['no_plan', 'undocumented', 'emotional', 'fomo', 'hype', 'run_up', 'overtrading', 'overconfidence',
+    'price_action', 'loss_aversion', 'short_term', 'risk_concentration', 'position_sizing']
+  expect(every.every(isKnownKind)).toBe(true)
+  const values = Object.fromEntries(['decisions', 'outcomes', 'pnl', 'avg_return', 'gains', 'median_run_up', 'from_news_or_social',
+    'burst_weeks', 'round_trips', 'median_trades_per_week', 'right_for_wrong_reason', 'median_days', 'open_losses_held_longer',
+    'avg_weight', 'large_low_conviction', 'largest_weight', 'sector_weight', 'possible_monthly_loss']
+    .flatMap(key => [[key, 2], [`baseline_${key}`, 1]]))
+  const strings = every.flatMap(kind => {
+    const b = behavior(kind, kind === 'emotional' ? 'anxious' : null, values, { previous: { day: '2026-10-01', figures: [] } })
+    const { group, baseline } = consequence(b)
+    return [behaviorTitle(b), behaviorName(b), ...kindFacts(b), sinceLast(b) ?? '', group?.label ?? '', group?.known?.detail ?? '',
+      baseline?.label ?? '', ...['ENTRIES', 'TRADES', 'PRICES', 'FIELDS'].map(reason => needHint({ kind, subject: null, more: 2, reason })?.hint ?? '')]
   })
+  strings.push(reportDayLong('2026-10-27'), blockedReason('NOTHING_NEW', { day: '2026-10-27', generatedAt: '', behaviors: [] }) ?? '')
+  expect(strings.filter(Boolean).length).toBeGreaterThan(100)
+  expect(strings.filter(s => s.includes('·'))).toEqual([])
 })
 
-it('dates the report in New York time', () => {
-  expect(journalUpTo('2026-10-27T02:00:00Z')).toBe('Oct 26, 2026')
-  expect(journalUpTo(null)).toBeNull()
-})
-
-describe('journal history', () => {
+describe('evidence timeline', () => {
   const entry = (id: number, timestamp: string): JournalEntry => ({
     id, timestamp, entryType: 'INSIGHT', body: '', ticker: null, priceSnapshot: null, tags: [],
   })
-  const cites = (kind: string, ...entryIds: number[]): InsightPattern => ({
-    ...pattern(kind, null, {}), citations: entryIds.map(entryId => ({ entryId, quote: '', entryExists: true })),
-  })
-  const report = (entriesUpTo: string | null, patterns: InsightPattern[] = []): InsightReport => ({
-    generatedOn: '2026-10-28', asOf: '2026-10-28', entriesUpTo, saved: true, patterns, needs: [],
-  })
-  const days = (history: ReturnType<typeof journalHistory>) => history?.weeks.flat() ?? []
-  const day = (history: ReturnType<typeof journalHistory>, date: string) => days(history).find(d => d.date === date)
+  const cites = (kind: string, ...entryIds: number[]): Behavior =>
+    behavior(kind, null, {}, { citations: entryIds.map(entryId => ({ entryId, quote: '', entryExists: true })) })
+  const report = (asOf: string, behaviors: Behavior[]) => ({ asOf, behaviors })
 
-  it('counts entries by New York day, including a late evening one that is the next day in UTC', () => {
-    const history = journalHistory([
-      entry(1, '2026-10-12T14:00:00Z'),
-      entry(2, '2026-10-13T02:30:00Z'), // 22:30 on Oct 12 in New York
-      entry(3, '2026-10-13T15:00:00Z'),
-    ], report('2026-10-14T12:00:00Z'))
-    expect(day(history, '2026-10-12')).toMatchObject({ entries: 2, inSpan: true })
-    expect(day(history, '2026-10-13')).toMatchObject({ entries: 1 })
-    expect(day(history, '2026-10-11')).toMatchObject({ entries: 0, inSpan: true })
+  it('spans the months from the report’s earliest quote to its day, the same for every card', () => {
+    const entries = [entry(1, '2026-08-10T15:00:00Z'), entry(2, '2026-10-02T15:00:00Z')]
+    const both = report('2026-10-29', [cites('price_action', 2), cites('fomo', 1)])
+    const first = evidenceTimeline(entries, both, both.behaviors[0])
+    expect(first.months.map(m => m.label)).toEqual(['Aug', 'Sep', 'Oct'])
+    expect(evidenceTimeline(entries, both, both.behaviors[1]).months).toEqual(first.months)
   })
 
-  it('spans from the Sunday of the first entry’s week to the report’s week', () => {
-    // Wed Sep 30 to Wed Oct 14, 2026
-    const history = journalHistory([entry(1, '2026-10-14T12:00:00Z'), entry(2, '2026-09-30T12:00:00Z')], report('2026-10-14T12:00:00Z'))
-    expect(history?.weeks).toHaveLength(3)
-    expect(history?.weeks.every(week => week.length === 7)).toBe(true)
-    expect(history?.weeks[0][0].date).toBe('2026-09-27')
-    expect(history?.weeks[2].map(d => d.date)).toEqual(
-      ['2026-10-11', '2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17'])
-    expect(history?.weeks[2].map(d => d.inSpan)).toEqual([true, true, true, true, false, false, false])
+  it('marks only the days this behavior quoted, where each falls within its month', () => {
+    const entries = [entry(1, '2026-09-01T15:00:00Z'), entry(2, '2026-10-16T15:00:00Z'), entry(3, '2026-10-16T18:00:00Z'), entry(4, '2026-09-20T15:00:00Z')]
+    const both = report('2026-10-29', [cites('price_action', 1, 2, 3), cites('fomo', 4)])
+    const { marks } = evidenceTimeline(entries, both, both.behaviors[0])
+    expect(marks.map(m => [m.date, m.entryIds])).toEqual([['2026-09-01', [1]], ['2026-10-16', [2, 3]]])
+    // Sep 1 sits at the start of the first of two months; Oct 16 halfway through the second
+    expect(marks[0].position).toBeCloseTo(0.5 / 30 / 2)
+    expect(marks[1].position).toBeCloseTo((1 + 15.5 / 31) / 2)
+    expect(marks[1].label).toBe('Oct 16, 2026: 2 entries quoted')
   })
 
-  it('leaves out entries written after the report', () => {
-    const history = journalHistory([entry(1, '2026-10-12T12:00:00Z'), entry(2, '2026-10-20T12:00:00Z')], report('2026-10-12T12:00:00Z'))
-    expect(history?.weeks).toHaveLength(1)
-    expect(days(history).reduce((sum, d) => sum + d.entries, 0)).toBe(1)
+  it('places a late-evening entry on its New York day', () => {
+    const entries = [entry(1, '2026-10-01T02:30:00Z')] // 22:30 on Sep 30 in New York
+    const one = report('2026-10-29', [cites('price_action', 1)])
+    expect(evidenceTimeline(entries, one, one.behaviors[0]).marks[0].date).toBe('2026-09-30')
   })
 
-  it('draws only the newest 1000 entries the report could read', () => {
-    const entries = Array.from({ length: 1001 }, (_, i) => entry(i + 1, new Date(Date.UTC(2024, 0, 1, 12) + i * 86_400_000).toISOString()))
-    const history = journalHistory(entries, report(entries[1000].timestamp, [cites('felt_vs_did', 1)]))
-    expect(days(history).reduce((sum, d) => sum + d.entries, 0)).toBe(1000)
-    // Jan 1, 2024 is still drawn, in the week of the oldest entry read, but empty and not quoted
-    expect(day(history, '2024-01-01')).toMatchObject({ entries: 0, findings: [] })
-    expect(day(history, '2024-01-02')).toMatchObject({ entries: 1 })
+  it('leaves out deleted entries, entries it does not have and kinds the page skips', () => {
+    const entries = [entry(1, '2026-06-10T15:00:00Z'), entry(2, '2026-10-10T15:00:00Z')]
+    const skipped = cites('news_drift', 1)
+    const deleted = behavior('price_action', null, {}, { citations: [
+      { entryId: 2, quote: '', entryExists: false }, { entryId: 99, quote: '', entryExists: true }] })
+    const timeline = evidenceTimeline(entries, report('2026-10-29', [skipped, deleted]), deleted)
+    expect(timeline.marks).toEqual([])
+    expect(timeline.months.map(m => m.label)).toEqual(['Oct'])
   })
 
-  it('marks a quoted day with the numbers of the findings that quote it, in order', () => {
-    const history = journalHistory([entry(1, '2026-10-12T14:00:00Z'), entry(2, '2026-10-12T18:00:00Z'), entry(3, '2026-10-13T14:00:00Z')],
-      report('2026-10-13T14:00:00Z', [cites('felt_vs_did', 3, 1), cites('silent_trades'), cites('gains_vs_losses', 2, 1)]))
-    expect(day(history, '2026-10-12')).toMatchObject({ entries: 2, quoted: 2, findings: [1, 3] })
-    expect(day(history, '2026-10-13')).toMatchObject({ entries: 1, quoted: 1, findings: [1] })
+  it('stretches the months to the earliest trade on any card, so a chart and its strip share them', () => {
+    const entries = [entry(1, '2026-10-02T15:00:00Z')]
+    const traded = behavior('fomo', null, {}, { trades: [
+      { tradeId: 1, tradeExists: true, ticker: 'AAA', side: 'BUY', shares: 1, price: 1, timestamp: '2026-08-20T15:00:00Z' },
+      { tradeId: 2, tradeExists: false, ticker: null, side: null, shares: null, price: null, timestamp: null }] })
+    const both = report('2026-10-29', [cites('price_action', 1), traded])
+    expect(evidenceTimeline(entries, both, both.behaviors[0]).months.map(m => m.label)).toEqual(['Aug', 'Sep', 'Oct'])
   })
 
-  it('ignores citations of entries it does not have and from kinds the page skips', () => {
-    const history = journalHistory([entry(1, '2026-10-12T14:00:00Z'), entry(2, '2026-10-20T14:00:00Z')],
-      report('2026-10-12T14:00:00Z', [cites('news_drift', 1), cites('felt_vs_did', 99, 2), cites('silent_trades', 1)]))
-    expect(day(history, '2026-10-12')).toMatchObject({ entries: 1, quoted: 1, findings: [2] })
-    expect(days(history).filter(d => d.findings.length)).toHaveLength(1)
-  })
-
-  it('labels each month above the first week its first day appears in', () => {
-    // Thu Aug 20 to Thu Oct 15, 2026; Sep 1 is a Tuesday and Oct 1 a Thursday
-    const history = journalHistory([entry(1, '2026-08-20T12:00:00Z')], report('2026-10-15T12:00:00Z'))
-    expect(history?.weeks[0][0].date).toBe('2026-08-16')
-    expect(history?.months).toEqual([{ label: 'Sep', column: 2 }, { label: 'Oct', column: 6 }])
-  })
-
-  it('has no history without a report date or without entries it read', () => {
-    expect(journalHistory([entry(1, '2026-10-12T12:00:00Z')], report(null))).toBeNull()
-    expect(journalHistory([], report('2026-10-12T12:00:00Z'))).toBeNull()
-    expect(journalHistory([entry(1, '2026-10-20T12:00:00Z')], report('2026-10-12T12:00:00Z'))).toBeNull()
+  it('shows the year where a span crosses one', () => {
+    const entries = [entry(1, '2025-11-10T15:00:00Z')]
+    const one = report('2026-01-15', [cites('price_action', 1)])
+    expect(evidenceTimeline(entries, one, one.behaviors[0]).months.map(m => m.label)).toEqual(['Nov 2025', 'Dec', 'Jan 2026'])
   })
 })

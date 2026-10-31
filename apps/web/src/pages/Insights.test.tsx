@@ -2,111 +2,183 @@ import { describe, expect, it } from 'vitest'
 import { renderToString } from 'react-dom/server'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createQueryClient } from '../services/queryClient'
-import type { InsightReport, InsightsState } from '../types/insights'
+import { insightsQueries } from '../services/queries'
+import type { InsightsOverview } from '../types/insights'
+import { demoReport, overview } from '../utils/insights.fixtures'
+import BehaviorCard from '../components/insights/BehaviorCard'
 import type { JournalEntry } from '../types/journal'
-import { InsightsView } from './Insights'
+import { InsightsView, type Pane } from './Insights'
 
-const report: InsightReport = {
-  generatedOn: '2026-10-26', asOf: '2026-10-26', entriesUpTo: '2026-10-26T14:03:00Z', saved: true,
-  patterns: [
-    {
-      kind: 'felt_vs_did', subject: 'anxious',
-      figures: [{ key: 'entries', value: 4, unit: 'count' }, { key: 'followed_by_buy', value: 3, unit: 'count' }],
-      observation: 'You often bought soon after writing that you felt anxious.',
-      question: 'What did buying settle for you?',
-      citations: [
-        { entryId: 12, quote: "I'm nervous about this", entryExists: true },
-        { entryId: 13, quote: 'private words the user deleted', entryExists: false },
-      ],
-    },
-    { kind: 'news_drift', subject: null, figures: [], observation: 'Unknown kind', question: 'q', citations: [] },
-  ],
-  needs: [{ kind: 'silent_trades', more: 2 }, { kind: 'news_drift', more: 1 }],
-}
-const entry = (id: number, timestamp: string): JournalEntry => ({
-  id, timestamp, entryType: 'INSIGHT', body: '', ticker: null, priceSnapshot: null, tags: [],
-})
-const entries = [entry(12, '2026-10-12T14:00:00Z'), entry(14, '2026-10-20T14:00:00Z'), entry(15, '2026-10-20T16:00:00Z')]
 const noop = () => {}
-type Options = Partial<{ loading: boolean; entries: JournalEntry[]; entriesLoading: boolean; isDemo: boolean; refreshing: boolean; refreshError: string }>
-const render = (state: InsightsState | undefined, options: Options = {}) =>
-  renderToString(
-    <QueryClientProvider client={createQueryClient()}>
-      <InsightsView state={state} loading={options.loading ?? false} entries={'entries' in options ? options.entries : entries}
-        entriesLoading={options.entriesLoading ?? false} isDemo={options.isDemo ?? false}
-        refreshing={options.refreshing ?? false} refreshError={options.refreshError ?? null} onRefresh={noop} onOpenEntry={noop} />
+type Options = Partial<{ unreachable: boolean; isDemo: boolean; demoGenerated: boolean; pane: Pane; generating: boolean; generateError: string; hasOlder: boolean }>
+
+const render = (state: InsightsOverview | undefined, options: Options = {}) => {
+  const client = createQueryClient()
+  client.setQueryData(insightsQueries.behaviorReport(demoReport.day).queryKey, demoReport)
+  return renderToString(
+    <QueryClientProvider client={client}>
+      <InsightsView overview={state} unreachable={options.unreachable ?? false} loading={false} isDemo={options.isDemo ?? false} demoGenerated={options.demoGenerated ?? false}
+        pane={options.pane ?? null} generating={options.generating ?? false} generateError={options.generateError ?? null}
+        reports={state?.reports ?? []} hasOlder={options.hasOlder ?? false} loadingOlder={false} olderError={false}
+        entries={undefined}
+        onGenerate={noop} onOpen={noop} onPaneIndex={noop} onClosePane={noop} onViewPast={noop} onShowOlder={noop} onOpenEntry={noop} />
     </QueryClientProvider>,
   )
+}
+const card = (index: number): Pane => ({ kind: 'report', day: demoReport.day, index })
+const text = (html: string) => html.replace(/<!-- -->/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
 
 describe('Insights page states', () => {
-  it('shows the report with fixed titles, worded figures and quotes', () => {
-    const html = render({ report, canRefresh: true, unavailable: false })
-    expect(html).toContain('Your journal up to Oct 26, 2026')
-    expect(html).toContain('After feeling anxious')
-    expect(html).toMatch(/>3<\/span><span[^>]*>of 4 entries followed by a buy</)
-    expect(html).toContain('I&#x27;m nervous about this')
-    expect(html).toContain('A question to consider')
-    expect(html).toContain('Write an insight')
-    expect(html).toContain('>Refresh<')
-    expect(html).toContain('Still forming')
-    expect(html).toContain('Where do the numbers come from?')
-    expect(html).toContain('Appears after 2 more trades')
+  it('offers Generate before the first report', () => {
+    const html = render(overview({ reports: [], canGenerate: true, blockedReason: null }))
+    expect(html).toContain('>Generate report<')
+    expect(html).toContain('No reports yet.')
+    expect(html).not.toContain('Open latest report')
   })
 
-  it('skips kinds it does not know and never repeats a deleted entry’s words', () => {
-    const html = render({ report, canRefresh: true, unavailable: false })
-    expect(html).not.toContain('Unknown kind')
+  it('opens the latest report with a reason when Generate is gated', () => {
+    expect(text(render(overview()))).toContain('Updated today View current report')
+    expect(text(render(overview({ blockedReason: 'NOTHING_NEW' })))).toContain('Nothing new since Oct 30')
+  })
+
+  it('lists past reports with their behaviors, unknown results included, and skips unknown kinds', () => {
+    const html = text(render(overview(), { hasOlder: true }))
+    expect(html).toContain('Past Reports')
+    expect(html).toContain('Friday, Oct 30, 2026')
+    expect(html).toContain('Buying because the price was moving Momentum chasing +$1,240')
+    expect(html).toContain('Decisions where you wrote about feeling anxious Emotional decisions Results not known yet')
+    expect(html).toContain('Your largest buys Position sizing −$420')
+    expect(html).not.toContain('news_drift')
+    expect(html).toContain('Show older reports')
+  })
+
+  it('says a failed day is used, and that nothing was lost', () => {
+    const html = render(overview({ status: 'FAILED_TODAY', blockedReason: 'FAILED_TODAY' }))
+    expect(html).toContain('generate again tomorrow')
+    expect(html).toContain('View current report')
+  })
+
+  it('lists what is still forming when a run found nothing that qualifies', () => {
+    const html = text(render(overview({
+      reports: [], blockedReason: 'UPDATED_TODAY',
+      lastRun: { outcome: 'EMPTY', at: '2026-10-30T12:00:00Z', needs: [{ kind: 'fomo', subject: null, more: 2, reason: 'ENTRIES' }] },
+    })))
+    expect(html).toContain('Nothing stands out yet')
+    expect(html).toContain('Buying so as not to miss out Write about 2 more trades')
+  })
+
+  it('keeps the rest of Vestry usable when hindsight or vestry is unreachable', () => {
+    expect(render(overview({ unavailable: true, reports: [] }))).toContain('Insights can’t be reached right now')
+    expect(render(undefined, { unreachable: true })).toContain('Insights can’t be reached right now')
+  })
+
+  it('plays Generate in the demo once a report exists, and never calls it before', () => {
+    expect(render(overview({ canGenerate: true, blockedReason: null }), { isDemo: true })).toContain('>Generate report<')
+    const none = render(overview({ reports: [], canGenerate: false, blockedReason: null }), { isDemo: true })
+    expect(none).toContain('The demo’s report is being prepared.')
+    expect(none).not.toContain('Generate report')
+    const played = render(overview({ canGenerate: true, blockedReason: null }), { isDemo: true, demoGenerated: true })
+    expect(played).toContain('View current report')
+    expect(played).not.toContain('Generate report')
+  })
+
+  it('shows a generate error', () => {
+    expect(render(overview(), { generateError: 'A new report isn’t available yet' })).toContain('A new report isn’t available yet')
+  })
+})
+
+describe('report view', () => {
+  it('fills the Insights area with every card in a row, the current one shown, and circular arrows', () => {
+    const html = render(overview(), { pane: card(1) })
+    expect(html).toMatch(/class="fixed z-30/)
+    expect(text(html)).toContain('Friday, Oct 30, 2026 2 of 4')
+    expect(html).toContain('translateX(-100%)')
+    expect(html.match(/aria-hidden="false"/g)).toHaveLength(1)
+    expect(html.match(/aria-hidden="true" class="h-full w-full/g)).toHaveLength(3)
+    expect(html).toMatch(/aria-label="Previous behavior"[^>]*rounded-full/)
+    expect(html).toMatch(/aria-label="Next behavior"/)
+    expect(text(html)).not.toMatch(/\b(Previous|Next)\b(?! behavior)/)
+    expect(html).toContain('← Back')
+  })
+
+  it('closes the report with what is still forming and a way to past reports', () => {
+    const html = render(overview(), { pane: card(3) })
+    expect(text(html)).toContain('4 of 4')
+    expect(text(html)).toContain('Still forming Buying without an exit plan Write about 2 more trades')
+    expect(html).toContain('View past reports')
+    expect(html).toMatch(/aria-label="Next behavior"[^>]*disabled/)
+  })
+
+  it('shows a calm loading view while generating, with no percent or countdown', () => {
+    const html = render(overview({ status: 'GENERATING' }), { pane: { kind: 'generating' } })
+    expect(html).toContain('Reading your journal and trades')
+    expect(html).toContain('← Back')
+    expect(html).toContain('Generating…')
+    expect(html).not.toMatch(/\d+%/)
+  })
+
+  it('uses no "·" anywhere on the page', () => {
+    for (const index of [0, 1, 2, 3]) expect(render(overview(), { pane: card(index) })).not.toContain('·')
+  })
+})
+
+describe('behavior card', () => {
+  const [priceAction, anxious, concentration, sizing] = demoReport.behaviors
+  const entry = (id: number, timestamp: string): JournalEntry => ({
+    id, timestamp, entryType: 'BUY', body: '', ticker: null, priceSnapshot: null, tags: [],
+  })
+  const renderCard = (index: number, entries?: JournalEntry[]) => {
+    const behavior = [priceAction, anxious, concentration, sizing][index]
+    return renderToString(
+      <QueryClientProvider client={createQueryClient()}>
+        <BehaviorCard behavior={behavior} report={demoReport} titleId="t" entries={entries} onOpenEntry={noop} />
+      </QueryClientProvider>,
+    )
+  }
+
+  it('shows results against the baseline, the observation, quotes and a question', () => {
+    const html = renderCard(0)
+    const words = text(html)
+    expect(words).toContain('Buying because the price was moving')
+    // closed, one line each; open, how many gained and the average per decision
+    expect(words).toContain('These 5 decisions +$1,240 +8.4% 4 of 5 gained Total +$1,240 , average return +8.4% Average per decision +$248')
+    expect(words).toContain('Your other 6 decisions +$2,210 +12.1% 4 of 5 gained, 1 not known yet')
+    expect(html.match(/<details class="group\/row">/g)).toHaveLength(2)
+    expect(words).toContain('Since your report on Oct 27: 1 new decision')
+    expect(html).toContain('It keeps going up, I don’t want to be left behind')
+    // a deleted entry's words aren't shown again
     expect(html).toContain('Entry deleted')
-    expect(html).not.toContain('private words the user deleted')
-    expect(html).not.toContain('·')
+    expect(html).not.toContain('removed words')
+    expect(words).toContain('What would you have needed to see')
   })
 
-  it('offers a first build, then disables refresh for the rest of the day', () => {
-    const first = render({ report: null, canRefresh: true, unavailable: false })
-    expect(first).toContain('Build your Insights')
-    expect(first).toContain('Theses not revisited')
-    const today = render({ report, canRefresh: false, unavailable: false })
-    expect(today).toMatch(/<button[^>]*disabled[^>]*>Refreshed today</)
+  it('ends with the evidence, then the reactions and a note', () => {
+    const html = renderCard(0, [entry(21, '2026-10-16T15:00:00Z')])
+    const at = (s: string) => html.indexOf(s)
+    expect(at('Evidence')).toBeGreaterThan(at('A question to consider'))
+    expect(at('This fits')).toBeGreaterThan(at('Evidence'))
+    expect(at('Write about this')).toBeGreaterThan(at('Evidence'))
+    expect(html).toContain('aria-label="Oct 16, 2026: 1 entry quoted"')
+    expect(text(html)).toContain('Oct')
   })
 
-  it('says calmly what is happening while building, when unavailable and when there is too little history', () => {
-    const building = render({ report, canRefresh: true, unavailable: false }, { refreshing: true })
-    expect(building).toContain('Building your Insights. This can take a little while.')
-    expect(building).toMatch(/<button[^>]*disabled[^>]*>Building…</)
-    const down = render({ report: null, canRefresh: false, unavailable: true })
-    expect(down).toContain("Insights can&#x27;t be reached right now")
-    expect(down).not.toContain('Build your Insights')
-    const empty = render({ report: { ...report, saved: false, patterns: [] }, canRefresh: true, unavailable: false })
-    expect(empty).toContain('Not enough history yet')
-    expect(empty).toContain('Trades without a note')
-    expect(empty).not.toContain('aria-label="Still forming"')
-    expect(render(undefined, { loading: true })).toContain('Loading Insights…')
-    expect(render({ report, canRefresh: true, unavailable: false }, { refreshError: "Couldn't refresh Insights right now" }))
-      .toContain('role="alert"')
+  it('says when no entries are behind a behavior', () => {
+    expect(renderCard(2, [entry(21, '2026-10-16T15:00:00Z')])).toContain('No journal entries quoted for this one.')
   })
 
-  it('shows demo visitors the prepared report without a refresh button', () => {
-    const html = render({ report, canRefresh: false, unavailable: false }, { isDemo: true })
-    expect(html).toContain('Prepared for the demo')
-    expect(html).not.toContain('Refreshed today')
-    expect(html).not.toContain('>Refresh<')
-    expect(render({ report: null, canRefresh: false, unavailable: false }, { isDemo: true })).toContain('being prepared')
+  it('shows a group without outcomes as not known yet, never as gains of all decisions', () => {
+    const words = text(renderCard(1))
+    expect(words).toContain('These 4 decisions Not known yet None of these has a later price yet')
+    expect(words).not.toMatch(/of 4 gained/)
   })
 
-  it('shows the journal the report read beside the findings, with quoted days explained', () => {
-    const html = render({ report, canRefresh: true, unavailable: false })
-    const history = html.indexOf('aria-label="Your journal in this report"')
-    expect(history).toBeGreaterThan(html.indexOf('<aside'))
-    expect(history).toBeLessThan(html.indexOf('</aside>'))
-    expect(html).toMatch(/<button[^>]*aria-label="Oct 12, 2026: 1 entry, 1 quoted in 01"/)
-    expect(html).toContain('aria-label="Oct 20, 2026: 2 entries"')
+  it('keeps a behavior’s figures when hindsight left out its text', () => {
+    const html = renderCard(2)
+    expect(text(html)).toContain('In a bad month (about 1 in 20), this could be about −$1,840')
+    expect(html).not.toContain('A question to consider')
   })
 
-  it('leaves the history out without a report or entries, and holds its space while entries load', () => {
-    expect(render({ report: null, canRefresh: true, unavailable: false })).not.toContain('Your journal in this report')
-    expect(render({ report, canRefresh: true, unavailable: false }, { entries: [] })).not.toContain('Your journal in this report')
-    const loading = render({ report, canRefresh: true, unavailable: false }, { entries: undefined, entriesLoading: true })
-    expect(loading).not.toContain('Your journal in this report')
-    expect(loading).toMatch(/<div aria-hidden="true"[^>]*><div class="h-\[148px\]"><\/div><\/div>/)
+  it('shows the saved reaction', () => {
+    expect(renderCard(3)).toMatch(/aria-pressed="true"[^>]*>This fits</)
   })
 })

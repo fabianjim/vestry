@@ -1,206 +1,170 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, useOutletContext } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import InsightCard from '../components/InsightCard'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import BehaviorPane from '../components/insights/BehaviorPane'
+import PastReports from '../components/insights/PastReports'
 import JournalDetailPanel from '../components/JournalDetailPanel'
-import JournalHistory from '../components/JournalHistory'
 import type { LayoutContext } from '../components/Layout'
 import { useInsights } from '../hooks/useInsights'
+import { insightsApi } from '../services/api'
 import { journalQueries } from '../services/queries'
-import type { InsightsState } from '../types/insights'
+import type { InsightsOverview, ReportSummary } from '../types/insights'
 import type { JournalEntry } from '../types/journal'
-import { findingId, isKnownKind, journalUpTo, KIND_DESCRIPTIONS, needHint, patternTitle, type NeedHint } from '../utils/insights'
+import { blockedReason, FAILED_TODAY, needHint } from '../utils/insights'
 
-// the server answers 200 even when hindsight is down; this covers vestry itself being unreachable
-const UNREACHABLE: InsightsState = { report: null, canRefresh: false, unavailable: true }
+export type Pane = { kind: 'generating' } | { kind: 'report'; day: string; index: number } | null
+
+// the demo's Generate is played in the browser; visitors never cause a model call
+export const DEMO_LOAD_MS = 2000
 const CARD = 'rounded-lg border border-border bg-surface p-4'
 const DISABLED = 'disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed'
-const PRIMARY = `px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors text-sm ${DISABLED}`
-const QUIET = 'text-sm text-link hover:text-primary-hover transition-colors pointer-coarse:min-h-[40px] disabled:text-muted disabled:cursor-default'
-// the right column is a margin beside the report: plain sections under a rule, no cards
-const MARGIN = 'border-t border-border pt-4'
-const BUILDING = 'Building your Insights. This can take a little while.'
+const PRIMARY = `px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors text-sm pointer-coarse:min-h-[40px] ${DISABLED}`
+const SECONDARY = 'px-3 py-2 border border-border text-foreground rounded-md hover:bg-surface-hover transition-colors text-sm pointer-coarse:min-h-[40px]'
+const UNAVAILABLE = 'Insights can’t be reached right now. The rest of Vestry works as usual.'
 
 type ViewProps = {
-  state: InsightsState | undefined
+  overview: InsightsOverview | undefined
+  unreachable: boolean
   loading: boolean
-  entries: JournalEntry[] | undefined
-  entriesLoading: boolean
   isDemo: boolean
-  refreshing: boolean
-  refreshError: string | null
-  onRefresh: () => void
+  // the demo's Generate was played this visit, so it offers the report it opened
+  demoGenerated: boolean
+  pane: Pane
+  generating: boolean
+  generateError: string | null
+  reports: ReportSummary[]
+  hasOlder: boolean
+  loadingOlder: boolean
+  olderError: boolean
+  entries: JournalEntry[] | undefined
+  onGenerate: () => void
+  onOpen: (day: string, index: number) => void
+  onPaneIndex: (index: number) => void
+  onClosePane: () => void
+  onViewPast: () => void
+  onShowOlder: () => void
   onOpenEntry: (entryId: number) => void
 }
 
-export function InsightsView({ state, loading, entries, entriesLoading, isDemo, refreshing, refreshError, onRefresh, onOpenEntry }: ViewProps) {
+export function InsightsView(props: ViewProps) {
+  const { overview, unreachable, loading, isDemo, pane, generating, generateError, reports } = props
   if (loading) return <p className="text-sm text-muted">Loading Insights…</p>
-
-  const report = state?.report ?? null
-  const patterns = report?.patterns.filter(pattern => isKnownKind(pattern.kind)) ?? []
-  const needs = (report?.needs ?? []).flatMap(need => needHint(need) ?? [])
-  const error = refreshError && <p role="alert" className="text-error text-sm">{refreshError}</p>
-  const unavailable = state?.unavailable && (
-    <p className={`${CARD} text-sm text-muted`}>Insights can't be reached right now. The rest of Vestry works as usual.</p>
-  )
-
-  if (!report) {
+  if (unreachable || !overview || overview.unavailable) {
     return (
-      <div className="lg:w-2/3 space-y-6">
-        {unavailable || (
-          <article aria-label="Your Insights">
-            <header className="pb-6 border-b border-border">
-              <h2 className="text-2xl font-90 tracking-tight">Your Insights</h2>
-              <p className="text-secondary mt-2 leading-relaxed">
-                Insights look across your journal and trades for patterns you may not have noticed, between what you wrote, what you did and what happened next.
-              </p>
-            </header>
-            <ol className="divide-y divide-border border-b border-border">
-              {KIND_DESCRIPTIONS.map(({ name, description }, i) => (
-                <li key={name} className="flex gap-3 py-3 text-sm">
-                  <span className="w-6 shrink-0 text-primary tabular-nums">{String(i + 1).padStart(2, '0')}</span>
-                  <span>
-                    <span className="block">{name}</span>
-                    <span className="text-muted">{description}</span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-            <div className="flex flex-wrap items-center gap-3 mt-6">
-              {isDemo ? (
-                <p className="text-sm text-muted">The demo's Insights are being prepared.</p>
-              ) : (
-                <>
-                  <button type="button" onClick={onRefresh} disabled={refreshing || !state?.canRefresh} className={PRIMARY}>
-                    {refreshing ? 'Building…' : 'Build your Insights'}
-                  </button>
-                  {refreshing && <span className="text-sm text-muted">This can take a little while.</span>}
-                </>
-              )}
-            </div>
-            <About />
-          </article>
-        )}
-        {error}
+      <div className="space-y-6">
+        <Intro />
+        <p className={`${CARD} text-sm text-muted`}>{UNAVAILABLE}</p>
       </div>
     )
   }
 
+  const latest = reports[0]
+  const building = generating || overview.status === 'GENERATING'
   let action
+  let reason: string | null = null
+  const viewCurrent = latest && (
+    <button type="button" onClick={() => props.onOpen(latest.day, 0)} className={SECONDARY}>View current report</button>
+  )
   if (isDemo) {
-    action = <p className="text-sm text-muted">Prepared for the demo</p>
-  } else if (refreshing) {
-    action = <button type="button" disabled className={QUIET}>Building…</button>
-  } else if (state?.canRefresh) {
-    action = <button type="button" onClick={onRefresh} className={QUIET}>Refresh</button>
+    if (!latest) reason = 'The demo’s report is being prepared.'
+    else if (props.demoGenerated && !building) action = viewCurrent
+    else action = <button type="button" onClick={props.onGenerate} disabled={building} className={PRIMARY}>{building ? 'Generating…' : 'Generate report'}</button>
+  } else if (building) {
+    action = <button type="button" disabled className={PRIMARY}>Generating…</button>
+  } else if (overview.canGenerate) {
+    action = <button type="button" onClick={props.onGenerate} className={PRIMARY}>Generate report</button>
+  } else if (latest) {
+    action = viewCurrent
+    reason = overview.status === 'FAILED_TODAY' ? null : blockedReason(overview.blockedReason, latest)
   } else {
-    action = <button type="button" disabled className={QUIET}>Refreshed today</button>
+    action = <button type="button" disabled className={PRIMARY}>Generate report</button>
   }
-  const upTo = journalUpTo(report.entriesUpTo)
+
+  const lastRun = !building && overview.lastRun
+  const needs = lastRun && lastRun.outcome === 'EMPTY' ? lastRun.needs.flatMap(need => needHint(need) ?? []) : []
 
   return (
-    <div>
-      <header className="mb-6">
-        <div className="flex items-baseline justify-between gap-4">
-          <h2 className="text-2xl font-90 tracking-tight">Your Insights</h2>
-          <div className="shrink-0">{action}</div>
+    <div className="space-y-10">
+      <header className="flex flex-wrap items-end justify-between gap-x-10 gap-y-5 border-b border-border pb-8">
+        <div className="min-w-0 max-w-2xl"><Intro /></div>
+        <div className="flex flex-wrap items-center gap-3">
+          {reason && <span className="text-sm text-muted">{reason}</span>}
+          {action}
         </div>
-        <p className="text-sm text-muted mt-1">{refreshing ? BUILDING : upTo && `Your journal up to ${upTo}`}</p>
-        {error && <div className="mt-2">{error}</div>}
       </header>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-10">
-        <article aria-label="Your Insights" className="min-w-0 lg:col-span-2 border-t border-border">
-          {unavailable && <div className="mt-6">{unavailable}</div>}
-          {patterns.length > 0 ? (
-            <div className="divide-y divide-border border-b border-border">
-              {patterns.map((pattern, i) => (
-                <InsightCard key={`${pattern.kind}-${pattern.subject}`} pattern={pattern} number={i + 1} onOpenEntry={onOpenEntry} />
+      <div className="empty:hidden -mt-6 space-y-2">
+        {!building && overview.status === 'FAILED_TODAY' && <p role="status" className="text-sm text-muted">{FAILED_TODAY}</p>}
+        {lastRun && lastRun.outcome === 'UNAVAILABLE' && (
+          <p role="status" className="text-sm text-muted">The report couldn’t be generated right now. Nothing was lost; please try again later.</p>
+        )}
+        {generateError && <p role="alert" className="text-error text-sm">{generateError}</p>}
+      </div>
+
+      {lastRun && lastRun.outcome === 'EMPTY' && (
+        <section aria-label="Still forming" className={CARD}>
+          <h2 className="font-130">Nothing stands out yet</h2>
+          <p className="text-sm text-muted mt-1">A behavior appears once there’s enough history behind it.</p>
+          {needs.length > 0 && (
+            <ul className="mt-2 divide-y divide-border">
+              {needs.map(({ name, hint }) => (
+                <li key={`${name}-${hint}`} className="py-3 text-sm">
+                  <span className="block">{name}</span>
+                  <span className="text-muted">{hint}</span>
+                </li>
               ))}
-            </div>
-          ) : (
-            <div className="py-8 border-b border-border">
-              {needs.length > 0 ? (
-                <>
-                  <h3 className="text-xl font-130">Not enough history yet</h3>
-                  <NeedList needs={needs} />
-                </>
-              ) : (
-                <p className="text-muted">No patterns stood out in your journal this time.</p>
-              )}
-            </div>
+            </ul>
           )}
-          <About />
-        </article>
+        </section>
+      )}
 
-        {/* contents below lg, so the history leads the page on phones and Still forming closes it */}
-        <aside className="contents lg:block lg:self-start lg:sticky lg:top-6 lg:space-y-6">
-          <JournalHistory report={report} entries={entries} loading={entriesLoading} className={`${MARGIN} max-lg:order-first`} />
+      {pane && (
+        <BehaviorPane mode={pane} entries={props.entries}
+          onIndex={props.onPaneIndex} onClose={props.onClosePane} onViewPast={props.onViewPast} onOpenEntry={props.onOpenEntry} />
+      )}
 
-          {patterns.length > 1 && (
-            <nav aria-label="Findings" className={`${MARGIN} max-lg:hidden`}>
-              <h2 className="text-sm font-130 mb-1">Findings</h2>
-              <ul>
-                {patterns.map((pattern, i) => (
-                  <li key={`${pattern.kind}-${pattern.subject}`}>
-                    <button type="button" onClick={() => document.getElementById(findingId(i + 1))?.scrollIntoView({ block: 'start' })}
-                      className="flex w-full items-baseline gap-3 py-2 text-left text-sm text-secondary hover:text-foreground transition-colors">
-                      <span className="w-6 shrink-0 text-primary tabular-nums">{String(i + 1).padStart(2, '0')}</span>
-                      <span className="min-w-0 truncate">{patternTitle(pattern)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          )}
-
-          {patterns.length > 0 && needs.length > 0 && (
-            <section aria-label="Still forming" className={`${MARGIN} max-lg:order-last`}>
-              <h2 className="text-sm font-130">Still forming</h2>
-              <NeedList needs={needs} />
-            </section>
-          )}
-        </aside>
+      <div className="grid gap-x-16 gap-y-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <PastReports reports={reports} hasOlder={props.hasOlder} loadingOlder={props.loadingOlder} olderError={props.olderError}
+          onShowOlder={props.onShowOlder} onOpen={props.onOpen} />
+        <About />
       </div>
     </div>
   )
 }
 
-function NeedList({ needs }: { needs: NeedHint[] }) {
+function Intro() {
   return (
-    <ul className="divide-y divide-border">
-      {needs.map(({ name, hint }) => (
-        <li key={name} className="py-3 text-sm">
-          <span className="block">{name}</span>
-          <span className="text-muted">{hint}</span>
-        </li>
-      ))}
-    </ul>
+    <>
+      <h1 className="text-2xl font-90 tracking-tight">Insights</h1>
+      <p className="text-secondary mt-2 leading-relaxed max-w-prose">
+        A short report on habits in your own decisions: what you did, what you wrote, and how it went compared with the rest of your history.
+      </p>
+    </>
   )
 }
 
 const ABOUT = [
   {
     question: 'What are Insights?',
-    answer: 'Patterns across your journal and trades: what you wrote, what you did and what happened next. They describe your own history and are not investment advice.',
+    answer: 'Up to five behaviors found in your journal and trades, each set against the rest of your own history. They describe what happened, and are not investment advice.',
   },
   {
     question: 'Where do the numbers come from?',
-    answer: 'They are counted from your transactions and journal entries, not written by the AI. The AI writes only the observation and the question, and they never contain numbers.',
+    answer: 'They are counted from your transactions, stored prices and journal entries, not written by the AI. The AI writes only the observation and the question, and they never contain numbers.',
   },
   {
-    question: 'Why are some patterns still forming?',
-    answer: 'A pattern appears once there is enough history behind it. Still forming says what each one is waiting for.',
+    question: 'Why are some results not known yet?',
+    answer: 'A result needs a later price. Gains are counted only among decisions that have one, so a group with none shows its results as not known yet.',
   },
   {
-    question: 'How often does the report change?',
-    answer: 'You can refresh it once a day. Each report reads your journal up to the date shown at the top.',
+    question: 'How often can I generate a report?',
+    answer: 'At most once a day, and only when a trade, an entry or your feedback has changed since the last one. Past reports stay readable.',
   },
 ]
 
 function About() {
   return (
-    <section aria-label="About this report" className="mt-8">
-      <h3 className="text-lg font-130 mb-1">About this report</h3>
+    <section aria-label="About Insights">
+      <h2 className="text-lg font-130 mb-1">About Insights</h2>
       <div className="divide-y divide-border border-b border-border">
         {ABOUT.map(({ question, answer }) => (
           <details key={question} className="group py-3">
@@ -220,12 +184,67 @@ function About() {
 export default function Insights() {
   const { isDemo } = useOutletContext<LayoutContext>()
   const client = useQueryClient()
-  const { availability, available, query, refresh } = useInsights()
+  const { availability, available, overview, generate } = useInsights()
+  const [pane, setPane] = useState<Pane>(null)
+  const [demoLoading, setDemoLoading] = useState(false)
+  const [demoGenerated, setDemoGenerated] = useState(false)
   const [selected, setSelected] = useState<JournalEntry | null>(null)
-  const entries = useQuery({ ...journalQueries.entries(), enabled: !!query.data?.report?.entriesUpTo })
+  const [older, setOlder] = useState<{ reports: ReportSummary[]; hasOlder: boolean } | null>(null)
+  // the newest report when Generate was clicked, so a new one can be told apart
+  const latestAtClick = useRef<string | null | undefined>(undefined)
+  const returnFocus = useRef<HTMLElement | null>(null)
+  const entries = useQuery({ ...journalQueries.entries(), enabled: pane?.kind === 'report' })
+  const loadOlder = useMutation({
+    mutationFn: async (before: string) => {
+      const page = await insightsApi.olderReports(before)
+      if (page.unavailable) throw new Error('unavailable')
+      return page
+    },
+    onSuccess: page => setOlder(prev => ({ reports: [...(prev?.reports ?? []), ...page.reports], hasOlder: page.hasOlder })),
+  })
+
+  const data = overview.data
+  const reports = [...(data?.reports ?? []), ...(older?.reports ?? [])]
+
+  // a real generate ends when the POST and the overview's GENERATING have both settled
+  useEffect(() => {
+    if (isDemo || pane?.kind !== 'generating' || generate.isPending || !data || data.status === 'GENERATING') return
+    const newest = data.reports[0]?.day ?? null
+    setPane(!generate.isError && newest && newest !== latestAtClick.current ? { kind: 'report', day: newest, index: 0 } : null)
+  }, [isDemo, pane, generate.isPending, generate.isError, data])
+
+  useEffect(() => {
+    if (!demoLoading) return
+    const timer = setTimeout(() => {
+      setDemoLoading(false)
+      setDemoGenerated(true)
+      const newest = data?.reports[0]?.day
+      setPane(newest ? { kind: 'report', day: newest, index: 0 } : null)
+    }, DEMO_LOAD_MS)
+    return () => clearTimeout(timer)
+  }, [demoLoading, data])
 
   if (availability.data?.available === false) return <Navigate to="/dashboard" replace />
 
+  const rememberTrigger = () => {
+    if (!pane && document.activeElement instanceof HTMLElement) returnFocus.current = document.activeElement
+  }
+  const onGenerate = () => {
+    rememberTrigger()
+    setPane({ kind: 'generating' })
+    if (isDemo) {
+      setDemoLoading(true)
+      return
+    }
+    latestAtClick.current = data?.reports[0]?.day ?? null
+    generate.mutate()
+  }
+  const closePane = () => {
+    setPane(null)
+    setDemoLoading(false)
+    returnFocus.current?.focus()
+    returnFocus.current = null
+  }
   const openEntry = async (entryId: number) => {
     try {
       setSelected(await client.fetchQuery(journalQueries.entry(entryId)))
@@ -235,16 +254,32 @@ export default function Insights() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto mt-6 px-3 mb-8">
+    <div className="mt-6 mb-8 px-3 md:pr-8">
       <InsightsView
-        state={availability.isError || query.isError ? UNREACHABLE : query.data}
-        loading={availability.isPending || (available && query.isPending)}
-        entries={entries.data}
-        entriesLoading={entries.isPending}
+        overview={data}
+        unreachable={availability.isError || overview.isError}
+        loading={availability.isPending || (available && overview.isPending)}
         isDemo={isDemo}
-        refreshing={refresh.isPending}
-        refreshError={refresh.error ? refresh.error.message : null}
-        onRefresh={() => refresh.mutate()}
+        demoGenerated={demoGenerated}
+        pane={pane}
+        generating={generate.isPending || demoLoading}
+        generateError={generate.error && !generate.isPending ? generate.error.message : null}
+        reports={reports}
+        hasOlder={older ? older.hasOlder : !!data?.hasOlder}
+        loadingOlder={loadOlder.isPending}
+        olderError={loadOlder.isError}
+        entries={entries.data}
+        onGenerate={onGenerate}
+        onOpen={(day, index) => { rememberTrigger(); setPane({ kind: 'report', day, index }) }}
+        onPaneIndex={index => setPane(current => (current?.kind === 'report' ? { ...current, index } : current))}
+        onClosePane={closePane}
+        onViewPast={() => {
+          setPane(null)
+          returnFocus.current = null
+          // after the view has left and the page can scroll again
+          requestAnimationFrame(() => document.getElementById('past-reports')?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
+        }}
+        onShowOlder={() => { const before = reports[reports.length - 1]?.day; if (before) loadOlder.mutate(before) }}
         onOpenEntry={openEntry}
       />
       {selected && (

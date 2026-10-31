@@ -1,199 +1,260 @@
-import type { InsightNeed, InsightPattern, InsightReport } from '../types/insights'
+import type { Behavior, BehaviorFigure, BehaviorNeed, BehaviorReport, GenerateBlocked, ReportSummary } from '../types/insights'
 import type { JournalEntry } from '../types/journal'
-import { dateRange } from './calendarSelection'
 import { marketDay } from './dateUtils'
+import { formatCompactCurrency } from './formatUtils'
 
 // Titles and figures are written here, never by the model, so they stay fixed and plain.
-const KIND_NAMES = {
-  felt_vs_did: 'Feelings and what followed',
-  outcomes_by_state: 'Outcomes by state of mind',
-  horizon_vs_holding: 'Stated horizon vs. time held',
-  gains_vs_losses: 'Holding period: gains vs. losses',
-  silent_trades: 'Trades without a note',
-  open_theses: 'Theses not revisited',
+// Each kind has an observable title and its common name, shown muted beside it.
+const KINDS = {
+  no_plan: { title: 'Buying without an exit plan', name: 'No exit plan' },
+  undocumented: { title: 'Trades you didn’t write about', name: 'Undocumented trades' },
+  emotional: { title: 'Decisions made under a strong feeling', name: 'Emotional decisions' },
+  fomo: { title: 'Buying so as not to miss out', name: 'FOMO' },
+  hype: { title: 'Buying on news or social buzz', name: 'Hype' },
+  run_up: { title: 'Buying after a run-up', name: 'Chased entry' },
+  overtrading: { title: 'Busy weeks and quick round trips', name: 'Overtrading' },
+  overconfidence: { title: 'Buys made with high conviction', name: 'Overconfidence' },
+  price_action: { title: 'Buying because the price was moving', name: 'Momentum chasing' },
+  loss_aversion: { title: 'Holding losses longer than gains', name: 'Loss aversion' },
+  short_term: { title: 'Selling before your stated horizon', name: 'Short-termism' },
+  risk_concentration: { title: 'Large positions with no exit plan', name: 'Concentration risk' },
+  position_sizing: { title: 'Your largest buys', name: 'Position sizing' },
 } as const
 
-export type PatternKind = keyof typeof KIND_NAMES
+export type BehaviorKind = keyof typeof KINDS
+type Identity = { kind: string; subject: string | null }
 
-export const isKnownKind = (kind: string): kind is PatternKind => Object.hasOwn(KIND_NAMES, kind)
+export const isKnownKind = (kind: string): kind is BehaviorKind => Object.hasOwn(KINDS, kind)
 
 const EMOTIONS: Record<string, string> = { fomo: 'FOMO' }
-const IDEA_SOURCES: Record<string, string> = {
-  own_research: 'your own research',
-  news: 'the news',
-  social_media: 'social media',
-  friend_or_family: 'friends or family',
-  professional: 'a professional',
-}
-
 const emotion = (value: string) => EMOTIONS[value] ?? value.replaceAll('_', ' ')
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 
-function stateOfMind(subject: string | null): string | null {
-  const [axis, value] = subject?.split(':') ?? []
-  if (!value) return null
-  if (axis === 'emotion') return `Outcomes when you felt ${emotion(value)}`
-  if (axis === 'conviction' && (value === 'high' || value === 'low')) return `Outcomes with ${value} conviction`
-  if (axis === 'idea_source' && IDEA_SOURCES[value]) return `Outcomes of ideas from ${IDEA_SOURCES[value]}`
+export function behaviorTitle({ kind, subject }: Identity): string {
+  if (!isKnownKind(kind)) return ''
+  if (kind === 'emotional' && subject) return `Decisions where you wrote about feeling ${emotion(subject)}`
+  return KINDS[kind].title
+}
+
+export function behaviorName({ kind }: Identity): string {
+  return isKnownKind(kind) ? KINDS[kind].name : ''
+}
+
+/** "kind" or "kind:subject", as the API stores it on an entry written about the behavior. */
+export const behaviorKey = ({ kind, subject }: Identity) => (subject ? `${kind}:${subject}` : kind)
+
+// what one member of the group is, for kinds whose members aren't single decisions
+const NOUNS: Partial<Record<BehaviorKind, [string, string]>> = {
+  loss_aversion: ['closed position', 'closed positions'],
+  risk_concentration: ['holding', 'holdings'],
+}
+const noun = (kind: string): [string, string] => (isKnownKind(kind) && NOUNS[kind]) || ['decision', 'decisions']
+
+const figureMap = (figures: BehaviorFigure[]) => new Map(figures.map(figure => [figure.key, figure.value]))
+
+/** P/L and returns are signed and colored by the caller; everything else is plain. */
+export const signedMoney = (value: number) => `${value < 0 ? '−' : '+'}${formatCompactCurrency(Math.abs(value))}`
+export const signedPercent = (fraction: number) => `${fraction < 0 ? '−' : '+'}${Math.abs(fraction * 100).toFixed(1)}%`
+const share = (fraction: number) => `${Math.round(fraction * 100)}%`
+
+/**
+ * A group's results. `known` is null when hindsight sent no outcomes: none of the decisions has a result yet.
+ * Gains count out of the decisions with a result, never out of all of them.
+ */
+export type Result = {
+  label: string
+  // avgPnl is per decision, when hindsight sent it
+  known: { pnl: number; avgReturn: number; avgPnl: number | null; detail: string } | null
+  // what one member is, for "Average per decision"
+  noun: string
+}
+
+function result(values: Map<string, number>, prefix: '' | 'baseline_', kind: string): Result | null {
+  const decisions = values.get(`${prefix}decisions`)
+  if (decisions == null) return null
+  const [one, many] = noun(kind)
+  const label = prefix ? `Your other ${plural(decisions, one, many)}` : decisions === 1 ? `This ${one}` : `These ${decisions} ${many}`
+  const [outcomes, gains, pnl, avgReturn] = ['outcomes', 'gains', 'pnl', 'avg_return'].map(key => values.get(prefix + key))
+  if (!outcomes || gains == null || pnl == null || avgReturn == null) return { label, known: null, noun: one }
+  const unknown = decisions - outcomes
+  const detail = `${gains} of ${outcomes} gained${unknown > 0 ? `, ${unknown} not known yet` : ''}`
+  return { label, known: { pnl, avgReturn, avgPnl: values.get(`${prefix}avg_pnl`) ?? null, detail }, noun: one }
+}
+
+/** The consequence line: the group against the rest of the user's own history, when hindsight sent one. */
+export function consequence(behavior: Pick<Behavior, 'kind' | 'figures'>): { group: Result | null; baseline: Result | null } {
+  const values = figureMap(behavior.figures)
+  return { group: result(values, '', behavior.kind), baseline: result(values, 'baseline_', behavior.kind) }
+}
+
+/** The kind's own figures, worded. Unknown keys are skipped. */
+export function kindFacts(behavior: Pick<Behavior, 'kind' | 'figures'>): string[] {
+  const values = figureMap(behavior.figures)
+  const n = (key: string) => values.get(key)
+  const vs = (key: string, word: (v: number) => string, what: string) => {
+    const v = n(key)
+    return v == null ? '' : `, against ${word(v)} for ${what}`
+  }
+  const facts: (string | null)[] = []
+  const add = (key: string, line: (v: number) => string) => {
+    const v = n(key)
+    if (v != null) facts.push(line(v))
+  }
+  const days = (v: number) => plural(Math.round(v), 'day', 'days')
+
+  add('median_run_up', v => `Typical rise in the five weeks before buying: ${signedPercent(v)}${vs('baseline_median_run_up', signedPercent, 'your other buys')}`)
+  add('from_news_or_social', v => `${v} of these came from news or social media`)
+  add('burst_weeks', v => plural(v, 'unusually busy week', 'unusually busy weeks'))
+  add('round_trips', v => plural(v, 'position opened and closed quickly', 'positions opened and closed quickly'))
+  add('median_trades_per_week', v => `A typical week has ${plural(v, 'trade', 'trades')}`)
+  add('right_for_wrong_reason', v => `${v} gained though you later wrote the thesis didn’t play out`)
+  if (behavior.kind === 'loss_aversion') {
+    add('median_days', v => `Losses were held ${days(v)} at the median${vs('baseline_median_days', days, 'gains')}`)
+    add('open_losses_held_longer', v => `${plural(v, 'open loss is', 'open losses are')} already held longer than a typical gain`)
+  } else {
+    add('median_days', v => `Sold after ${days(v)} at the median`)
+  }
+  add('avg_weight', v => `Average size: ${share(v)} of the portfolio${vs('baseline_avg_weight', share, 'your other buys')}`)
+  add('large_low_conviction', v => `${v} written with low or no stated conviction`)
+  add('largest_weight', v => `Largest of these: ${share(v)} of the portfolio`)
+  add('sector_weight', v => `Their sector: ${share(v)} of the portfolio`)
+  add('possible_monthly_loss', v => `In a bad month (about 1 in 20), this could be about ${signedMoney(-Math.abs(v))}`)
+  return facts.filter((fact): fact is string => !!fact)
+}
+
+const shortDay = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' })
+const longDay = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' })
+const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'long' })
+
+/** A report's New York day, e.g. "Oct 27". */
+export const reportDayShort = (day: string) => shortDay.format(Date.parse(day))
+/** e.g. "Tuesday, Oct 27, 2026" */
+export const reportDayLong = (day: string) => `${weekday.format(Date.parse(day))}, ${longDay.format(Date.parse(day))}`
+
+/** What changed since the newest earlier report holding the same behavior; null when there wasn't one. */
+export function sinceLast(behavior: Pick<Behavior, 'kind' | 'figures' | 'previous'>): string | null {
+  if (!behavior.previous) return null
+  const now = figureMap(behavior.figures)
+  const then = figureMap(behavior.previous.figures)
+  const [one, many] = noun(behavior.kind)
+  const parts: string[] = []
+  const [d1, d0] = [now.get('decisions'), then.get('decisions')]
+  if (d1 != null && d0 != null) {
+    const diff = d1 - d0
+    parts.push(diff > 0 ? plural(diff, `new ${one}`, `new ${many}`) : diff < 0 ? `${plural(-diff, one, many)} fewer` : `No new ${many}`)
+  }
+  const [r1, r0] = [now.get('avg_return'), then.get('avg_return')]
+  if (r1 != null && r0 != null && signedPercent(r1) !== signedPercent(r0)) {
+    parts.push(`average return from ${signedPercent(r0)} to ${signedPercent(r1)}`)
+  }
+  if (!parts.length) return null
+  const text = parts.join(', ')
+  return `Since your report on ${reportDayShort(behavior.previous.day)}: ${text[0].toLowerCase()}${text.slice(1)}`
+}
+
+/** Why Generate isn't offered, for the Open latest report button. */
+export function blockedReason(reason: GenerateBlocked | null, latest: ReportSummary | undefined): string | null {
+  if (reason === 'UPDATED_TODAY') return 'Updated today'
+  if (reason === 'NOTHING_NEW') return latest ? `Nothing new since ${reportDayShort(latest.day)}` : 'Nothing new yet'
   return null
 }
 
-export function patternTitle(pattern: InsightPattern): string {
-  if (!isKnownKind(pattern.kind)) return ''
-  if (pattern.kind === 'felt_vs_did' && pattern.subject) return `After feeling ${emotion(pattern.subject)}`
-  if (pattern.kind === 'outcomes_by_state') return stateOfMind(pattern.subject) ?? KIND_NAMES.outcomes_by_state
-  return KIND_NAMES[pattern.kind]
-}
-
-/** The kind's fixed name, shown above a title that names a subject; null when the title already is the name. */
-export function kindLabel(pattern: InsightPattern): string | null {
-  const title = patternTitle(pattern)
-  return isKnownKind(pattern.kind) && KIND_NAMES[pattern.kind] !== title ? KIND_NAMES[pattern.kind] : null
-}
-
-/** A figure written as a sentence: "3" set large, then "of 4 entries followed by a buy". Never a percentage. */
-export type InsightMeasure = { lead: string; rest: string }
-
-// A measure is left out when hindsight didn't send its figures; unknown figure keys are ignored.
-export function patternMeasures(pattern: InsightPattern): InsightMeasure[] {
-  const figures = new Map(pattern.figures.map(figure => [figure.key, Math.round(figure.value)]))
-  const share = (part: string, total: string, one: string, many: string, what: string): InsightMeasure[] => {
-    const [count, of] = [figures.get(part), figures.get(total)]
-    return count == null || of == null || of < 1 ? [] : [{ lead: String(count), rest: `of ${of} ${of === 1 ? one : many} ${what}` }]
-  }
-  const held = (key: string, what: string): InsightMeasure[] => {
-    const days = figures.get(key)
-    return days == null ? [] : [{ lead: plural(days, 'day', 'days'), rest: what }]
-  }
-  switch (pattern.kind) {
-    case 'felt_vs_did':
-      return [...share('followed_by_buy', 'entries', 'entry', 'entries', 'followed by a buy'),
-        ...share('followed_by_sell', 'entries', 'entry', 'entries', 'followed by a sell')]
-    case 'outcomes_by_state':
-      return [...share('above_entry_price', 'entries', 'entry', 'entries', 'with the price higher afterward'),
-        ...share('below_entry_price', 'entries', 'entry', 'entries', 'with the price lower afterward')]
-    case 'horizon_vs_holding':
-      return [...share('held_shorter', 'buys', 'buy', 'buys', 'sold sooner than planned'),
-        ...share('still_open', 'buys', 'buy', 'buys', 'still held')]
-    case 'gains_vs_losses':
-      return [...held('gains_median_days', 'median hold for gains'), ...held('losses_median_days', 'median hold for losses'),
-        ...share('gains_with_entry', 'gains', 'gain', 'gains', 'with a note'),
-        ...share('losses_with_entry', 'losses', 'loss', 'losses', 'with a note')]
-    case 'silent_trades':
-      return share('without_entry', 'trades', 'trade', 'trades', 'without a note')
-    case 'open_theses':
-      return share('not_revisited', 'buys_with_thesis', 'buy with a thesis', 'buys with a thesis', 'never revisited')
-    default:
-      return []
-  }
-}
-
-export const findingId = (number: number) => `finding-${number}`
-
-/** The subject a title can't carry on its own. */
-export function patternContext(pattern: InsightPattern): string | null {
-  return pattern.kind === 'horizon_vs_holding' && pattern.subject ? `Stated horizon: ${pattern.subject}` : null
-}
-
-/** What each kind looks for, for the page's introduction. */
-export const KIND_DESCRIPTIONS: { name: string; description: string }[] = [
-  { name: KIND_NAMES.felt_vs_did, description: 'What you did after naming a feeling in an entry' },
-  { name: KIND_NAMES.outcomes_by_state, description: 'How prices moved after entries written in a given state of mind' },
-  { name: KIND_NAMES.horizon_vs_holding, description: 'How long you held compared with the horizon you stated' },
-  { name: KIND_NAMES.gains_vs_losses, description: 'How long gains and losses stayed open' },
-  { name: KIND_NAMES.silent_trades, description: 'Trades with no entry around them' },
-  { name: KIND_NAMES.open_theses, description: 'Theses you wrote and never returned to' },
-]
+export const FAILED_TODAY = 'The report couldn’t be generated today. Nothing was lost; you can generate again tomorrow.'
 
 export type NeedHint = { name: string; hint: string }
 
-// Never nudges toward trading: hints about trades say when the pattern appears, not what to do.
-export function needHint({ kind, more }: InsightNeed): NeedHint | null {
+// Never nudges toward trading: hints about trades say when the behavior appears, not what to do.
+export function needHint({ kind, subject, more, reason }: BehaviorNeed): NeedHint | null {
   if (!isKnownKind(kind) || more < 1) return null
-  const hints: Record<PatternKind, string> = {
-    felt_vs_did: `Name a feeling in ${plural(more, 'more entry', 'more entries')}`,
-    outcomes_by_state: `Write about ${plural(more, 'more trade', 'more trades')}`,
-    horizon_vs_holding: `State a time horizon on ${plural(more, 'more buy', 'more buys')}`,
-    gains_vs_losses: `Appears after ${plural(more, 'more closed position', 'more closed positions')}`,
-    silent_trades: `Appears after ${plural(more, 'more trade', 'more trades')}`,
-    open_theses: `Write a thesis on ${plural(more, 'more buy', 'more buys')}`,
+  const [one, many] = noun(kind)
+  const hints: Record<string, string> = {
+    ENTRIES: `Write about ${plural(more, 'more trade', 'more trades')}`,
+    TRADES: `Appears after ${plural(more, `more ${one}`, `more ${many}`)}`,
+    PRICES: 'Waiting on price history',
+    FIELDS: 'Still reading your recent entries',
   }
-  return { name: KIND_NAMES[kind], hint: hints[kind] }
+  const hint = hints[reason]
+  return hint ? { name: behaviorTitle({ kind, subject }), hint } : null
 }
 
-const reportDate = new Intl.DateTimeFormat('en-US', {
-  timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric',
-})
-
-/** The last day of journal a report read, in New York time like the rest of the journal. */
-export function journalUpTo(entriesUpTo: string | null): string | null {
-  return entriesUpTo ? reportDate.format(new Date(entriesUpTo)) : null
+/** The pane's keys: ← and → move between cards, Esc closes. */
+export function paneKey(key: string, index: number, count: number): { move: number } | 'close' | null {
+  if (key === 'Escape') return 'close'
+  if (key === 'ArrowRight' && index < count - 1) return { move: index + 1 }
+  if (key === 'ArrowLeft' && index > 0) return { move: index - 1 }
+  return null
 }
 
-/** One square in the journal history: a New York day, its entries and the findings quoting one of them. */
-export type HistoryDay = { date: string; entries: number; quoted: number; findings: number[]; inSpan: boolean }
-export type JournalHistory = { weeks: HistoryDay[][]; months: { label: string; column: number }[] }
+/** The behaviors the page can word, in hindsight's order; cards are numbered from these. */
+export const shownBehaviors = <T extends Identity>(behaviors: T[]): T[] => behaviors.filter(b => isKnownKind(b.kind))
 
-// hindsight reads at most the user's newest 1000 entries
-const HISTORY_ENTRIES = 1000
-const DAY_MS = 86_400_000
-// date keys are calendar days, so they're formatted in UTC to stay on the same day
+/** A day this behavior quoted, placed along the months: position runs from 0 to 1 across the whole span. */
+export type EvidenceMark = { date: string; position: number; entryIds: number[]; label: string }
+export type EvidenceTimeline = { months: Month[]; marks: EvidenceMark[] }
+
 const monthName = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short' })
-const dayName = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' })
+const monthKey = (date: string) => date.slice(0, 7)
+const nextMonth = (key: string) => {
+  const [year, month] = key.split('-').map(Number)
+  return month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, '0')}`
+}
+const daysIn = (key: string) => {
+  const [year, month] = key.split('-').map(Number)
+  return new Date(Date.UTC(year, month, 0)).getUTCDate()
+}
 
-const weekStart = (date: string) => new Date(Date.parse(date) - new Date(date).getUTCDay() * DAY_MS).toISOString().slice(0, 10)
+export type Month = { key: string; label: string }
 
 /**
- * The journal a report read, as Sunday-starting weeks from the oldest entry read to the report's week.
- * Findings are numbered as the page numbers them; null when the report read no entries.
+ * The months a report's cards share, from its earliest quoted entry or trade to its last day. Charts and the
+ * evidence strip use the same span, so a day sits at the same place on both and doesn't move between cards.
  */
-export function journalHistory(entries: JournalEntry[], report: InsightReport): JournalHistory | null {
-  if (!report.entriesUpTo) return null
-  const upTo = Date.parse(report.entriesUpTo)
-  const read = entries
-    .filter(entry => Date.parse(entry.timestamp) <= upTo)
-    .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))
-    .slice(0, HISTORY_ENTRIES)
-  if (!read.length) return null
+export function reportMonths(entries: JournalEntry[], report: Pick<BehaviorReport, 'asOf' | 'behaviors'>): Month[] {
+  const dayOf = new Map(entries.map(entry => [entry.id, marketDay(entry.timestamp)]))
+  const days = shownBehaviors(report.behaviors).flatMap(b => [
+    ...b.citations.filter(c => c.entryExists).flatMap(c => dayOf.get(c.entryId) ?? []),
+    ...(b.trades ?? []).flatMap(t => (t.tradeExists && t.timestamp ? [marketDay(t.timestamp)] : [])),
+  ])
+  const sorted = [...days, report.asOf].sort()
+  const [first, last] = [sorted[0], sorted[sorted.length - 1]]
+  const crossesYear = first.slice(0, 4) !== last.slice(0, 4)
+  const months: Month[] = []
+  for (let key = monthKey(first); key <= monthKey(last); key = nextMonth(key)) {
+    const label = monthName.format(Date.parse(`${key}-01`))
+    // the year is shown where it starts, and on the first month when the span crosses one
+    const withYear = months.length ? key.endsWith('-01') : crossesYear
+    months.push({ key, label: withYear ? `${label} ${key.slice(0, 4)}` : label })
+  }
+  return months
+}
 
-  const dayOf = new Map(read.map(entry => [entry.id, marketDay(entry.timestamp)]))
-  const counts = new Map<string, number>()
-  dayOf.forEach(date => counts.set(date, (counts.get(date) ?? 0) + 1))
-  const quoted = new Map<string, Set<number>>()
-  const findings = new Map<string, number[]>()
-  report.patterns.filter(pattern => isKnownKind(pattern.kind)).forEach((pattern, i) => {
-    pattern.citations.forEach(({ entryId }) => {
-      const date = dayOf.get(entryId)
-      if (!date) return
-      quoted.set(date, (quoted.get(date) ?? new Set()).add(entryId))
-      const numbers = findings.get(date) ?? []
-      if (!numbers.includes(i + 1)) findings.set(date, [...numbers, i + 1])
-    })
+/** Where a New York day sits across the months, from 0 to 1, each month the same width; null outside them. */
+export function positionOf(date: string, months: Month[]): number | null {
+  const month = months.findIndex(m => m.key === monthKey(date))
+  if (month < 0) return null
+  return (month + (Number(date.slice(8, 10)) - 0.5) / daysIn(monthKey(date))) / months.length
+}
+
+/** Each New York day whose entries this behavior quoted, placed along the report's months. */
+export function evidenceTimeline(
+  entries: JournalEntry[],
+  report: Pick<BehaviorReport, 'asOf' | 'behaviors'>,
+  behavior: Pick<Behavior, 'citations'>,
+): EvidenceTimeline {
+  const months = reportMonths(entries, report)
+  const dayOf = new Map(entries.map(entry => [entry.id, marketDay(entry.timestamp)]))
+  const byDate = new Map<string, number[]>()
+  for (const { entryId, entryExists } of behavior.citations) {
+    const date = dayOf.get(entryId)
+    if (!entryExists || !date) continue
+    const ids = byDate.get(date) ?? []
+    if (!ids.includes(entryId)) byDate.set(date, [...ids, entryId])
+  }
+  const marks = [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).flatMap(([date, entryIds]) => {
+    const position = positionOf(date, months)
+    return position == null ? [] : [{
+      date, entryIds, position, label: `${longDay.format(Date.parse(date))}: ${plural(entryIds.length, 'entry', 'entries')} quoted`,
+    }]
   })
-
-  const last = marketDay(upTo)
-  const end = new Date(Date.parse(weekStart(last)) + 6 * DAY_MS).toISOString().slice(0, 10)
-  const days = dateRange(weekStart(dayOf.get(read[read.length - 1].id)!), end).map(date => ({
-    date,
-    entries: counts.get(date) ?? 0,
-    quoted: quoted.get(date)?.size ?? 0,
-    findings: findings.get(date) ?? [],
-    inSpan: date <= last,
-  }))
-  const weeks = Array.from({ length: days.length / 7 }, (_, i) => days.slice(i * 7, i * 7 + 7))
-  const months = weeks.flatMap((week, column) => week
-    .filter(day => day.inSpan && day.date.endsWith('-01'))
-    .map(day => ({ label: monthName.format(Date.parse(day.date)), column })))
-  return { weeks, months }
-}
-
-const numberList = (numbers: number[]) => {
-  const padded = numbers.map(n => String(n).padStart(2, '0'))
-  return padded.length > 1 ? `${padded.slice(0, -1).join(', ')} and ${padded[padded.length - 1]}` : padded[0]
-}
-
-/** What a day in the history holds, e.g. "Oct 12, 2026: 2 entries, 1 quoted in 01 and 03". */
-export function historyDayLabel(day: HistoryDay): string {
-  const label = `${dayName.format(Date.parse(day.date))}: ${plural(day.entries, 'entry', 'entries')}`
-  return day.findings.length ? `${label}, ${day.quoted} quoted in ${numberList(day.findings)}` : label
+  return { months, marks }
 }

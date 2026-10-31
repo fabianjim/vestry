@@ -1,20 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { insightsApi } from '../services/api'
 import { insightsQueries } from '../services/queries'
-import { setInsights } from '../services/queryUpdates'
+import { refreshInsights } from '../services/queryUpdates'
+
+// how often the overview is read while a report is being built
+export const POLL_MS = 3000
 
 export function useInsights() {
   const client = useQueryClient()
   const availability = useQuery(insightsQueries.availability())
   const available = availability.data?.available === true
-  const query = useQuery({ ...insightsQueries.report(), enabled: available })
-  const refresh = useMutation({
-    mutationFn: async () => {
-      await client.cancelQueries({ queryKey: insightsQueries.report().queryKey })
-      return insightsApi.refresh()
-    },
-    retry: false,
-    onSuccess: state => setInsights(client, state),
+  const overview = useQuery({
+    ...insightsQueries.overview(),
+    enabled: available,
+    refetchInterval: query => (query.state.data?.status === 'GENERATING' ? POLL_MS : false),
   })
-  return { availability, available, query, refresh }
+  const generate = useMutation({
+    mutationFn: insightsApi.generate,
+    retry: false,
+    // awaited, so the mutation settles only once the overview says GENERATING, blocked or done
+    onSettled: () => refreshInsights(client),
+  })
+  return { availability, available, overview, generate }
 }

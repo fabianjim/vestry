@@ -157,7 +157,7 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
       </aside>
 
       {/* Phone header */}
-      <header className="sticky top-0 z-40 flex h-12 shrink-0 items-center justify-between border-b border-border-subtle bg-background-sidebar px-3 md:hidden">
+      <header data-topbar className="sticky top-0 z-40 flex h-12 shrink-0 items-center justify-between border-b border-border-subtle bg-background-sidebar px-3 md:hidden">
         <img src="/logo.svg" alt="Vestry" width={32} height={32} />
         <button
           onClick={handleLogout}
@@ -179,7 +179,8 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
             Demo Mode — {remainingTrades} of 3 trades remaining. Changes are not saved.
           </div>
         )}
-        <div className="md:min-h-0 flex-1 flex">
+        {/* data-workspace: the area right of the sidebar and below the banner, which full-area views fill */}
+        <div data-workspace className="md:min-h-0 flex-1 flex">
           <div className="min-w-0 flex-1 px-1 md:overflow-auto md:px-0 md:pl-6 flex flex-col">
             <div className="flex-1">
               <ViewStateProvider>
@@ -213,7 +214,7 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
       </main>
 
       {/* Phone tab bar */}
-      <nav aria-label="Primary" className={`fixed inset-x-0 bottom-0 z-40 grid h-14 ${items.length === 5 ? 'grid-cols-5' : 'grid-cols-4'} border-t border-border-subtle bg-background-sidebar md:hidden`}>
+      <nav data-tabbar aria-label="Primary" className={`fixed inset-x-0 bottom-0 z-40 grid h-14 ${items.length === 5 ? 'grid-cols-5' : 'grid-cols-4'} border-t border-border-subtle bg-background-sidebar md:hidden`}>
         {items.map((item) => {
           const isActive = location.pathname === item.path
           const Icon = item.icon
