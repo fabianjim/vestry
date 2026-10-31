@@ -130,4 +130,18 @@ export const insightsQueries = {
     staleTime: 60_000,
     retry: false,
   }),
+  all: ['insights'] as const,
+  overview: () => queryOptions({
+    queryKey: [...insightsQueries.all, 'overview'],
+    queryFn: ({ signal }) => insightsApi.overview(signal),
+    staleTime: 60_000,
+    retry: false,
+  }),
+  // a saved report never changes, so it stays fresh until a generate invalidates the prefix
+  behaviorReport: (day: string) => queryOptions({
+    queryKey: [...insightsQueries.all, 'report', day],
+    queryFn: ({ signal }) => insightsApi.report(day, signal),
+    staleTime: Infinity,
+    retry: false,
+  }),
 }

@@ -24,6 +24,11 @@ export function refreshJournal(client: QueryClient) {
   return client.invalidateQueries({ queryKey: journalQueries.all })
 }
 
+// After a generate, the overview says whether it's running, blocked or done.
+export function refreshInsights(client: QueryClient) {
+  return client.invalidateQueries({ queryKey: insightsQueries.overview().queryKey })
+}
+
 // A refresh answers with the new report, so the page shows it without reading it again.
 export function setInsights(client: QueryClient, state: InsightsState) {
   client.setQueryData(insightsQueries.report().queryKey, state)
