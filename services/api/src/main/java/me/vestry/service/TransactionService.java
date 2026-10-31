@@ -18,9 +18,11 @@ import java.util.List;
 public class TransactionService {
 
     private final TransactionRepository transactionRepository;
+    private final InsightGate insightGate;
 
-    public TransactionService(TransactionRepository transactionRepository) {
+    public TransactionService(TransactionRepository transactionRepository, InsightGate insightGate) {
         this.transactionRepository = transactionRepository;
+        this.insightGate = insightGate;
     }
 
     private Integer getCurrentUserId() {
@@ -49,8 +51,7 @@ public class TransactionService {
         if (timestamp != null) {
             transaction.setTimestamp(timestamp);
         }
-        transaction.setUser(getCurrentUser());
-        return transactionRepository.save(transaction);
+        return record(transaction);
     }
 
     public Transaction recordSellTransaction(String ticker, double shares, double price) {
@@ -62,8 +63,15 @@ public class TransactionService {
         if (timestamp != null) {
             transaction.setTimestamp(timestamp);
         }
-        transaction.setUser(getCurrentUser());
-        return transactionRepository.save(transaction);
+        return record(transaction);
+    }
+
+    private Transaction record(Transaction transaction) {
+        User user = getCurrentUser();
+        transaction.setUser(user);
+        Transaction saved = transactionRepository.save(transaction);
+        insightGate.inputsChanged(user.getId());
+        return saved;
     }
 
     public List<Transaction> getTransactionHistory() {

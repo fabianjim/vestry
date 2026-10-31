@@ -2,6 +2,7 @@ package me.vestry.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
+import me.vestry.model.RunUp;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,7 @@ class HindsightClientTest {
     private final MutableClock clock = new MutableClock();
     private volatile int status = 200;
     private volatile String body = "{\"insights\": []}";
+    private volatile String contentType = "application/json";
     private volatile long delayMillis = 0;
 
     @BeforeEach
@@ -62,7 +64,7 @@ class HindsightClientTest {
                 Thread.currentThread().interrupt();
             }
             byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.getResponseHeaders().set("Content-Type", contentType);
             exchange.sendResponseHeaders(status, bytes.length);
             exchange.getResponseBody().write(bytes);
             exchange.close();
@@ -90,6 +92,11 @@ class HindsightClientTest {
         assertEquals(Map.of(), noUrl.insights(4, List.of(7)));
         assertEquals(Map.of(), noToken.insights(4, List.of(7)));
         assertEquals(Map.of(), client().insights(4, List.of()));
+        for (var off : List.of(noUrl, noToken)) {
+            assertEquals(HindsightClient.ReportListResponse.UNAVAILABLE, off.listBehaviorReports(4, null, 10));
+            assertEquals(HindsightClient.BehaviorReportResponse.UNAVAILABLE, off.getBehaviorReport(4, LocalDate.of(2026, 10, 28)));
+            assertEquals(HindsightClient.BehaviorReportResponse.UNAVAILABLE, off.createBehaviorReport(4, FACTS));
+        }
         assertTrue(requests.isEmpty());
     }
 
@@ -313,6 +320,235 @@ class HindsightClientTest {
         assertEquals(Map.of(), new HindsightClient("", TOKEN, clock).savedReflectionAids(5, List.of(7)));
         assertEquals(Map.of(), client().savedReflectionAids(5, List.of()));
         assertTrue(requests.isEmpty());
+    }
+
+    private static final HindsightClient.BehaviorReportRequest FACTS = new HindsightClient.BehaviorReportRequest(
+            LocalDate.of(2026, 10, 27), null,
+            List.of(new HindsightClient.LedgerTrade(7, "NVDA", "BUY", 3, 120.5, Instant.parse("2026-03-03T15:00:00Z"), false,
+                    null, RunUp.Status.PENDING, 1.0, 141.2, "LATEST", LocalDate.of(2026, 10, 27))),
+            List.of(new HindsightClient.HoldingPeriod("NVDA", Instant.parse("2026-03-03T15:00:00Z"), null, 361.5, 62.1)),
+            List.of(), List.of(3, 9), List.of(), List.of());
+
+    @Test
+    void reportReadsShareTheBreakerWithPageReads() {
+        var client = client();
+        status = 500;
+        for (int i = 0; i < HindsightClient.BREAKER_FAILURES; i++) {
+            if (i % 2 == 0) client.listBehaviorReports(4, null, 10);
+            else client.getBehaviorReport(4, LocalDate.of(2026, 10, 28));
+        }
+
+        status = 200;
+        body = "{\"report\": null}";
+        client.insights(4, List.of(7));
+        assertEquals(HindsightClient.ReportListResponse.UNAVAILABLE, client.listBehaviorReports(4, null, 10));
+        assertEquals(HindsightClient.BehaviorReportResponse.UNAVAILABLE, client.getBehaviorReport(4, LocalDate.of(2026, 10, 28)));
+        assertEquals(HindsightClient.BREAKER_FAILURES, requests.size(), "paused calls never reach hindsight");
+    }
+
+    @Test
+    void postsTheFactsWithTheContractFieldNames() throws Exception {
+        body = BEHAVIOR_REPORT;
+
+        var response = client().createBehaviorReport(4, FACTS);
+
+        assertEquals(List.of("/v1/users/4/behavior-reports?null"), requests);
+        assertEquals(List.of("null"), upgrades);
+        assertTrue(bodies.get(0).startsWith("POST "));
+        var sent = new ObjectMapper().readTree(bodies.get(0).substring("POST ".length()));
+        assertEquals(List.of("asOf", "portfolioValue", "trades", "holdingPeriods", "holdings", "autoEntryIds", "feedback",
+                "behaviorNotes"), fieldNames(sent));
+        assertEquals("2026-10-27", sent.get("asOf").asText());
+        var trade = sent.get("trades").get(0);
+        assertEquals(List.of("tradeId", "ticker", "side", "shares", "price", "timestamp", "initial", "runUp", "runUpStatus",
+                "weightAtBuy", "outcomePrice", "outcomeKind", "outcomeOn"), fieldNames(trade));
+        assertEquals("2026-03-03T15:00:00Z", trade.get("timestamp").asText());
+        assertEquals("2026-10-27", trade.get("outcomeOn").asText());
+        var period = sent.get("holdingPeriods").get(0);
+        assertEquals(List.of("ticker", "openedAt", "closedAt", "cost", "pnl"), fieldNames(period));
+        assertEquals("2026-03-03T15:00:00Z", period.get("openedAt").asText());
+        assertTrue(period.get("closedAt").isNull(), "an open period sends closedAt as null, not absent");
+        assertEquals(3, sent.get("autoEntryIds").get(0).asInt());
+
+        assertEquals(new HindsightClient.BehaviorReportResponse(HindsightClient.ReportStatus.READY, PARSED_BEHAVIOR_REPORT),
+                response);
+    }
+
+    @Test
+    void reportGenerationWaitsForTheModelAndIgnoresTheBreaker() {
+        var client = client();
+        status = 500;
+        for (int i = 0; i < HindsightClient.BREAKER_FAILURES; i++) client.listBehaviorReports(4, null, 10);
+
+        status = 200;
+        body = BEHAVIOR_REPORT;
+        delayMillis = 3_000;
+        assertEquals(HindsightClient.ReportStatus.READY, client.createBehaviorReport(4, FACTS).status(),
+                "a paused breaker doesn't stop a POST, and the POST outlasts the page read timeout");
+
+        clock.advance(HindsightClient.BREAKER_PAUSE.plusSeconds(1));
+        delayMillis = 0;
+        status = 500;
+        client.createBehaviorReport(4, FACTS);
+        client.createBehaviorReport(4, FACTS);
+        status = 200;
+        body = "{\"insights\": []}";
+        int before = requests.size();
+        client.insights(4, List.of(7));
+        assertEquals(before + 1, requests.size(), "generation failures never pause page reads");
+    }
+
+    private static final String BEHAVIOR_REPORT = """
+            {"day": "2026-10-28", "generatedAt": "2026-10-28T14:10:02Z", "asOf": "2026-10-28",
+             "entriesUpTo": "2026-10-28T13:58:00Z", "saved": true, "model": "added later",
+             "behaviors": [{"kind": "run_up", "subject": null,
+                            "figures": [{"key": "decisions", "value": 5, "unit": "count"}],
+                            "previous": {"day": "2026-10-14", "figures": [{"key": "decisions", "value": 4, "unit": "count"}]},
+                            "observation": "You bought after run-ups.", "question": "What were you waiting for?",
+                            "citations": [{"entryId": 12, "quote": "it keeps climbing"}],
+                            "tradeIds": [7, 19], "entryIds": [12, 20]},
+                           {"kind": "new_kind", "subject": "NVDA", "figures": [], "previous": null, "observation": "o",
+                            "question": "q", "citations": [], "tradeIds": [], "entryIds": [], "addedLater": true}],
+             "needs": [{"kind": "price_action", "subject": null, "more": 2, "reason": "ENTRIES"}]}
+            """;
+    private static final HindsightClient.BehaviorReport PARSED_BEHAVIOR_REPORT = new HindsightClient.BehaviorReport(
+            LocalDate.of(2026, 10, 28), Instant.parse("2026-10-28T14:10:02Z"), LocalDate.of(2026, 10, 28),
+            Instant.parse("2026-10-28T13:58:00Z"), true,
+            List.of(new HindsightClient.Behavior("run_up", null, List.of(new HindsightClient.Figure("decisions", 5, "count")),
+                            new HindsightClient.Previous(LocalDate.of(2026, 10, 14),
+                                    List.of(new HindsightClient.Figure("decisions", 4, "count"))),
+                            "You bought after run-ups.", "What were you waiting for?",
+                            List.of(new HindsightClient.Citation(12, "it keeps climbing")), List.of(7, 19), List.of(12, 20)),
+                    new HindsightClient.Behavior("new_kind", "NVDA", List.of(), null, "o", "q", List.of(), List.of(), List.of())),
+            List.of(new HindsightClient.Need("price_action", null, 2, "ENTRIES")));
+
+    @Test
+    void listsOlderReportsWithTheLastAttempt() {
+        body = """
+                {"reports": [{"day": "2026-10-28", "generatedAt": "2026-10-28T14:10:02Z",
+                              "behaviors": [{"kind": "run_up", "subject": null,
+                                             "figures": [{"key": "decisions", "value": 5, "unit": "count"}]}]}],
+                 "hasOlder": true, "lastAttempt": {"day": "2026-10-29", "status": "FAILED", "at": "2026-10-29T15:00:00Z"}}
+                """;
+
+        var response = client().listBehaviorReports(4, LocalDate.of(2026, 10, 29), 10);
+
+        assertEquals(List.of("/v1/users/4/behavior-reports?before=2026-10-29&limit=10"), requests);
+        assertEquals("GET ", bodies.get(0));
+        assertEquals(List.of("Bearer " + TOKEN), tokens);
+        assertEquals(new HindsightClient.ReportListResponse(HindsightClient.ReportStatus.READY,
+                new HindsightClient.BehaviorReportList(
+                        List.of(new HindsightClient.ReportSummary(LocalDate.of(2026, 10, 28), Instant.parse("2026-10-28T14:10:02Z"),
+                                List.of(new HindsightClient.BehaviorSummary("run_up", null,
+                                        List.of(new HindsightClient.Figure("decisions", 5, "count")))))),
+                        true,
+                        new HindsightClient.Attempt(LocalDate.of(2026, 10, 29), HindsightClient.AttemptStatus.FAILED,
+                                Instant.parse("2026-10-29T15:00:00Z")))),
+                response);
+    }
+
+    @Test
+    void listsTheFirstPageBeforeAnyAttempt() {
+        body = "{\"reports\": [], \"hasOlder\": false, \"lastAttempt\": null}";
+
+        var response = client().listBehaviorReports(4, null, 10);
+
+        assertEquals(List.of("/v1/users/4/behavior-reports?limit=10"), requests);
+        assertEquals(new HindsightClient.ReportListResponse(HindsightClient.ReportStatus.READY,
+                new HindsightClient.BehaviorReportList(List.of(), false, null)), response);
+    }
+
+    @Test
+    void readsADaysReportAndKeepsWhatItDoesNotKnow() {
+        body = "{\"report\": " + BEHAVIOR_REPORT + "}";
+
+        var response = client().getBehaviorReport(4, LocalDate.of(2026, 10, 28));
+
+        assertEquals(List.of("/v1/users/4/behavior-reports/2026-10-28?null"), requests);
+        assertEquals("GET ", bodies.get(0));
+        assertEquals(List.of("Bearer " + TOKEN), tokens);
+        assertEquals(new HindsightClient.BehaviorReportResponse(HindsightClient.ReportStatus.READY, PARSED_BEHAVIOR_REPORT),
+                response);
+    }
+
+    @Test
+    void noReportThatDayIsReadyAndEmpty() {
+        body = "{\"report\": null}";
+
+        assertEquals(new HindsightClient.BehaviorReportResponse(HindsightClient.ReportStatus.READY, null),
+                client().getBehaviorReport(4, LocalDate.of(2026, 10, 28)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 404, 500})
+    void reportReadErrorsAreUnavailable(int code) {
+        status = code;
+        var client = client();
+
+        assertEquals(HindsightClient.ReportListResponse.UNAVAILABLE, client.listBehaviorReports(4, null, 10));
+        assertEquals(HindsightClient.BehaviorReportResponse.UNAVAILABLE, client.getBehaviorReport(4, LocalDate.of(2026, 10, 28)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"malformed", "empty", "slow"})
+    void reportReadsSurviveBadResponsesAndSlownessAndCountTowardTheBreaker(String failure) {
+        switch (failure) {
+            case "malformed" -> body = "{\"reports\": [";
+            case "empty" -> body = "";
+            // a valid answer to both reads, so only the timeout can fail them
+            default -> {
+                body = "{\"reports\": [], \"hasOlder\": false, \"lastAttempt\": null, \"report\": null}";
+                delayMillis = 3_000;
+            }
+        }
+        var client = client();
+        long started = System.nanoTime();
+
+        assertEquals(HindsightClient.ReportListResponse.UNAVAILABLE, client.listBehaviorReports(4, null, 10));
+        assertEquals(HindsightClient.BehaviorReportResponse.UNAVAILABLE, client.getBehaviorReport(4, LocalDate.of(2026, 10, 28)));
+        assertTrue(Duration.ofNanos(System.nanoTime() - started).toMillis() < 5_000, "the page timeout cuts both reads off");
+
+        delayMillis = 0;
+        status = 500;
+        client.listBehaviorReports(4, null, 10);
+        client.getBehaviorReport(4, LocalDate.of(2026, 10, 28));
+        assertEquals(3, requests.size(), "both failures counted, so one more pauses the reads");
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "409 | {\"code\": \"ATTEMPTED_TODAY\", \"detail\": \"Today's report failed.\"} | FAILED_TODAY",
+            "409 | {\"code\": \"SOMETHING_ELSE\", \"detail\": \"d\"}                       | UNAVAILABLE",
+            "409 | {\"detail\": \"no code\"}                                                 | UNAVAILABLE",
+            "503 | {\"code\": \"AI_OFF\", \"detail\": \"AI is off\"}                           | UNAVAILABLE",
+            "404 | {\"detail\": \"Not Found\"}                                               | UNAVAILABLE",
+            "422 | {\"detail\": [{\"loc\": [\"body\", \"trades\"]}]}                           | UNAVAILABLE",
+            "401 | {\"detail\": \"bad token\"}                                               | UNAVAILABLE"})
+    void mapsReportGenerationErrors(int code, String problem, HindsightClient.ReportStatus expected) {
+        status = code;
+        body = problem;
+        contentType = "application/problem+json";
+
+        var response = client().createBehaviorReport(4, FACTS);
+
+        assertEquals(expected, response.status());
+        assertNull(response.report());
+    }
+
+    @Test
+    void behaviorReportGenerationSurvivesBadResponsesAndOutages() {
+        body = "{\"behaviors\": [";
+        assertEquals(HindsightClient.BehaviorReportResponse.UNAVAILABLE, client().createBehaviorReport(4, FACTS));
+
+        var client = client();
+        server.stop(0);
+        assertEquals(HindsightClient.BehaviorReportResponse.UNAVAILABLE, client.createBehaviorReport(4, FACTS));
+    }
+
+    private static List<String> fieldNames(com.fasterxml.jackson.databind.JsonNode node) {
+        var names = new java.util.ArrayList<String>();
+        node.fieldNames().forEachRemaining(names::add);
+        return names;
     }
 
     static final class MutableClock extends Clock {

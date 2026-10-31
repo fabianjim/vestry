@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { journalQueries, portfolioQueries, stockQueries } from './queries'
+import { insightsQueries, journalQueries, portfolioQueries, stockQueries } from './queries'
 
 export function refreshPrices(client: QueryClient) {
   return Promise.all([
@@ -21,4 +21,14 @@ export function refreshAfterTrade(client: QueryClient) {
 // Lists, reflections, calendar counts, and tag suggestions all depend on journal mutations.
 export function refreshJournal(client: QueryClient) {
   return client.invalidateQueries({ queryKey: journalQueries.all })
+}
+
+// After a generate, the overview says whether it's running, blocked or done.
+export function refreshInsights(client: QueryClient) {
+  return client.invalidateQueries({ queryKey: insightsQueries.overview().queryKey })
+}
+
+// Feedback and notes count as new input for the gate, and the report carries both.
+export function refreshInsightsAll(client: QueryClient) {
+  return client.invalidateQueries({ queryKey: insightsQueries.all })
 }

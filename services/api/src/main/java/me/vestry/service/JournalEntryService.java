@@ -1,5 +1,6 @@
 package me.vestry.service;
 
+import me.vestry.model.BehaviorKey;
 import me.vestry.model.JournalEntry;
 import me.vestry.model.JournalEntryType;
 import me.vestry.model.Stock;
@@ -36,13 +37,17 @@ public class JournalEntryService {
     private final TagService tagService;
     private final TransactionRepository transactionRepository;
     private final RealizedPnlCalculator realizedPnlCalculator;
+    private final EntryEvents entryEvents;
+    private final InsightGate insightGate;
 
-    public JournalEntryService(JournalEntryRepository journalEntryRepository, StockService stockService, TagService tagService, TransactionRepository transactionRepository, RealizedPnlCalculator realizedPnlCalculator) {
+    public JournalEntryService(JournalEntryRepository journalEntryRepository, StockService stockService, TagService tagService, TransactionRepository transactionRepository, RealizedPnlCalculator realizedPnlCalculator, EntryEvents entryEvents, InsightGate insightGate) {
         this.journalEntryRepository = journalEntryRepository;
         this.stockService = stockService;
         this.tagService = tagService;
         this.transactionRepository = transactionRepository;
         this.realizedPnlCalculator = realizedPnlCalculator;
+        this.entryEvents = entryEvents;
+        this.insightGate = insightGate;
     }
 
     private User getCurrentUser() {
@@ -86,6 +91,7 @@ public class JournalEntryService {
         } else if (entry.getSourceEntryId() != null) {
             throw new IllegalArgumentException("Only reflections can link to a source entry");
         }
+        checkBehaviorKey(entry);
         if (entry.getTimestamp() == null) {
             entry.setTimestamp(Instant.now());
         }
@@ -106,25 +112,63 @@ public class JournalEntryService {
         }
 
         entry.setTags(tagService.resolveTags(user, combinedTags));
-        return journalEntryRepository.save(entry);
+        return saveAndNotify(entry);
+    }
+
+    static final String INITIAL_ENTRY_BODY = "Initial portfolio creation";
+
+    /** Only an INSIGHT can be written about a behavior; the key is stored in its canonical form. */
+    static void checkBehaviorKey(JournalEntry entry) {
+        if (entry.getBehaviorKey() == null) return;
+        if (entry.getEntryType() != JournalEntryType.INSIGHT) {
+            throw new IllegalArgumentException("Only insights can be written about a behavior");
+        }
+        entry.setBehaviorKey(BehaviorKey.parse(entry.getBehaviorKey()).toString());
+    }
+
+    static String autoSellBody(double shares, String ticker) {
+        return "Sold " + shares + " " + ticker;
+    }
+
+    /** True while the body is still the one vestry generated, i.e. the user never wrote anything. */
+    static boolean isAutoWritten(JournalEntry entry) {
+        String body = entry.getBody();
+        if (body == null || entry.getTicker() == null) {
+            return false;
+        }
+        if (entry.getEntryType() == JournalEntryType.BUY) {
+            return body.equals(INITIAL_ENTRY_BODY);
+        }
+        String prefix = "Sold ";
+        String suffix = " " + entry.getTicker();
+        if (entry.getEntryType() != JournalEntryType.SELL || !body.startsWith(prefix) || !body.endsWith(suffix)
+                || body.length() <= prefix.length() + suffix.length()) {
+            return false;
+        }
+        try {
+            double shares = Double.parseDouble(body.substring(prefix.length(), body.length() - suffix.length()));
+            return body.equals(autoSellBody(shares, entry.getTicker()));
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     public JournalEntry createInitialEntry(User user, String ticker, double price, Instant timestamp) {
         JournalEntry entry = new JournalEntry();
         entry.setEntryType(JournalEntryType.BUY);
-        entry.setBody("Initial portfolio creation");
+        entry.setBody(INITIAL_ENTRY_BODY);
         entry.setTicker(ticker);
         entry.setTimestamp(timestamp != null ? timestamp : Instant.now());
         entry.setPriceSnapshot(price);
         entry.setUser(user);
         entry.setTags(Set.of());
-        return journalEntryRepository.save(entry);
+        return saveAndNotify(entry);
     }
 
     public JournalEntry createAutoSellEntry(User user, String ticker, double shares, double price, Instant timestamp) {
         JournalEntry entry = new JournalEntry();
         entry.setEntryType(JournalEntryType.SELL);
-        entry.setBody("Sold " + shares + " " + ticker);
+        entry.setBody(autoSellBody(shares, ticker));
         entry.setTicker(ticker);
         entry.setTimestamp(timestamp != null ? timestamp : Instant.now());
         entry.setPriceSnapshot(price);
@@ -134,7 +178,7 @@ public class JournalEntryService {
         Double realizedPnl = realizedPnlCalculator.computeRealizedPnl(transactions, ticker, entry.getTimestamp(), shares, price);
         String resultTag = realizedPnlCalculator.resultTagFor(realizedPnl);
         entry.setTags(tagService.resolveTags(user, resultTag != null ? List.of(resultTag) : List.of()));
-        return journalEntryRepository.save(entry);
+        return saveAndNotify(entry);
     }
 
     public List<JournalEntry> getEntriesForUser() {
@@ -196,8 +240,19 @@ public class JournalEntryService {
         for (JournalEntry reflection : journalEntryRepository.findByUserIdAndSourceEntryId(userId, id)) {
             reflection.setSourceEntryId(null);
             reflection.setEntryType(JournalEntryType.INSIGHT);
+            // hindsight reads the type, so the orphaned reflection is re-read too
+            entryEvents.changed(reflection.getId());
         }
         journalEntryRepository.deleteById(id);
+        entryEvents.changed(id);
+        insightGate.inputsChanged(userId);
+    }
+
+    private JournalEntry saveAndNotify(JournalEntry entry) {
+        JournalEntry saved = journalEntryRepository.save(entry);
+        entryEvents.changed(saved.getId());
+        insightGate.inputsChanged(saved.getUser().getId());
+        return saved;
     }
 
     public JournalEntry updateEntry(int id, String body, List<String> tagNames) {
@@ -217,7 +272,7 @@ public class JournalEntryService {
             combinedTags.add(autoTag);
         }
         entry.setTags(tagService.resolveTags(getCurrentUser(), combinedTags));
-        return journalEntryRepository.save(entry);
+        return saveAndNotify(entry);
     }
 
     private String computeAutoTagForSellEntry(User user, JournalEntry entry) {

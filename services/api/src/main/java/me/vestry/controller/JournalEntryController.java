@@ -45,6 +45,7 @@ public class JournalEntryController {
         entry.setTimestamp(dto.getTimestamp());
         entry.setPriceSnapshot(dto.getPriceSnapshot());
         entry.setSourceEntryId(dto.getSourceEntryId());
+        entry.setBehaviorKey(dto.getBehaviorKey());
         return entry;
     }
 

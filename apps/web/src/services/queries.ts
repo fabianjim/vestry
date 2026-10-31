@@ -1,6 +1,6 @@
 import type { JournalFilters } from '../types/journal'
 import { queryOptions } from '@tanstack/react-query'
-import { journalApi, portfolioApi, stockApi, watchlistApi } from './api'
+import { insightsApi, journalApi, portfolioApi, stockApi, watchlistApi } from './api'
 
 // Cache raw responses so every screen can reuse the same request and derive its own view.
 export const portfolioQueries = {
@@ -114,5 +114,28 @@ export const journalQueries = {
   tags: (query = '') => queryOptions({
     queryKey: [...journalQueries.all, 'tags', query],
     queryFn: ({ signal }) => journalApi.getPopularTags(query, signal),
+  }),
+}
+
+export const insightsQueries = {
+  availability: () => queryOptions({
+    queryKey: ['insights-availability'],
+    queryFn: ({ signal }) => insightsApi.availability(signal),
+    staleTime: 60_000,
+    retry: false,
+  }),
+  all: ['insights'] as const,
+  overview: () => queryOptions({
+    queryKey: [...insightsQueries.all, 'overview'],
+    queryFn: ({ signal }) => insightsApi.overview(signal),
+    staleTime: 60_000,
+    retry: false,
+  }),
+  // a saved report's figures never change; feedback and notes invalidate the prefix
+  behaviorReport: (day: string) => queryOptions({
+    queryKey: [...insightsQueries.all, 'report', day],
+    queryFn: ({ signal }) => insightsApi.report(day, signal),
+    staleTime: Infinity,
+    retry: false,
   }),
 }

@@ -8,6 +8,7 @@ import type { DashboardLayout } from '../utils/dashboardLayout'
 
 import type { DigestState } from '../types/digest'
 import type { ReflectionAidResult } from '../types/reflectionAid'
+import type { BehaviorReport, FeedbackRequest, InsightsOverview, OlderReports } from '../types/insights'
 
 const API_BASE = '/api';
 
@@ -157,6 +158,31 @@ export const stockApi = {
     const queryParams = from ? `?from=${encodeURIComponent(from)}` : ''
     return apiClient(`/stock/history/${ticker}${queryParams}`, { signal })
   },
+}
+
+// Insights API
+export const insightsApi = {
+  availability: (signal?: AbortSignal): Promise<{ available: boolean }> =>
+    apiClient('/insights/availability', { signal }),
+
+  // always answers, with unavailable set when hindsight can't be reached
+  overview: (signal?: AbortSignal): Promise<InsightsOverview> =>
+    apiClient('/insights', { signal }),
+
+  // 404 when no report was saved that day, 503 when hindsight can't be reached
+  report: (day: string, signal?: AbortSignal): Promise<BehaviorReport> =>
+    apiClient(`/insights/reports/${encodeURIComponent(day)}`, { signal }),
+
+  // answers before the report is built; the overview reads GENERATING until it's done
+  generate: (): Promise<{ status: 'GENERATING' }> =>
+    apiClient('/insights/generate', { method: 'POST', body: {} }),
+
+  olderReports: (before: string, signal?: AbortSignal): Promise<OlderReports> =>
+    apiClient(`/insights/reports?before=${encodeURIComponent(before)}`, { signal }),
+
+  // a demo visitor's reaction stays in their session
+  feedback: (body: FeedbackRequest) =>
+    apiClient('/insights/feedback', { method: 'PUT', body }),
 }
 
 import type { CalendarDay, Tag, CreateJournalEntryRequest, JournalEntry, JournalFilters, UpdateJournalEntryRequest } from '../types/journal'

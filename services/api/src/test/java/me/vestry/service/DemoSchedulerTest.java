@@ -1,5 +1,6 @@
 package me.vestry.service;
 
+import me.vestry.api.HindsightClient;
 import me.vestry.model.User;
 import me.vestry.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -17,7 +18,8 @@ class DemoSchedulerTest {
     private final UserRepository users = mock(UserRepository.class);
     private final DashboardDigestService briefings = mock(DashboardDigestService.class);
     private final ReflectionAidService reflectionAids = mock(ReflectionAidService.class);
-    private final DemoScheduler scheduler = new DemoScheduler(users, briefings, reflectionAids);
+    private final InsightsService insights = mock(InsightsService.class);
+    private final DemoScheduler scheduler = new DemoScheduler(users, briefings, reflectionAids, insights);
 
     private static User demo() {
         var demo = new User(); demo.setId(7); demo.setDemo(true);
@@ -73,5 +75,30 @@ class DemoSchedulerTest {
         assertDoesNotThrow(scheduler::refreshReflectionAids);
         verify(reflectionAids, times(2)).refreshDemo(demo);
         verifyNoInteractions(briefings);
+    }
+
+    @Test
+    void generatesInsightsNightlyAfterTheReflectionAids() throws Exception {
+        var schedule = DemoScheduler.class.getMethod("generateInsights").getAnnotation(Scheduled.class);
+        assertEquals("America/New_York", schedule.zone());
+        var aids = CronExpression.parse(DemoScheduler.class.getMethod("refreshReflectionAids").getAnnotation(Scheduled.class).cron());
+        var night = ZonedDateTime.of(2026, 10, 31, 0, 0, 0, 0, ZoneId.of(schedule.zone()));
+        assertTrue(CronExpression.parse(schedule.cron()).next(night).isAfter(aids.next(night)));
+    }
+
+    @Test
+    void insightsGenerationSkipsWhenHindsightIsOffAndSurvivesFailures() {
+        scheduler.generateInsights();
+        verifyNoInteractions(users);
+
+        when(insights.available()).thenReturn(true);
+        var demo = demo();
+        when(users.findByDemoTrue()).thenReturn(List.of(demo, demo, demo));
+        when(insights.generateDemo(demo)).thenThrow(new IllegalStateException("boom"))
+                .thenReturn(new HindsightClient.BehaviorReportResponse(HindsightClient.ReportStatus.UNAVAILABLE, null))
+                .thenReturn(new HindsightClient.BehaviorReportResponse(HindsightClient.ReportStatus.READY,
+                        new HindsightClient.BehaviorReport(null, null, null, null, true, List.of(), List.of())));
+        assertDoesNotThrow(scheduler::generateInsights);
+        verify(insights, times(3)).generateDemo(demo);
     }
 }

@@ -14,7 +14,7 @@ const ApplicationRoutes = lazy(loadApplication)
 
 function ApplicationEntry() {
   const { pathname } = useLocation()
-  const isWorkspacePage = ['/dashboard', '/transactions', '/analysis', '/journal']
+  const isWorkspacePage = ['/dashboard', '/transactions', '/analysis', '/journal', '/insights']
     .some(path => matchPath(path, pathname))
 
   if (!isWorkspacePage) return <NotFound />

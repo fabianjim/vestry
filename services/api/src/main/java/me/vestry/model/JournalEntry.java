@@ -35,6 +35,10 @@ public class JournalEntry {
     @Column(name = "source_entry_id")
     private Integer sourceEntryId;
 
+    // "kind" or "kind:subject" when an INSIGHT was written about a behavior in Insights; hindsight reads the text
+    @Column(name = "behavior_key", length = 81)
+    private String behaviorKey;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @JsonIgnore
@@ -108,6 +112,14 @@ public class JournalEntry {
 
     public void setSourceEntryId(Integer sourceEntryId) {
         this.sourceEntryId = sourceEntryId;
+    }
+
+    public String getBehaviorKey() {
+        return behaviorKey;
+    }
+
+    public void setBehaviorKey(String behaviorKey) {
+        this.behaviorKey = behaviorKey;
     }
 
     public void setUser(User user) {

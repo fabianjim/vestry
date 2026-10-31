@@ -2,6 +2,7 @@ package me.vestry.api;
 
 import me.vestry.model.Stock;
 import me.vestry.model.Stock.StockType;
+import java.time.LocalDate;
 import java.util.List;
 
 public interface MarketDataClient {
@@ -33,4 +34,10 @@ public interface MarketDataClient {
      * HTTP/response failures throw and stop the scheduled run; they are not retried here.
      */
     BatchStockResult getStockDataBatch(List<String> tickers, StockType type);
+
+    /**
+     * Fetch adjusted daily closes from start to end, inclusive, oldest first. Rows without a usable close are left out.
+     * An unknown ticker throws UnknownTickerException; other HTTP failures throw and aren't retried here.
+     */
+    List<DailyClose> getDailyCloses(String ticker, LocalDate start, LocalDate end);
 }

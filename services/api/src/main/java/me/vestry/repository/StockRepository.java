@@ -22,4 +22,6 @@ public interface StockRepository extends JpaRepository<Stock, Integer> {
     
     // find all stock data for a ticker
     List<Stock> findByTickerOrderByTimestampDesc(String ticker);
+
+    List<Stock> findByTickerAndTypeOrderByTimestampAsc(String ticker, Stock.StockType type);
 }

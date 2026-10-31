@@ -1,12 +1,11 @@
 import { ViewStateProvider } from '../contexts/ViewState'
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { authApi, demoApi, type SessionUser } from '../services/api'
+import { insightsQueries } from '../services/queries'
+import { visibleNavItems } from './navItems'
 import {
-  HomeIcon,
-  ChartPieIcon,
-  DocumentCurrencyDollarIcon,
-  BookOpenIcon,
   LogoutIcon,
   GithubIcon,
   ExclamationCircleIcon,
@@ -14,13 +13,6 @@ import {
   Bars3Icon,
   ChevronDoubleLeftIcon,
 } from './icons'
-
-const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: HomeIcon },
-  { path: '/analysis', label: 'Holdings', icon: ChartPieIcon },
-  { path: '/transactions', label: 'Transactions', icon: DocumentCurrencyDollarIcon },
-  { path: '/journal', label: 'Journal', icon: BookOpenIcon },
-]
 
 const footerItems = [
   {
@@ -57,6 +49,7 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
   const [remainingTrades, setRemainingTrades] = useState(3)
   const location = useLocation()
   const navigate = useNavigate()
+  const items = visibleNavItems(useQuery(insightsQueries.availability()).data?.available === true)
 
   useEffect(() => {
     const handleResize = () => {
@@ -127,7 +120,7 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
 
         {/* Nav Links */}
         <nav className="flex-1 py-4">
-          {navItems.map((item) => {
+          {items.map((item) => {
             const isActive = location.pathname === item.path
             const Icon = item.icon
             return (
@@ -164,7 +157,7 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
       </aside>
 
       {/* Phone header */}
-      <header className="sticky top-0 z-40 flex h-12 shrink-0 items-center justify-between border-b border-border-subtle bg-background-sidebar px-3 md:hidden">
+      <header data-topbar className="sticky top-0 z-40 flex h-12 shrink-0 items-center justify-between border-b border-border-subtle bg-background-sidebar px-3 md:hidden">
         <img src="/logo.svg" alt="Vestry" width={32} height={32} />
         <button
           onClick={handleLogout}
@@ -186,7 +179,8 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
             Demo Mode — {remainingTrades} of 3 trades remaining. Changes are not saved.
           </div>
         )}
-        <div className="md:min-h-0 flex-1 flex">
+        {/* data-workspace: the area right of the sidebar and below the banner, which full-area views fill */}
+        <div data-workspace className="md:min-h-0 flex-1 flex">
           <div className="min-w-0 flex-1 px-1 md:overflow-auto md:px-0 md:pl-6 flex flex-col">
             <div className="flex-1">
               <ViewStateProvider>
@@ -220,14 +214,15 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
       </main>
 
       {/* Phone tab bar */}
-      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-40 grid h-14 grid-cols-4 border-t border-border-subtle bg-background-sidebar md:hidden">
-        {navItems.map((item) => {
+      <nav data-tabbar aria-label="Primary" className={`fixed inset-x-0 bottom-0 z-40 grid h-14 ${items.length === 5 ? 'grid-cols-5' : 'grid-cols-4'} border-t border-border-subtle bg-background-sidebar md:hidden`}>
+        {items.map((item) => {
           const isActive = location.pathname === item.path
           const Icon = item.icon
           return (
             <Link
               key={item.path}
               to={item.path}
+              aria-label={item.label}
               aria-current={isActive ? 'page' : undefined}
               className={`flex flex-col items-center justify-center gap-0.5 text-xs font-130 transition-colors ${
                 isActive ? 'text-foreground' : 'text-muted active:text-foreground'
@@ -236,7 +231,7 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
               <span className={`rounded-full px-4 py-0.5 transition-colors ${isActive ? 'bg-surface-active' : ''}`}>
                 <Icon className="w-5 h-5" />
               </span>
-              {item.label}
+              {items.length === 5 ? item.phoneLabel ?? item.label : item.label}
             </Link>
           )
         })}

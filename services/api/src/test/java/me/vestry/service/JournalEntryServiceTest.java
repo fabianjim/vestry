@@ -32,6 +32,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,6 +55,12 @@ public class JournalEntryServiceTest {
 
     @Mock
     private Authentication authentication;
+
+    @Mock
+    private EntryEvents entryEvents;
+
+    @Mock
+    private InsightGate insightGate;
 
     @Spy
     private RealizedPnlCalculator realizedPnlCalculator = new RealizedPnlCalculator();
@@ -172,12 +179,41 @@ public class JournalEntryServiceTest {
     }
 
     @Test
+    void insightKeepsItsBehaviorKey() {
+        when(journalEntryRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        JournalEntry entry = behaviorEntry(JournalEntryType.INSIGHT, "emotional:anxious");
+        journalEntryService.createEntry(entry, List.of());
+        ArgumentCaptor<JournalEntry> captor = ArgumentCaptor.forClass(JournalEntry.class);
+        verify(journalEntryRepository).save(captor.capture());
+        assertEquals("emotional:anxious", captor.getValue().getBehaviorKey());
+    }
+
+    @Test
+    void onlyInsightsWithValidKeysCanBeAboutABehavior() {
+        JournalEntry buy = behaviorEntry(JournalEntryType.BUY, "fomo");
+        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(buy, List.of()));
+        JournalEntry invalid = behaviorEntry(JournalEntryType.INSIGHT, "Emotional");
+        assertThrows(IllegalArgumentException.class, () -> journalEntryService.createEntry(invalid, List.of()));
+        verify(journalEntryRepository, never()).save(any());
+    }
+
+    private static JournalEntry behaviorEntry(JournalEntryType type, String behaviorKey) {
+        JournalEntry entry = new JournalEntry();
+        entry.setEntryType(type);
+        entry.setBody("About a behavior");
+        entry.setBehaviorKey(behaviorKey);
+        return entry;
+    }
+
+    @Test
     void deletingSourceConvertsAllLinkedReflectionsAndPreservesTheirContent() {
         reflectionSource();
         JournalEntry first = newReflection();
         first.setPriceSnapshot(125.0);
         first.setTimestamp(Instant.EPOCH);
+        first.setId(8);
         JournalEntry second = newReflection();
+        second.setId(9);
         when(journalEntryRepository.findByUserIdAndSourceEntryId(1, 7)).thenReturn(List.of(first, second));
 
         journalEntryService.deleteEntry(7);
@@ -190,6 +226,10 @@ public class JournalEntryServiceTest {
         assertEquals(125.0, first.getPriceSnapshot());
         assertEquals(Instant.EPOCH, first.getTimestamp());
         verify(journalEntryRepository).deleteById(7);
+        // the retyped reflections are re-read by hindsight as well as the deleted source
+        verify(entryEvents).changed(7);
+        verify(entryEvents).changed(8);
+        verify(entryEvents).changed(9);
     }
 
     @Test
@@ -283,6 +323,8 @@ public class JournalEntryServiceTest {
         ArgumentCaptor<JournalEntry> captor = ArgumentCaptor.forClass(JournalEntry.class);
         verify(journalEntryRepository).save(captor.capture());
         assertEquals(price, captor.getValue().getPriceSnapshot(), 0.01);
+        verify(entryEvents).changed(1);
+        verify(insightGate).inputsChanged(mockUser.getId());
     }
 
     @Test
@@ -430,6 +472,7 @@ public class JournalEntryServiceTest {
 
         verify(tagService, never()).resolveTags(any(User.class), any());
         verify(journalEntryRepository).save(any(JournalEntry.class));
+        verify(entryEvents).changed(anyInt());
     }
 
     @Test
@@ -454,6 +497,7 @@ public class JournalEntryServiceTest {
         verify(tagService).resolveTags(eq(mockUser), tagCaptor.capture());
         assertEquals(List.of("win"), tagCaptor.getValue());
         verify(journalEntryRepository).save(any(JournalEntry.class));
+        verify(entryEvents).changed(1);
     }
 
     @Test
@@ -546,6 +590,8 @@ public class JournalEntryServiceTest {
         journalEntryService.deleteEntry(1);
 
         verify(journalEntryRepository).deleteById(1);
+        verify(entryEvents).changed(1);
+        verify(insightGate).inputsChanged(mockUser.getId());
     }
 
     @Test
@@ -588,6 +634,7 @@ public class JournalEntryServiceTest {
 
         assertEquals("Updated body", result.getBody());
         verify(journalEntryRepository).save(entry);
+        verify(entryEvents).changed(1);
     }
 
     @Test
@@ -616,5 +663,28 @@ public class JournalEntryServiceTest {
             journalEntryService.updateEntry(1, "Updated body", List.of());
         });
         assertEquals("Journal entry not found", exception.getMessage());
+    }
+
+    @Test
+    void autoWrittenOnlyWhileTheGeneratedBodyIsUnchanged() {
+        assertTrue(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.BUY, "Initial portfolio creation")));
+        assertTrue(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.SELL, "Sold 2.5 NVDA")));
+        assertTrue(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.SELL, "Sold 1.0E-4 NVDA")));
+
+        assertFalse(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.BUY, "Initial portfolio creation, on a hunch")));
+        assertFalse(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.SELL, "Sold 2.5 NVDA too early")));
+        assertFalse(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.SELL, "Sold some NVDA")));
+        // the generator writes 3.0, so a hand-written 3 is the user's
+        assertFalse(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.SELL, "Sold 3 NVDA")));
+        assertFalse(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.SELL, "Sold 2.5 AAPL")));
+        assertFalse(JournalEntryService.isAutoWritten(autoEntry(JournalEntryType.INSIGHT, "Initial portfolio creation")));
+    }
+
+    private static JournalEntry autoEntry(JournalEntryType type, String body) {
+        JournalEntry entry = new JournalEntry();
+        entry.setEntryType(type);
+        entry.setTicker("NVDA");
+        entry.setBody(body);
+        return entry;
     }
 }

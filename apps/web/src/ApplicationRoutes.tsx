@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard'
 import Analysis from './pages/Analysis'
 import Transactions from './pages/Transactions'
 import Journal from './pages/Journal'
+import Insights from './pages/Insights'
 
 export default function ApplicationRoutes() {
   return (
@@ -14,6 +15,7 @@ export default function ApplicationRoutes() {
         <Route path="/transactions" element={<Transactions />} />
         <Route path="/analysis" element={<Analysis />} />
         <Route path="/journal" element={<Journal />} />
+        <Route path="/insights" element={<Insights />} />
       </Route>
     </Routes>}</ApplicationSession>
   )

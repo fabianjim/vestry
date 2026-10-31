@@ -45,13 +45,40 @@ test.describe('workspace pages', () => {
     test.skip(!response?.ok(), 'Demo login needs the local API (make dev).')
   })
 
-  for (const name of ['dashboard', 'analysis', 'transactions', 'journal']) {
+  for (const name of ['dashboard', 'analysis', 'transactions', 'journal', 'insights']) {
     test(`${name} fits the viewport`, async ({ page }) => {
       await page.goto(`/${name}`)
       await page.locator('main').waitFor()
       await check(page, name)
     })
   }
+
+  test('the insights report fills the page, moves between cards and goes back', async ({ page }, info) => {
+    // without motion, each check sees the card at rest
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/insights')
+    await page.locator('#past-reports').waitFor()
+    const generate = page.getByRole('button', { name: 'Generate report' })
+    test.skip(!(await generate.isVisible().catch(() => false)), 'Needs a saved demo report from hindsight.')
+    await generate.click()
+    const counter = page.getByText(/^\d+ of \d+$/)
+    await counter.waitFor()
+    const count = Number((await counter.textContent())!.split(' of ')[1])
+    for (let card = 1; card <= count; card++) {
+      await expect(counter).toHaveText(`${card} of ${count}`)
+      await check(page, `insights-card-${card}`)
+      // the page under the report never scrolls; on wide screens the card itself fits too
+      expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe('hidden')
+      if (info.project.name !== 'phone') {
+        const scrolls = await page.locator('[aria-hidden="false"]').evaluate(el => el.scrollHeight > el.clientHeight + 1 ? `${el.scrollHeight - el.clientHeight}px over` : false)
+        expect(scrolls, `card ${card} scrolls`).toBe(false)
+      }
+      await page.keyboard.press('ArrowRight')
+    }
+    await page.getByRole('button', { name: '← Back' }).click()
+    await expect(counter).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'View current report' })).toBeVisible()
+  })
 })
 
 test.describe('phone interactions', () => {

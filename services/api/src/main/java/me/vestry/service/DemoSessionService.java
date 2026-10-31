@@ -101,6 +101,7 @@ public class DemoSessionService {
             copy.setTotalValue(tx.getTotalValue());
             copy.setUser(user);
             txCopy.add(copy);
+            session.getTemplateTransactionIds().put(copy.getId(), tx.getId());
         }
         session.setTransactions(txCopy);
 
@@ -112,6 +113,7 @@ public class DemoSessionService {
             copy.setId(session.nextId());
             journalIds.put(entry.getId(), copy.getId());
             copy.setSourceEntryId(entry.getSourceEntryId());
+            copy.setBehaviorKey(entry.getBehaviorKey());
             copy.setEntryType(entry.getEntryType());
             copy.setBody(entry.getBody());
             copy.setTicker(entry.getTicker());
@@ -576,6 +578,7 @@ public class DemoSessionService {
             } else if (entry.getSourceEntryId() != null) {
                 throw new IllegalArgumentException("Only reflections can link to a source entry");
             }
+            JournalEntryService.checkBehaviorKey(entry);
             entry.setUser(user);
             entry.setId(session.nextId());
             if (entry.getTimestamp() == null) {
