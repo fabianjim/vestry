@@ -12,6 +12,7 @@ import me.vestry.security.SecurityConfig;
 import me.vestry.service.DemoSessionResolver;
 import me.vestry.service.DemoSessionService;
 import me.vestry.service.DemoSessionStore;
+import me.vestry.service.InsightsService;
 import me.vestry.service.PortfolioService;
 import me.vestry.service.TransactionService;
 import me.vestry.service.UserService;
@@ -53,6 +54,7 @@ class LoginControllerTest {
     @MockitoBean private TransactionService transactions;
     @MockitoBean private NasdaqMetadataService metadata;
     @MockitoBean private GoogleSignInVerifier google;
+    @MockitoBean private InsightsService insights;
     private User demoUser;
 
     @Test
@@ -119,8 +121,10 @@ class LoginControllerTest {
         MvcResult regular = login("regular", null, cookie);
         MockHttpSession regularSession = session(regular);
         assertEquals(7200, regularSession.getMaxInactiveInterval());
+        when(insights.available()).thenReturn(true);
         mvc.perform(get("/api/auth/me").session(regularSession))
-                .andExpect(jsonPath("username").value("regular"));
+                .andExpect(jsonPath("username").value("regular"))
+                .andExpect(jsonPath("insightsAvailable").value(true));
         mvc.perform(post("/api/auth/logout").session(regularSession)).andExpect(status().is3xxRedirection());
         assertTrue(regularSession.isInvalid());
         verify(store, never()).findAndTouch(any(), anyInt());

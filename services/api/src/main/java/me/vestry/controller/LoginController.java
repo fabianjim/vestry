@@ -5,6 +5,7 @@ import me.vestry.security.GoogleSignInVerifier;
 import me.vestry.security.GoogleSignInVerifier.GoogleIdentity;
 import me.vestry.service.DemoSessionResolver;
 import me.vestry.service.DemoSessionStore;
+import me.vestry.service.InsightsService;
 import me.vestry.service.UserService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,10 +32,13 @@ public class LoginController {
     private final DemoSessionResolver demoSessionResolver;
     private final ServerProperties serverProperties;
     private final GoogleSignInVerifier googleVerifier;
+    private final InsightsService insights;
 
     public LoginController(UserService userService, DemoSessionResolver demoSessionResolver,
-                           ServerProperties serverProperties, GoogleSignInVerifier googleVerifier) {
+                           ServerProperties serverProperties, GoogleSignInVerifier googleVerifier,
+                           InsightsService insights) {
         this.userService = userService;
+        this.insights = insights;
         this.demoSessionResolver = demoSessionResolver;
         this.googleVerifier = googleVerifier;
         this.serverProperties = serverProperties;
@@ -114,15 +118,15 @@ public class LoginController {
         return ResponseEntity.ok(new SessionStatusResponse(auth != null && auth.getPrincipal() instanceof User));
     }
 
+    // Carries insightsAvailable so the shell renders every nav item at once instead of waiting on a second request.
     @GetMapping("/me")
-    public ResponseEntity<LoginResponse> me() {
+    public ResponseEntity<SessionResponse> me() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !(auth.getPrincipal() instanceof User user)) {
-            return ResponseEntity.status(401).body(new LoginResponse("Not authenticated", null, null, false));
+            return ResponseEntity.status(401).body(new SessionResponse("Not authenticated", null, null, false, false));
         }
-        return ResponseEntity.ok(
-                new LoginResponse("Authenticated", user.getUsername(), user.getId(), user.isDemo())
-        );
+        return ResponseEntity.ok(new SessionResponse(
+                "Authenticated", user.getUsername(), user.getId(), user.isDemo(), insights.available()));
     }
 
     public static class RegisterRequest {
@@ -143,6 +147,9 @@ public class LoginController {
     public record GoogleConfigResponse(String clientId) {}
 
     public record LoginResponse(String message, String username, Integer userId, boolean isDemo) {}
+
+    public record SessionResponse(String message, String username, Integer userId, boolean isDemo,
+                                  boolean insightsAvailable) {}
 
     public record SessionStatusResponse(boolean authenticated) {}
 

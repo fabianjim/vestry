@@ -291,4 +291,4 @@ export const demoApi = {
 
 export default apiClient
 
-export type SessionUser = { userId: number; username: string; isDemo: boolean }
+export type SessionUser = { userId: number; username: string; isDemo: boolean; insightsAvailable: boolean }

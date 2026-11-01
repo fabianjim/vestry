@@ -1,9 +1,7 @@
 import { ViewStateProvider } from '../contexts/ViewState'
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
 import { authApi, demoApi, type SessionUser } from '../services/api'
-import { insightsQueries } from '../services/queries'
 import { visibleNavItems } from './navItems'
 import {
   LogoutIcon,
@@ -49,7 +47,7 @@ export default function Layout({ user, priceRevision }: { user: SessionUser; pri
   const [remainingTrades, setRemainingTrades] = useState(3)
   const location = useLocation()
   const navigate = useNavigate()
-  const items = visibleNavItems(useQuery(insightsQueries.availability()).data?.available === true)
+  const items = visibleNavItems(user.insightsAvailable)
 
   useEffect(() => {
     const handleResize = () => {

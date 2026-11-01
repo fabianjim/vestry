@@ -15,7 +15,7 @@ vi.mock('react', () => ({
   useEffect: (effect: () => () => void) => { harness.cleanup.push(effect()) },
 }))
 
-const user = { userId: 1, username: 'investor', isDemo: false }
+const user = { userId: 1, username: 'investor', isDemo: false, insightsAvailable: false }
 let client: ReturnType<typeof createQueryClient>
 let documentEvents: EventTarget
 
