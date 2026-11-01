@@ -1,8 +1,9 @@
+import type { Behavior, BehaviorFigure, BehaviorTrade } from '../../types/insights'
 import type { JournalEntry, JournalEntryType, JournalFilters, Tag } from '../../types/journal'
-import type { StockHistoryPoint } from '../../types/stock'
 
 /*
- * One fictional investor's June 2026, shared by every landing section so the numbers agree.
+ * One fictional investor's spring 2026, shared by every landing section so the numbers agree.
+ * The May buys each say when they'd sell; the June buys don't. Analyze reports that habit.
  * Jun 18 is a Thursday; Jun 19 is a market holiday. Timestamps are New York time (UTC-4).
  */
 
@@ -30,6 +31,21 @@ export const AAPL_SELL = entry(8, 'SELL', 'AAPL', '2026-06-18T15:35:00Z', 232.4,
 
 const NVDA_BUY = entry(2, 'BUY', 'NVDA', '2026-06-03T14:45:00Z', 164.5, [TAGS.semis],
   'Starting a small NVDA position ahead of earnings season. Data-center demand is the thesis.')
+const MSFT_INSIGHT = entry(6, 'INSIGHT', 'MSFT', '2026-06-16T14:20:00Z', 512.3, [TAGS.thesis],
+  'Cloud growth is the whole reason I own MSFT. If that slows, I should revisit the position, not the headlines.')
+const KO_BUY = entry(3, 'BUY', 'KO', '2026-06-08T17:30:00Z', 71.6, [TAGS.dividends],
+  'Added KO for steady dividends. Not expecting much growth here.')
+const JPM_SELL = entry(4, 'SELL', 'JPM', '2026-06-10T15:05:00Z', 268.15, [TAGS.rebalance],
+  'Trimmed JPM to bring financials back under 15% of the portfolio.')
+const NVDA_REFLECTION = entry(5, 'REFLECTION', 'NVDA', '2026-06-12T19:10:00Z', 171.2, [TAGS.semis],
+  'Up since I bought, but I wrote nothing about valuation. Next time I’ll note what would make me trim.', NVDA_BUY.id)
+
+const AAPL_BUY = entry(11, 'BUY', 'AAPL', '2026-05-04T14:10:00Z', 205, [TAGS.thesis],
+  'Bought AAPL for services growth. If it grows past a quarter of my portfolio, I’ll trim it back.')
+const JPM_BUY = entry(12, 'BUY', 'JPM', '2026-05-12T15:30:00Z', 255, [TAGS.thesis],
+  'Added JPM for steady earnings. I’ll trim if financials go past 15% of the portfolio.')
+const MSFT_BUY = entry(13, 'BUY', 'MSFT', '2026-05-20T17:00:00Z', 498, [TAGS.thesis],
+  'Bought MSFT for cloud growth. If Azure slows two quarters in a row, I’ll sell.')
 
 /** Newest first, as the journal lists them. The three story entries are the latest. */
 export const JOURNAL_ENTRIES: JournalEntry[] = [
@@ -38,17 +54,16 @@ export const JOURNAL_ENTRIES: JournalEntry[] = [
   AAPL_SELL,
   entry(7, 'MARKET_EVENT', null, '2026-06-17T18:30:00Z', null, [TAGS.fed],
     'New Fed chair’s first press conference. Markets slipped through the Q&A, then steadied into the close.'),
-  entry(6, 'INSIGHT', 'MSFT', '2026-06-16T14:20:00Z', 512.3, [TAGS.thesis],
-    'Cloud growth is the whole reason I own MSFT. If that slows, I should revisit the position, not the headlines.'),
-  entry(5, 'REFLECTION', 'NVDA', '2026-06-12T19:10:00Z', 171.2, [TAGS.semis],
-    'Up since I bought, but I wrote nothing about valuation. Next time I’ll note what would make me trim.', NVDA_BUY.id),
-  entry(4, 'SELL', 'JPM', '2026-06-10T15:05:00Z', 268.15, [TAGS.rebalance],
-    'Trimmed JPM to bring financials back under 15% of the portfolio.'),
-  entry(3, 'BUY', 'KO', '2026-06-08T17:30:00Z', 71.6, [TAGS.dividends],
-    'Added KO for steady dividends. Not expecting much growth here.'),
+  MSFT_INSIGHT,
+  NVDA_REFLECTION,
+  JPM_SELL,
+  KO_BUY,
   NVDA_BUY,
   entry(1, 'MARKET_EVENT', null, '2026-06-02T20:00:00Z', null, [TAGS.fed],
     'Rates held steady. The statement hinted a new Fed chair would take over by summer.'),
+  MSFT_BUY,
+  JPM_BUY,
+  AAPL_BUY,
 ]
 
 /* Hero: portfolio value through Jun 18, on a same-day clock for the chart axis. */
@@ -79,21 +94,58 @@ export const HERO_EVENTS = [
   { entry: SPY_BUY, time: chartTime('3:50 PM'), value: 45250 },
 ]
 
-/* Analyze: SPY around the Jun 18 buy (12 shares, $9,000). Jun 19–21 are closed. */
+/* Analyze: one behavior report as of Jun 23, counted from the trades below. */
 
-export const SPY_SHARES = 12
+export const REPORT_AS_OF = '2026-06-23'
+const PRICE_AS_OF: Record<string, number> = { AAPL: 229.5, JPM: 266, MSFT: 509, NVDA: 181.4, KO: 70.2, SPY: 768 }
 
-const close = (timestamp: string, price: number): StockHistoryPoint =>
-  ({ timestamp, currentPrice: price, open: price, high: price, low: price, prevClose: price })
+// Each trade shares its journal entry's time and price.
+const trade = (tradeId: number, side: 'BUY' | 'SELL', shares: number, { ticker, timestamp, priceSnapshot }: JournalEntry): BehaviorTrade =>
+  ({ tradeId, tradeExists: true, ticker, side, shares, price: priceSnapshot, timestamp })
 
-export const SPY_HISTORY: StockHistoryPoint[] = [
-  close('2026-06-15T20:00:00Z', 735),
-  close('2026-06-16T20:00:00Z', 731),
-  close('2026-06-17T20:00:00Z', 745),
-  close(SPY_BUY.timestamp, 750),
-  close('2026-06-22T20:00:00Z', 748),
-  close('2026-06-23T20:00:00Z', 768),
-]
+const PLANNED_BUYS = [trade(1, 'BUY', 60, AAPL_BUY), trade(2, 'BUY', 25, JPM_BUY), trade(3, 'BUY', 8, MSFT_BUY)]
+const UNPLANNED_BUYS = [trade(4, 'BUY', 20, NVDA_BUY), trade(5, 'BUY', 40, KO_BUY), trade(8, 'BUY', 12, SPY_BUY)]
+
+/** Oldest first. */
+export const TRADES: BehaviorTrade[] = [
+  ...PLANNED_BUYS, ...UNPLANNED_BUYS, trade(6, 'SELL', 5, JPM_SELL), trade(7, 'SELL', 8, AAPL_SELL),
+].sort((a, b) => a.timestamp!.localeCompare(b.timestamp!))
+
+// The figures hindsight would send for a group: each buy against its price on REPORT_AS_OF.
+function results(buys: BehaviorTrade[], prefix: '' | 'baseline_'): BehaviorFigure[] {
+  const pnls = buys.map(buy => buy.shares! * (PRICE_AS_OF[buy.ticker!] - buy.price!))
+  const returns = buys.map(buy => PRICE_AS_OF[buy.ticker!] / buy.price! - 1)
+  const pnl = pnls.reduce((sum, value) => sum + value, 0)
+  return [
+    { key: 'decisions', value: buys.length, unit: 'count' },
+    { key: 'outcomes', value: buys.length, unit: 'count' },
+    { key: 'gains', value: pnls.filter(value => value > 0).length, unit: 'count' },
+    { key: 'pnl', value: pnl, unit: 'money' },
+    { key: 'avg_pnl', value: pnl / buys.length, unit: 'money' },
+    { key: 'avg_return', value: returns.reduce((sum, value) => sum + value, 0) / buys.length, unit: 'fraction' },
+  ].map(figure => ({ ...figure, key: prefix + figure.key }))
+}
+
+const cite = (entry: JournalEntry, quote: string) => ({ entryId: entry.id, quote, entryExists: true })
+
+/** The June buys never said when they'd sell. Only the observation and question stand in for model text. */
+export const BEHAVIOR: Behavior = {
+  kind: 'no_plan',
+  subject: null,
+  figures: [...results(UNPLANNED_BUYS, ''), ...results(PLANNED_BUYS, 'baseline_')],
+  previous: null,
+  observation: 'Your May buys each said when you would sell, and you still check against those plans. Your June buys didn’t, even after you wrote that you would next time.',
+  question: 'What would tell you the rebound you bought SPY for has run its course?',
+  citations: [
+    cite(AAPL_BUY, 'If it grows past a quarter of my portfolio, I’ll trim it back.'),
+    cite(MSFT_INSIGHT, 'If that slows, I should revisit the position, not the headlines.'),
+    cite(NVDA_REFLECTION, 'Next time I’ll note what would make me trim.'),
+  ],
+  trades: UNPLANNED_BUYS,
+  entries: [],
+  feedback: null,
+  notes: [],
+}
 
 /* Reflect: the scripted filter sequence. `shown` drives the filter bar; `applied` drives the list. */
 
