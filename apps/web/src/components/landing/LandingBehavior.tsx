@@ -89,7 +89,7 @@ function Draft({ start, onSave }: { start: boolean; onSave?: () => void }) {
   return (
     <div>
       <p className="text-sm text-muted text-balance">
-        Write about this as an{' '}
+        Write an{' '}
         <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] leading-none font-130 align-[1px] ${JOURNAL_STYLES.INSIGHT.badge}`}>
           {JOURNAL_STYLES.INSIGHT.label}
         </span>
@@ -142,17 +142,6 @@ export default function LandingBehavior({ onSave }: LandingBehaviorProps) {
 
   return (
     <div ref={ref} className="w-full bg-surface p-6 rounded-lg border border-border text-left">
-      <div className="mb-4 flex justify-end">
-        <span className="grid text-right text-xs text-muted">
-          <span className={`col-start-1 row-start-1 transition-opacity duration-300 ${found ? 'opacity-0' : ''}`}>
-            Reading {JOURNAL_ENTRIES.length} entries and {TRADES.length} trades
-          </span>
-          <span className={`col-start-1 row-start-1 transition-opacity duration-300 ${found ? '' : 'opacity-0'}`}>
-            As of {dayLabel(REPORT_AS_OF)}
-          </span>
-        </span>
-      </div>
-
       <div role="img" aria-label="Trades and journal entries from May to June 2026, with the June buys and the entries quoted below marked"
         className="flex gap-3">
         <div aria-hidden="true" className="w-14 shrink-0 text-xs text-muted">
@@ -196,7 +185,7 @@ export default function LandingBehavior({ onSave }: LandingBehaviorProps) {
           </div>
           <ol className="mt-1.5 flex">
             {MONTHS.map(month => (
-              <li key={month.key} className="min-w-0 flex-1 border-l border-border pl-1.5 text-xs text-muted">{month.label}</li>
+              <li key={month.key} className="min-w-0 flex-1 text-xs text-muted">{month.label}</li>
             ))}
           </ol>
           <div className={`pointer-events-none absolute top-0 h-14 w-px bg-primary/60 ${step === SWEEP ? 'opacity-100' : 'opacity-0'}`}
