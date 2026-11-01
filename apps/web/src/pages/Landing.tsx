@@ -7,7 +7,7 @@ import { useDemoLogin } from '../hooks/useDemoLogin'
 import LandingNav from '../components/landing/LandingNav'
 import LandingChart from '../components/landing/LandingChart'
 import LandingJournal from '../components/landing/LandingJournal'
-import LandingDetailCard from '../components/landing/LandingDetailCard'
+import LandingBehavior from '../components/landing/LandingBehavior'
 import LandingCTA from '../components/landing/LandingCTA'
 import { GithubIcon, EnvelopeIcon } from '../components/icons'
 
@@ -165,16 +165,16 @@ export default function Landing() {
           ref={(el) => { sectionRefs.current[2] = el }}
           className="min-h-[calc(100svh-3.5rem)] flex flex-col justify-center px-6 py-8"
         >
-          <RevealSection className="max-w-3xl mx-auto w-full">
-            <div className="text-center mb-6">
-              <h2 className="text-3xl md:text-4xl font-90 tracking-tight text-foreground mb-4">Analyze what happened</h2>
-              <p className="text-base text-secondary max-w-lg mx-auto leading-relaxed">
-                See the entry against customizable metrics. <br /> Understand trends and outcomes without
-                noise.
+          <RevealSection className="max-w-4xl mx-auto w-full">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl md:text-4xl font-90 tracking-tight text-foreground mb-4">Analyze the patterns behind your trades</h2>
+              <p className="text-base text-secondary max-w-3xl mx-auto leading-relaxed">
+                AI reads your entries against your trades to find habits you’d only notice in hindsight.
+                <br />Vestry only observes and asks.
               </p>
             </div>
 
-            <LandingDetailCard />
+            <LandingBehavior onSave={() => scrollTo('improve')} />
           </RevealSection>
         </section>
 
