@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Behavior, BehaviorReaction, BehaviorReport } from '../../types/insights'
 import type { JournalEntry } from '../../types/journal'
@@ -19,8 +19,6 @@ type Props = {
   titleId: string
   entries: JournalEntry[] | undefined
   onOpenEntry: (entryId: number) => void
-  // the last card closes the report with what's still forming
-  footnote?: ReactNode
 }
 
 const tone = (value: number) => (value < 0 ? 'text-loss' : value > 0 ? 'text-gain' : 'text-secondary')
@@ -30,7 +28,7 @@ const QUIET = 'text-sm text-link hover:text-primary-hover transition-colors poin
 // One behavior across the width: what it is and how it went against the user's own baseline on the left, what
 // hindsight noticed and the passages behind it on the right, then the evidence and the user's reaction.
 // Figures are worded by vestry; only the observation and question are AI text.
-export default function BehaviorCard({ behavior, report, titleId, entries, onOpenEntry, footnote }: Props) {
+export default function BehaviorCard({ behavior, report, titleId, entries, onOpenEntry }: Props) {
   const { group, baseline } = consequence(behavior)
   const facts = kindFacts(behavior)
   const since = sinceLast(behavior)
@@ -89,7 +87,6 @@ export default function BehaviorCard({ behavior, report, titleId, entries, onOpe
               <p className="text-lg font-90 mt-1">{behavior.question}</p>
             </div>
           )}
-          {footnote}
         </div>
       </div>
 

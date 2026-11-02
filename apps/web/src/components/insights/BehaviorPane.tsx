@@ -20,7 +20,6 @@ type Props = {
   entries: JournalEntry[] | undefined
   onIndex: (index: number) => void
   onClose: () => void
-  onViewPast: () => void
   onOpenEntry: (entryId: number) => void
 }
 
@@ -30,7 +29,7 @@ const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.
  * The report over the whole Insights area: no page scroll, Back (or Esc) eases it away. While a report is
  * being built it holds a calm loading state instead.
  */
-export default function BehaviorPane({ mode, entries, onIndex, onClose, onViewPast, onOpenEntry }: Props) {
+export default function BehaviorPane({ mode, entries, onIndex, onClose, onOpenEntry }: Props) {
   const bounds = useWorkspaceBounds(true)
   const stage = useRef<HTMLElement>(null)
   const [shown, setShown] = useState(false)
@@ -53,7 +52,16 @@ export default function BehaviorPane({ mode, entries, onIndex, onClose, onViewPa
   const data = mode.kind === 'report' ? report.data : undefined
   const behaviors = data ? shownBehaviors(data.behaviors) : []
   const count = behaviors.length
-  const current = mode.kind === 'report' ? Math.min(mode.index, Math.max(count - 1, 0)) : 0
+  // the behaviors, then one closing page at index count
+  const current = mode.kind === 'report' ? Math.min(mode.index, count) : 0
+
+  // an arrow that just disabled itself, or a control on the card that slid away, would drop focus and the keys with it
+  useEffect(() => {
+    const active = document.activeElement
+    if (!active || active === document.body || active.matches(':disabled, [aria-hidden="true"] *')) {
+      stage.current?.focus({ preventScroll: true })
+    }
+  }, [current])
 
   return (
     <section ref={stage} tabIndex={-1} aria-label={day ? `Report for ${reportDayLong(day)}` : 'Building your report'}
@@ -61,7 +69,7 @@ export default function BehaviorPane({ mode, entries, onIndex, onClose, onViewPa
       style={{ ...bounds, outline: 'none' }}
       onKeyDown={e => {
         if (e.target instanceof HTMLTextAreaElement) return
-        const action = paneKey(e.key, current, count)
+        const action = paneKey(e.key, current, count + 1)
         if (!action) return
         e.preventDefault()
         if (action === 'close') leave(onClose)
@@ -74,7 +82,7 @@ export default function BehaviorPane({ mode, entries, onIndex, onClose, onViewPa
         {day && (
           <p className="text-sm text-muted tabular-nums">
             {reportDayLong(day)}
-            {count > 0 && <span aria-live="polite" className="ml-4">{current + 1} of {count}</span>}
+            {current < count && <span aria-live="polite" className="ml-4">{current + 1} of {count}</span>}
           </p>
         )}
       </header>
@@ -100,7 +108,7 @@ export default function BehaviorPane({ mode, entries, onIndex, onClose, onViewPa
           <Centered><p className="text-muted">Nothing in this report can be shown here.</p></Centered>
         ) : (
           <Cards report={data} current={current} entries={entries} onIndex={onIndex} onOpenEntry={onOpenEntry}
-            onViewPast={() => leave(onViewPast)} />
+            onReturn={() => leave(onClose)} />
         )}
       </div>
     </section>
@@ -111,26 +119,24 @@ function Centered({ children }: { children: ReactNode }) {
   return <div className="flex h-full items-center justify-center px-6 text-center">{children}</div>
 }
 
-function Cards({ report, current, entries, onIndex, onOpenEntry, onViewPast }: {
-  report: BehaviorReport
-  current: number
-  entries: JournalEntry[] | undefined
-  onIndex: (index: number) => void
-  onOpenEntry: (entryId: number) => void
-  onViewPast: () => void
-}) {
-  const behaviors = shownBehaviors(report.behaviors)
+function ClosingPage({ report, onReturn }: { report: BehaviorReport; onReturn: () => void }) {
   const needs = report.needs.flatMap(need => needHint(need) ?? [])
-  const last = behaviors.length - 1
 
-  const footnote = (
-    <div className="mt-5 border-t border-border pt-3">
+  return (
+    <div className="flex min-h-full flex-col items-center justify-center gap-10 text-center">
+      <div className="flex flex-col items-center">
+        <h3 className="text-2xl font-130">Check back tomorrow</h3>
+        <button type="button" onClick={onReturn}
+          className="mt-6 px-4 py-2 border border-border text-foreground rounded-md hover:bg-surface-hover transition-colors text-sm pointer-coarse:min-h-[40px]">
+          Return
+        </button>
+      </div>
       {needs.length > 0 && (
-        <section aria-label="Still forming">
-          <h3 className="text-sm font-130">Still forming</h3>
-          <ul className="grid gap-x-8 sm:grid-cols-2">
+        <section aria-label="Still forming" className="w-full max-w-2xl">
+          <h4 className="text-sm font-130">Still forming</h4>
+          <ul className="mt-1 flex flex-wrap justify-center gap-x-8">
             {needs.map(({ name, hint }) => (
-              <li key={`${name}-${hint}`} className="py-1.5 text-sm">
+              <li key={`${name}-${hint}`} className="w-full py-1.5 text-sm sm:w-72">
                 <span className="block">{name}</span>
                 <span className="text-muted">{hint}</span>
               </li>
@@ -138,9 +144,24 @@ function Cards({ report, current, entries, onIndex, onOpenEntry, onViewPast }: {
           </ul>
         </section>
       )}
-      <button type="button" onClick={onViewPast} className={`${QUIET} mt-3`}>View past reports</button>
     </div>
   )
+}
+
+function Cards({ report, current, entries, onIndex, onOpenEntry, onReturn }: {
+  report: BehaviorReport
+  current: number
+  entries: JournalEntry[] | undefined
+  onIndex: (index: number) => void
+  onOpenEntry: (entryId: number) => void
+  onReturn: () => void
+}) {
+  const behaviors = shownBehaviors(report.behaviors)
+  const closing = behaviors.length
+  const slide = (visible: boolean) =>
+    // a card that slid away is hidden once the slide ends, so it can't be focused or read
+    `h-full w-full shrink-0 overflow-y-auto px-14 py-3 sm:px-24 transition-[visibility] motion-reduce:transition-none ${
+      visible ? 'visible' : 'invisible delay-500 motion-reduce:delay-0'}`
 
   return (
     <>
@@ -150,21 +171,22 @@ function Cards({ report, current, entries, onIndex, onOpenEntry, onViewPast }: {
         <div data-scroll-x className="flex h-full transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
           style={{ transform: `translateX(-${current * 100}%)` }}>
           {behaviors.map((behavior, i) => (
-            <div key={`${behavior.kind}-${behavior.subject}`} aria-hidden={i !== current}
-              // a card that slid away is hidden once the slide ends, so it can't be focused or read
-              className={`h-full w-full shrink-0 overflow-y-auto px-14 py-3 sm:px-24 transition-[visibility] motion-reduce:transition-none ${
-                i === current ? 'visible' : 'invisible delay-500 motion-reduce:delay-0'}`}>
+            <div key={`${behavior.kind}-${behavior.subject}`} aria-hidden={i !== current} className={slide(i === current)}>
               <BehaviorCard behavior={behavior} report={report} titleId={`behavior-${i}`} entries={entries}
-                onOpenEntry={onOpenEntry} footnote={i === last ? footnote : undefined} />
+                onOpenEntry={onOpenEntry} />
             </div>
           ))}
+          <div aria-hidden={current !== closing} className={slide(current === closing)}>
+            <ClosingPage report={report} onReturn={onReturn} />
+          </div>
         </div>
       </div>
       <button type="button" aria-label="Previous behavior" onClick={() => onIndex(current - 1)} disabled={current === 0}
         className={`${ARROW} left-2 sm:left-6`}>
         <ChevronLeftIcon />
       </button>
-      <button type="button" aria-label="Next behavior" onClick={() => onIndex(current + 1)} disabled={current === last}
+      <button type="button" aria-label={current < closing - 1 ? 'Next behavior' : 'End of report'}
+        onClick={() => onIndex(current + 1)} disabled={current === closing}
         className={`${ARROW} right-2 sm:right-6`}>
         <ChevronRightIcon />
       </button>

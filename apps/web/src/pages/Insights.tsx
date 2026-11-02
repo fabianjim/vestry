@@ -41,7 +41,6 @@ type ViewProps = {
   onOpen: (day: string, index: number) => void
   onPaneIndex: (index: number) => void
   onClosePane: () => void
-  onViewPast: () => void
   onShowOlder: () => void
   onOpenEntry: (entryId: number) => void
 }
@@ -119,7 +118,7 @@ export function InsightsView(props: ViewProps) {
 
       {pane && (
         <BehaviorPane mode={pane} entries={props.entries}
-          onIndex={props.onPaneIndex} onClose={props.onClosePane} onViewPast={props.onViewPast} onOpenEntry={props.onOpenEntry} />
+          onIndex={props.onPaneIndex} onClose={props.onClosePane} onOpenEntry={props.onOpenEntry} />
       )}
 
       <div className="grid gap-x-16 gap-y-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
@@ -273,12 +272,6 @@ export default function Insights() {
         onOpen={(day, index) => { rememberTrigger(); setPane({ kind: 'report', day, index }) }}
         onPaneIndex={index => setPane(current => (current?.kind === 'report' ? { ...current, index } : current))}
         onClosePane={closePane}
-        onViewPast={() => {
-          setPane(null)
-          returnFocus.current = null
-          // after the view has left and the page can scroll again
-          requestAnimationFrame(() => document.getElementById('past-reports')?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
-        }}
         onShowOlder={() => { const before = reports[reports.length - 1]?.day; if (before) loadOlder.mutate(before) }}
         onOpenEntry={openEntry}
       />

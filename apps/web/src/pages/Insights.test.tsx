@@ -21,7 +21,7 @@ const render = (state: InsightsOverview | undefined, options: Options = {}) => {
         pane={options.pane ?? null} generating={options.generating ?? false} generateError={options.generateError ?? null}
         reports={state?.reports ?? []} hasOlder={options.hasOlder ?? false} loadingOlder={false} olderError={false}
         entries={undefined}
-        onGenerate={noop} onOpen={noop} onPaneIndex={noop} onClosePane={noop} onViewPast={noop} onShowOlder={noop} onOpenEntry={noop} />
+        onGenerate={noop} onOpen={noop} onPaneIndex={noop} onClosePane={noop} onShowOlder={noop} onOpenEntry={noop} />
     </QueryClientProvider>,
   )
 }
@@ -94,19 +94,28 @@ describe('report view', () => {
     expect(text(html)).toContain('Friday, Oct 30, 2026 2 of 4')
     expect(html).toContain('translateX(-100%)')
     expect(html.match(/aria-hidden="false"/g)).toHaveLength(1)
-    expect(html.match(/aria-hidden="true" class="h-full w-full/g)).toHaveLength(3)
+    // the other three cards and the closing page
+    expect(html.match(/aria-hidden="true" class="h-full w-full/g)).toHaveLength(4)
     expect(html).toMatch(/aria-label="Previous behavior"[^>]*rounded-full/)
     expect(html).toMatch(/aria-label="Next behavior"/)
     expect(text(html)).not.toMatch(/\b(Previous|Next)\b(?! behavior)/)
     expect(html).toContain('← Back')
   })
 
-  it('closes the report with what is still forming and a way to past reports', () => {
+  it('leads from the last behavior to a closing page', () => {
     const html = render(overview(), { pane: card(3) })
     expect(text(html)).toContain('4 of 4')
-    expect(text(html)).toContain('Still forming Buying without an exit plan Write about 2 more trades')
-    expect(html).toContain('View past reports')
-    expect(html).toMatch(/aria-label="Next behavior"[^>]*disabled/)
+    expect(html).toMatch(/aria-label="End of report"/)
+    expect(html).not.toMatch(/aria-label="End of report"[^>]*\sdisabled=""/)
+  })
+
+  it('ends on a page saying to check back, with a way back, then what is still forming', () => {
+    const html = render(overview(), { pane: card(4) })
+    const words = text(html)
+    expect(html).toContain('translateX(-400%)')
+    expect(words).not.toMatch(/\d of 4/)
+    expect(words).toContain('Check back tomorrow Return Still forming Buying without an exit plan Write about 2 more trades')
+    expect(html).toMatch(/aria-label="End of report"[^>]*\sdisabled=""/)
   })
 
   it('shows a calm loading view while generating, with no percent or countdown', () => {
@@ -118,7 +127,7 @@ describe('report view', () => {
   })
 
   it('uses no "·" anywhere on the page', () => {
-    for (const index of [0, 1, 2, 3]) expect(render(overview(), { pane: card(index) })).not.toContain('·')
+    for (const index of [0, 1, 2, 3, 4]) expect(render(overview(), { pane: card(index) })).not.toContain('·')
   })
 })
 

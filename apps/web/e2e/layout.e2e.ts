@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { demoReport, overview } from '../src/utils/insights.fixtures'
 
 /** Visible elements that extend past the viewport, outside an intentional [data-scroll-x] region. */
 function horizontalOverflow(page: Page) {
@@ -78,6 +79,29 @@ test.describe('workspace pages', () => {
     await page.getByRole('button', { name: '← Back' }).click()
     await expect(counter).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'View current report' })).toBeVisible()
+  })
+
+  test('the keys keep working after an arrow click reaches the closing page', async ({ page }) => {
+    await page.route(/\/api\/insights\/availability/, route => route.fulfill({ json: { available: true } }))
+    await page.route(/\/api\/insights(\?.*)?$/, route => route.fulfill({ json: overview({ canGenerate: true, blockedReason: null }) }))
+    await page.route(/\/api\/insights\/reports\/\d{4}/, route => route.fulfill({ json: demoReport }))
+    await page.goto('/insights')
+    await page.getByRole('button', { name: 'Generate report' }).click()
+    const counter = page.locator('span[aria-live]')
+    await expect(counter).toHaveText('1 of 4')
+    for (const card of [2, 3, 4]) {
+      await page.getByRole('button', { name: 'Next behavior' }).click()
+      await expect(counter).toHaveText(`${card} of 4`)
+    }
+    await page.getByRole('button', { name: 'End of report' }).click()
+    const closing = page.getByRole('heading', { name: 'Check back tomorrow' })
+    await expect(closing).toBeVisible()
+    await page.keyboard.press('ArrowLeft')
+    await expect(counter).toHaveText('4 of 4')
+    await page.keyboard.press('ArrowRight')
+    await expect(closing).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(closing).toHaveCount(0)
   })
 })
 
