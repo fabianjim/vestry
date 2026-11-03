@@ -84,10 +84,10 @@ export function InsightsView(props: ViewProps) {
 
   return (
     <div className="space-y-10">
-      <header className="flex flex-wrap items-end justify-between gap-x-10 gap-y-5 border-b border-border pb-8">
+      <header className="flex flex-wrap items-end justify-between gap-x-10 gap-y-5">
         <div className="min-w-0 max-w-2xl"><Intro /></div>
-        <div className="flex flex-wrap items-center gap-3">
-          {reason && <span className="text-sm text-muted">{reason}</span>}
+        <div className="mr-8 flex flex-wrap items-center gap-3">
+          {reason &&<span className="text-sm text-muted">{reason}</span>}
           {action}
         </div>
       </header>
@@ -121,7 +121,7 @@ export function InsightsView(props: ViewProps) {
           onIndex={props.onPaneIndex} onClose={props.onClosePane} onOpenEntry={props.onOpenEntry} />
       )}
 
-      <div className="grid gap-x-16 gap-y-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="mt-24 grid gap-x-16 gap-y-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <PastReports reports={reports} hasOlder={props.hasOlder} loadingOlder={props.loadingOlder} olderError={props.olderError}
           onShowOlder={props.onShowOlder} onOpen={props.onOpen} />
         <About />
