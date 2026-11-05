@@ -34,6 +34,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -55,6 +56,7 @@ class InsightFactsServiceTest {
     // 20:30 on oct 26 in new york, though already oct 27 in utc
     private static final Instant PRICED_AT = Instant.parse("2026-10-27T00:30:00Z");
     private static final LocalDate PRICED_ON = LocalDate.of(2026, 10, 26);
+    private static final double TOLERANCE = 1e-6;
 
     private final User user = user(4);
     private final List<Transaction> ledger = new ArrayList<>();
@@ -69,7 +71,7 @@ class InsightFactsServiceTest {
     }
 
     @Test
-    void theSaleThatClosesAPeriodIsEveryBuysOutcome() {
+    void aPeriodClosedBySeveralSalesBlendsThemIntoEveryBuysOutcome() {
         trade(1, "NVDA", TransactionType.BUY, 10, 100, "2026-03-02T15:00:00Z");
         trade(2, "NVDA", TransactionType.BUY, 10, 120, "2026-03-05T15:00:00Z");
         trade(3, "NVDA", TransactionType.SELL, 5, 150, "2026-04-01T15:00:00Z");
@@ -78,9 +80,10 @@ class InsightFactsServiceTest {
 
         var facts = service.build(user);
 
-        var sold = Arrays.<Object>asList(130.0, "SOLD", LocalDate.of(2026, 5, 1));
-        assertEquals(sold, outcome(sent(facts, 1)));
-        assertEquals(sold, outcome(sent(facts, 2)));
+        // a quarter of each buy at 150, the rest at 130
+        assertOutcome(sent(facts, 1), 135, "SOLD", LocalDate.of(2026, 5, 1));
+        assertOutcome(sent(facts, 2), 135, "SOLD", LocalDate.of(2026, 5, 1));
+        assertOutcomesAddUpToPeriodPnl(facts);
         // the cost is everything bought; at 110 average cost, 5 × 40 + 15 × 20 realized
         assertEquals(List.of(new HoldingPeriod("NVDA", at("2026-03-02T15:00:00Z"), at("2026-05-02T01:00:00Z"), 2200, 500.0)),
                 facts.holdingPeriods());
@@ -117,7 +120,7 @@ class InsightFactsServiceTest {
     }
 
     @Test
-    void rebuyOpensANewPeriodValuedAtTheLatestPrice() {
+    void aTickerThatReopensAllocatesItsSalesWithinEachPeriod() {
         trade(1, "NVDA", TransactionType.BUY, 5, 100, "2026-03-02T15:00:00Z");
         trade(2, "NVDA", TransactionType.SELL, 5, 90, "2026-03-20T15:00:00Z");
         trade(3, "NVDA", TransactionType.BUY, 2, 95, "2026-06-01T15:00:00Z");
@@ -128,12 +131,149 @@ class InsightFactsServiceTest {
         var facts = service.build(user);
 
         assertEquals(Arrays.<Object>asList(90.0, "SOLD", LocalDate.of(2026, 3, 20)), outcome(sent(facts, 1)));
-        assertEquals(Arrays.<Object>asList(110.0, "LATEST", PRICED_ON), outcome(sent(facts, 3)));
-        assertEquals(Arrays.<Object>asList(110.0, "LATEST", PRICED_ON), outcome(sent(facts, 4)));
+        // a quarter of each new buy at 120, the rest at 110; the first period's sale counts for neither
+        assertOutcome(sent(facts, 3), 112.5, "LATEST", PRICED_ON);
+        assertOutcome(sent(facts, 4), 112.5, "LATEST", PRICED_ON);
+        assertOutcomesAddUpToPeriodPnl(facts);
         // the open period keeps its full buy cost; 1 × (120 − 100) realized plus 3 × (110 − 100) unrealized
         assertEquals(List.of(
                 new HoldingPeriod("NVDA", at("2026-03-02T15:00:00Z"), at("2026-03-20T15:00:00Z"), 500, -50.0),
                 new HoldingPeriod("NVDA", at("2026-06-01T15:00:00Z"), null, 400, 50.0)), facts.holdingPeriods());
+    }
+
+    @Test
+    void aPartialSaleIsSplitAcrossTheBuysOpenAtTheTime() {
+        trade(1, "NVDA", TransactionType.BUY, 15, 174.055, "2026-03-02T15:00:00Z");
+        trade(2, "NVDA", TransactionType.BUY, 5, 198.53, "2026-03-05T15:00:00Z");
+        trade(3, "NVDA", TransactionType.SELL, 5, 220.93, "2026-04-01T15:00:00Z");
+        price("NVDA", 209.28);
+
+        var facts = service.build(user);
+
+        assertOutcome(sent(facts, 1), 212.1925, "LATEST", PRICED_ON);
+        assertOutcome(sent(facts, 2), 212.1925, "LATEST", PRICED_ON);
+        assertEquals(572.0625, buyPnl(sent(facts, 1)), TOLERANCE);
+        assertEquals(68.3125, buyPnl(sent(facts, 2)), TOLERANCE);
+        assertEquals(640.375, facts.holdingPeriods().get(0).pnl(), TOLERANCE);
+        assertOutcomesAddUpToPeriodPnl(facts);
+    }
+
+    @Test
+    void aBuyMadeAfterASaleGetsNoneOfIt() {
+        trade(1, "CAVA", TransactionType.BUY, 50, 81.75, "2026-03-02T15:00:00Z");
+        trade(2, "CAVA", TransactionType.SELL, 20, 86.90, "2026-04-01T15:00:00Z");
+        trade(3, "CAVA", TransactionType.BUY, 10, 50.825, "2026-05-01T15:00:00Z");
+        price("CAVA", 60.33);
+
+        var facts = service.build(user);
+
+        assertOutcome(sent(facts, 1), 70.958, "LATEST", PRICED_ON);
+        assertEquals(-539.60, buyPnl(sent(facts, 1)), TOLERANCE);
+        assertOutcome(sent(facts, 3), 60.33, "LATEST", PRICED_ON);
+        assertEquals(95.05, buyPnl(sent(facts, 3)), TOLERANCE);
+        assertOutcomesAddUpToPeriodPnl(facts);
+    }
+
+    @Test
+    void severalPartialSalesAddUpOnOneBuy() {
+        trade(1, "SNOW", TransactionType.BUY, 25, 239.07, "2026-03-02T15:00:00Z");
+        trade(2, "SNOW", TransactionType.SELL, 5, 336, "2026-04-01T15:00:00Z");
+        trade(3, "SNOW", TransactionType.SELL, 5, 370.41, "2026-05-01T15:00:00Z");
+        price("SNOW", 295);
+
+        var facts = service.build(user);
+
+        assertOutcome(sent(facts, 1), 318.282, "LATEST", PRICED_ON);
+        assertEquals(1980.30, buyPnl(sent(facts, 1)), TOLERANCE);
+        assertOutcomesAddUpToPeriodPnl(facts);
+    }
+
+    @Test
+    void aBuyBetweenTheSalesOfAClosedPeriodOnlySharesTheLaterOnes() {
+        trade(1, "NVDA", TransactionType.BUY, 10, 100, "2026-03-02T15:00:00Z");
+        trade(2, "NVDA", TransactionType.SELL, 5, 150, "2026-04-01T15:00:00Z");
+        trade(3, "NVDA", TransactionType.BUY, 5, 120, "2026-04-15T15:00:00Z");
+        trade(4, "NVDA", TransactionType.SELL, 5, 130, "2026-05-01T15:00:00Z");
+        trade(5, "NVDA", TransactionType.SELL, 5, 90, "2026-06-01T15:00:00Z");
+
+        var facts = service.build(user);
+
+        // buy 1: 5 at 150, 2.5 at 130, 2.5 at 90. buy 3: 2.5 at 130, 2.5 at 90
+        assertOutcome(sent(facts, 1), 130, "SOLD", LocalDate.of(2026, 6, 1));
+        assertOutcome(sent(facts, 3), 110, "SOLD", LocalDate.of(2026, 6, 1));
+        assertOutcomesAddUpToPeriodPnl(facts);
+    }
+
+    @Test
+    void oversellingCountsOnlyTheSharesHeld() {
+        trade(1, "NVDA", TransactionType.BUY, 5, 100, "2026-03-02T15:00:00Z");
+        trade(2, "NVDA", TransactionType.BUY, 5, 110, "2026-03-05T15:00:00Z");
+        trade(3, "NVDA", TransactionType.SELL, 4, 150, "2026-04-01T15:00:00Z");
+        // only 6 are left
+        trade(4, "NVDA", TransactionType.SELL, 100, 120, "2026-05-01T15:00:00Z");
+
+        var facts = service.build(user);
+
+        // 40% of each buy at 150, 60% at 120
+        assertOutcome(sent(facts, 1), 132, "SOLD", LocalDate.of(2026, 5, 1));
+        assertOutcome(sent(facts, 2), 132, "SOLD", LocalDate.of(2026, 5, 1));
+        assertOutcomesAddUpToPeriodPnl(facts);
+    }
+
+    @Test
+    void withoutALatestPriceAPartlySoldBuyHasNoOutcome() {
+        trade(1, "NVDA", TransactionType.BUY, 10, 100, "2026-03-02T15:00:00Z");
+        trade(2, "NVDA", TransactionType.SELL, 4, 150, "2026-04-01T15:00:00Z");
+
+        var facts = service.build(user);
+
+        assertEquals(Arrays.asList(null, null, null), outcome(sent(facts, 1)));
+        assertNull(facts.holdingPeriods().get(0).pnl());
+    }
+
+    @Test
+    void aClosingPriceThatIsntPositiveLeavesTheOutcomeUnknown() {
+        trade(1, "NVDA", TransactionType.BUY, 10, 100, "2026-03-02T15:00:00Z");
+        trade(2, "NVDA", TransactionType.SELL, 4, 150, "2026-04-01T15:00:00Z");
+        trade(3, "NVDA", TransactionType.SELL, 6, 0, "2026-05-01T15:00:00Z");
+
+        assertEquals(Arrays.asList(null, null, null), outcome(sent(service.build(user), 1)));
+    }
+
+    @Test
+    void aBlendThatIsntPositiveLeavesTheOutcomeUnknown() {
+        trade(1, "NVDA", TransactionType.BUY, 10, 100, "2026-03-02T15:00:00Z");
+        trade(2, "NVDA", TransactionType.SELL, 9, -50, "2026-04-01T15:00:00Z");
+        price("NVDA", 10);
+
+        assertEquals(Arrays.asList(null, null, null), outcome(sent(service.build(user), 1)));
+    }
+
+    @Test
+    void outcomesAddUpToPeriodPnlAcrossRandomLedgers() {
+        var random = new Random(42);
+        for (int run = 0; run < 200; run++) {
+            ledger.clear();
+            var when = at("2024-01-01T15:00:00Z");
+            double held = 0;
+            for (int id = 1; id <= 30; id++) {
+                when = when.plusSeconds(86_400);
+                double shares = 0.5 + random.nextInt(400) / 8.0;
+                // sometimes all of it, sometimes more than is held
+                if (held > 0 && random.nextBoolean()) {
+                    int choice = random.nextInt(4);
+                    double sold = choice == 0 ? held : choice == 1 ? held + 5 : Math.min(shares, held);
+                    ledger.add(transaction(id, "NVDA", TransactionType.SELL, sold, 20 + random.nextDouble() * 300, when));
+                    held = Math.max(0, held - sold);
+                } else {
+                    ledger.add(transaction(id, "NVDA", TransactionType.BUY, shares, 20 + random.nextDouble() * 300, when));
+                    held += shares;
+                }
+            }
+            price("NVDA", 20 + random.nextDouble() * 300);
+
+            assertOutcomesAddUpToPeriodPnl(service.build(user));
+        }
     }
 
     @Test
@@ -377,6 +517,30 @@ class InsightFactsServiceTest {
 
     private static List<Object> outcome(LedgerTrade trade) {
         return Arrays.asList(trade.outcomePrice(), trade.outcomeKind(), trade.outcomeOn());
+    }
+
+    private static void assertOutcome(LedgerTrade trade, double price, String kind, LocalDate on) {
+        assertEquals(price, trade.outcomePrice(), TOLERANCE);
+        assertEquals(kind, trade.outcomeKind());
+        assertEquals(on, trade.outcomeOn());
+    }
+
+    /** Hindsight's formula for one buy, from buy_decision. */
+    private static double buyPnl(LedgerTrade trade) {
+        return trade.shares() * (trade.outcomePrice() - trade.price());
+    }
+
+    /** Hindsight's buy P/Ls, grouped into periods as period_trades does, must total each period's pnl. */
+    private static void assertOutcomesAddUpToPeriodPnl(BehaviorReportRequest facts) {
+        for (var period : facts.holdingPeriods()) {
+            if (period.pnl() == null) continue;
+            double total = facts.trades().stream()
+                    .filter(t -> t.side().equals("BUY") && t.ticker().equals(period.ticker()))
+                    .filter(t -> !t.timestamp().isBefore(period.openedAt())
+                            && (period.closedAt() == null || !t.timestamp().isAfter(period.closedAt())))
+                    .mapToDouble(InsightFactsServiceTest::buyPnl).sum();
+            assertEquals(period.pnl(), total, TOLERANCE, () -> "period opened " + period.openedAt());
+        }
     }
 
     private static double[] alternating(int count) {

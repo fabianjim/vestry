@@ -88,6 +88,7 @@ public class InsightFactsService {
         /** Total cost of every buy in the period. */
         double bought;
         double realized;
+        final List<Buy> buys = new ArrayList<>();
 
         Period(String ticker, Instant openedAt) {
             this.ticker = ticker;
@@ -95,8 +96,28 @@ public class InsightFactsService {
         }
     }
 
-    /** A buy's holding period, and its value against the cost basis of everything open just before it. */
-    private record Buy(Period period, double weight) {}
+    /** A buy's holding period, its value against the cost basis of everything open just before it, and its share of the period's sales. */
+    private static final class Buy {
+        final Period period;
+        final double weight;
+        final double shares;
+        /** This buy's shares not yet sold. */
+        double held;
+        /** What this buy's sold shares sold for. */
+        double proceeds;
+
+        Buy(Period period, double weight, double shares) {
+            this.period = period;
+            this.weight = weight;
+            this.shares = shares;
+            this.held = shares;
+        }
+
+        /** The average per-share value: what sold shares sold for, and {@code remainingPrice} for the rest. */
+        double blendedPrice(double remainingPrice) {
+            return (proceeds + held * remainingPrice) / shares;
+        }
+    }
 
     private record Ledger(List<Period> periods, Map<Integer, Buy> buys) {}
 
@@ -186,7 +207,9 @@ public class InsightFactsService {
                     periods.add(period);
                 }
                 double value = tx.getTotalValue();
-                buys.put(tx.getId(), new Buy(period, value / (openCost + value)));
+                var buy = new Buy(period, value / (openCost + value), tx.getShares());
+                buys.put(tx.getId(), buy);
+                period.buys.add(buy);
                 period.shares += tx.getShares();
                 period.cost += value;
                 period.bought += value;
@@ -194,6 +217,12 @@ public class InsightFactsService {
                 double avgCost = period.cost / period.shares;
                 double sold = Math.min(tx.getShares(), period.shares);
                 period.realized += sold * (tx.getPrice() - avgCost);
+                // pro rata across the shares still held, matching average cost
+                for (var buy : period.buys) {
+                    double buySold = buy.held * (sold / period.shares);
+                    buy.held -= buySold;
+                    buy.proceeds += buySold * tx.getPrice();
+                }
                 period.shares -= sold;
                 period.cost -= avgCost * sold;
                 if (period.shares <= EPSILON) {
@@ -223,21 +252,29 @@ public class InsightFactsService {
             status = RunUp.Status.UNAVAILABLE;
             runUpValue = null;
         }
-        Double weight = Double.isFinite(buy.weight()) && buy.weight() >= 0 ? buy.weight() : null;
-        var outcome = outcome(buy.period(), latest);
+        Double weight = Double.isFinite(buy.weight) && buy.weight >= 0 ? buy.weight : null;
+        var outcome = outcome(buy, latest);
         return new LedgerTrade(tx.getId(), ticker, tx.getType().name(), tx.getShares(), tx.getPrice(), tx.getTimestamp(),
                 initial, runUpValue, status, weight, outcome == null ? null : outcome.price(),
                 outcome == null ? null : outcome.kind(), outcome == null ? null : outcome.on());
     }
 
-    /** The sale that closed the buy's holding period, or the latest stored price while it's open. */
-    private Outcome outcome(Period period, Map<String, Optional<Stock>> latest) {
+    /**
+     * The buy's blended per-share value: its sales so far, plus the latest stored price for shares still held.
+     * A closed period is dated by its closing sale, an open one by its latest price. Hindsight rejects a price
+     * that isn't positive, which only a sale recorded at a negative price could produce here.
+     */
+    private Outcome outcome(Buy buy, Map<String, Optional<Stock>> latest) {
+        Period period = buy.period;
+        Optional<Outcome> outcome;
         if (period.closedAt != null) {
-            return period.closingPrice > 0 ? new Outcome(period.closingPrice, "SOLD", day(period.closedAt)) : null;
+            if (period.closingPrice <= 0) return null;
+            outcome = Optional.of(new Outcome(buy.blendedPrice(period.closingPrice), "SOLD", day(period.closedAt)));
+        } else {
+            outcome = latestPrice(period.ticker, latest)
+                    .map(stock -> new Outcome(buy.blendedPrice(stock.getCurrentPrice()), "LATEST", day(stock.getTimestamp())));
         }
-        return latestPrice(period.ticker, latest)
-                .map(stock -> new Outcome(stock.getCurrentPrice(), "LATEST", day(stock.getTimestamp())))
-                .orElse(null);
+        return outcome.filter(o -> o.price() > 0).orElse(null);
     }
 
     /** A sell's price since: the latest stored price, held or not, only from a New York day after the sale's. */

@@ -74,8 +74,12 @@ public class HindsightClient {
                                         List<Integer> autoEntryIds, List<Feedback> feedback,
                                         List<BehaviorNote> behaviorNotes) {}
     /**
-     * The run-up, weight and outcome fields describe buys only. {@code outcomeKind} is SOLD (the buy's holding
-     * period closed at {@code outcomePrice}) or LATEST (the period is open), all three null when unknown.
+     * The run-up and weight fields describe buys only. All three outcome fields are null when unknown.
+     * On a buy, {@code outcomePrice} is the average per-share value of its shares: what its sold shares sold for
+     * (each sale split pro rata across the buys open at the time) and the latest stored price for any still held.
+     * {@code outcomeKind} is SOLD when the holding period has closed, with {@code outcomeOn} the closing day, or
+     * LATEST while it's open, with {@code outcomeOn} the latest price's day. On a sell, the outcome is the latest
+     * stored price, LATEST, and only from a New York day after the sale's.
      */
     public record LedgerTrade(int tradeId, String ticker, String side, double shares, double price,
                               @JsonFormat(shape = JsonFormat.Shape.STRING) Instant timestamp, boolean initial,
