@@ -167,10 +167,10 @@ export default function Landing() {
         >
           <RevealSection className="max-w-4xl mx-auto w-full">
             <div className="text-center mb-8">
-              <h2 className="text-3xl md:text-4xl font-90 tracking-tight text-foreground mb-4">Analyze the patterns behind your trades</h2>
+              <h2 className="text-3xl md:text-4xl font-90 tracking-tight text-foreground mb-4">Gain hindsight</h2>
               <p className="text-base text-secondary max-w-3xl mx-auto leading-relaxed">
-                AI reads your entries against your trades to find habits you’d only notice in hindsight.
-                <br />Vestry only observes and asks.
+                Discover and understand the patterns behind your trades.
+                <br />AI reads your entries alongside their outcomes and surfaces the habits they share.
               </p>
             </div>
 

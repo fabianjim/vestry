@@ -10,11 +10,7 @@ export default function LandingCTA({ onDemoClick, loading, error }: LandingCTAPr
   return (
     <div className="w-full max-w-xl mx-auto text-center">
       <h2 className="text-3xl md:text-4xl font-90 tracking-tight text-foreground mb-4">Improve, one trade at a time</h2>
-      <p className="text-base text-secondary mb-8 leading-relaxed">
-        Vestry turns your portfolio history and notes into a clearer picture of
-        what works. Start with the demo and see how reflection shapes better
-        decisions.
-      </p>
+      <p className="text-base text-secondary mb-6 leading-relaxed">Explore a real portfolio with real market prices.</p>
 
       <button
         type="button"
@@ -28,8 +24,6 @@ export default function LandingCTA({ onDemoClick, loading, error }: LandingCTAPr
       </button>
       {error && <p role="status" className="mt-3 text-sm text-secondary">{error}</p>}
 
-      <p className="mt-4 text-sm text-secondary">No account required.</p>
-      <p className="mt-1 text-xs text-muted">Limited to 3 demo trades.</p>
-    </div>
+      <p className="mt-4 text-sm text-secondary">No account required.</p>    </div>
   )
 }
