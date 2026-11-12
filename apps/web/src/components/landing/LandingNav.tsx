@@ -14,10 +14,10 @@ export default function LandingNav({ onDemoClick, loading, error }: LandingNavPr
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border">
       <div className="max-w-6xl mx-auto px-3 h-14 flex items-center justify-between">
         {/* -ml offsets the logo SVG's built-in left padding so the mark sits on the container edge. */}
-        <span className="-ml-[3px] flex items-center gap-1 text-lg leading-none font-130 text-foreground">
+        <Link to="/" className="-ml-[3px] flex items-center gap-1 text-lg leading-none font-130 text-foreground">
           <img src="/logo.svg" alt="" width={28} height={28} className="shrink-0 -translate-y-0.25" />
           Vestry
-        </span>
+        </Link>
 
         <nav className="relative flex items-center gap-1 sm:gap-3">
           <a

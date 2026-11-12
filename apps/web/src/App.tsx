@@ -9,6 +9,8 @@ import Portfolio from './pages/Portfolio'
 import Login from './pages/Login'
 import Landing from './pages/Landing'
 import NotFound from './pages/NotFound'
+import Privacy from './pages/Privacy'
+import Terms from './pages/Terms'
 
 const ApplicationRoutes = lazy(loadApplication)
 
@@ -36,6 +38,8 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/portfolio" element={<Portfolio />} />
           <Route path="/" element={<Landing />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
           <Route path="/*" element={<ApplicationEntry />} />
         </Routes>
       </div>
