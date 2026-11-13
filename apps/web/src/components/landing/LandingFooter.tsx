@@ -24,7 +24,8 @@ export default function LandingFooter() {
         >
           <EnvelopeIcon className="w-4 h-4" />
         </a>
-        <nav className="flex items-center gap-4" aria-label="Legal">
+        <nav className="flex items-center gap-4" aria-label="Footer">
+          <Link to="/updates" className="hover:text-foreground transition-colors">Updates</Link>
           <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
           <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
         </nav>

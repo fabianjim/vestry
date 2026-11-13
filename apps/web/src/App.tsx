@@ -11,6 +11,7 @@ import Landing from './pages/Landing'
 import NotFound from './pages/NotFound'
 import Privacy from './pages/Privacy'
 import Terms from './pages/Terms'
+import Updates from './pages/Updates'
 
 const ApplicationRoutes = lazy(loadApplication)
 
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
+          <Route path="/updates" element={<Updates />} />
           <Route path="/*" element={<ApplicationEntry />} />
         </Routes>
       </div>

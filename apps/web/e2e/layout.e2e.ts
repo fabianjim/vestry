@@ -31,7 +31,7 @@ async function check(page: Page, name: string) {
 }
 
 test.describe('public pages', () => {
-  for (const [name, path] of [['landing', '/'], ['login', '/login']]) {
+  for (const [name, path] of [['landing', '/'], ['login', '/login'], ['updates', '/updates']]) {
     test(`${name} fits the viewport`, async ({ page }) => {
       await page.goto(path)
       await check(page, name)
