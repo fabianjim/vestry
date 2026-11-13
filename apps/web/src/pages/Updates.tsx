@@ -56,7 +56,7 @@ export default function Updates() {
         <h1 className="text-3xl font-90 tracking-tight mb-16">Updates</h1>
 
         <section aria-labelledby="changelog" className="mb-24">
-          <h2 id="changelog" className="text-2xl font-90 tracking-tight mb-10 xl:-ml-56">Changelog</h2>
+          <h2 id="changelog" className="text-sm font-130 text-primary mb-4 xl:-ml-56">Changelog</h2>
           <ol className="space-y-10">
             {sortShipped(SHIPPED).map((entry) => (
               // From xl the date hangs in the left margin (a 9rem column, 3rem gap), so the text column keeps its full width.
@@ -75,7 +75,7 @@ export default function Updates() {
         </section>
 
         <section aria-labelledby="roadmap">
-          <h2 id="roadmap" className="text-2xl font-90 tracking-tight mb-10 xl:-ml-56">Roadmap</h2>
+          <h2 id="roadmap" className="text-sm font-130 text-primary mb-4 xl:-ml-56">Roadmap</h2>
           <ul className="space-y-10">
             {PLANNED.map((item) => (
               <li key={item.title}>

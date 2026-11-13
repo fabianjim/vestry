@@ -10,7 +10,10 @@ interface LandingNavProps {
 }
 
 const GITHUB_URL = 'https://github.com/fabianjim/vestry'
-const PAGE_LINKS = [{ to: '/updates', label: 'Updates' }]
+const PAGE_LINKS = [
+  { to: '/product', label: 'Product' },
+  { to: '/updates', label: 'Updates' },
+]
 
 export default function LandingNav({ onDemoClick, loading, error }: LandingNavProps) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -67,6 +70,8 @@ export default function LandingNav({ onDemoClick, loading, error }: LandingNavPr
           >
             <GithubIcon className="w-4 h-4" />
           </a>
+          {/* ml-1 evens the gaps: GitHub's icon has 8px padding and Sign in's text 12px, so both sides read 24px. */}
+          <span aria-hidden className="hidden sm:block ml-1 h-4 w-px bg-border" />
 
           {/* Below sm there's no room for the page links, so they move into a menu in GitHub's place. */}
           <div ref={menuRef} className="relative sm:hidden">
@@ -80,10 +85,11 @@ export default function LandingNav({ onDemoClick, loading, error }: LandingNavPr
             >
               {menuOpen ? <XMarkIcon className="w-4 h-4" /> : <Bars3Icon className="w-4 h-4" />}
             </button>
+            {/* Solid: backdrop-blur does nothing inside an ancestor that already has a backdrop filter. */}
             {menuOpen && (
               <div
                 id={menuId}
-                className="absolute left-0 top-full mt-2 min-w-[180px] py-1 bg-background/35 backdrop-blur-xl border border-foreground/5 rounded-xl shadow-sm shadow-background/20 z-50"
+                className="absolute left-0 top-full mt-2 min-w-[180px] py-1 bg-background border border-foreground/5 rounded-xl shadow-floating z-50"
               >
                 {PAGE_LINKS.map(({ to, label }) => (
                   <Link
