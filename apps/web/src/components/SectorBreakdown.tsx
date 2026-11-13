@@ -5,6 +5,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis
 import type { SectorBreakdownItem } from '../hooks/useHoldingGraphData'
 import { glidingRowTooltip, trackTooltipDrift } from '../utils/chartTooltip'
 import HoldingTooltip from './HoldingTooltip'
+import ItemTooltip from './ItemTooltip'
 
 type SectorBreakdownProps = {
   data: SectorBreakdownItem[]
@@ -165,8 +166,8 @@ export default function SectorBreakdown({ data, embedded = false, controls }: Se
           {chartType === 'pie' ? (
             <PieChart>
               {pie}
-              <Tooltip
-                content={({ active, payload }) => {
+              <ItemTooltip
+                render={({ active, payload }) => {
                   const item = payload?.[0]?.payload as SectorBreakdownItem | undefined
                   return active && item ? <HoldingTooltip title={item.etf ? `${item.sector} ETF` : item.sector}
                     lines={[`${formatCurrency(item.value)} (${formatPercent(item.percentage)})`]} /> : null

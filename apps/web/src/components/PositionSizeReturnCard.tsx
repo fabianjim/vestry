@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Cell, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, usePlotArea, XAxis, YAxis } from 'recharts'
+import { Cell, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, usePlotArea, XAxis, YAxis } from 'recharts'
 import { portfolioQueries } from '../services/queries'
 import { positionSizeReturn, type ValuedHolding } from '../utils/holdingsAnalysis'
 import HoldingsCardHeader from './HoldingsCardHeader'
 import HoldingTooltip from './HoldingTooltip'
+import ItemTooltip from './ItemTooltip'
 import { paddedDomain, placeLabels, separateMarkers } from '../utils/scatterLabels'
 
 type Point = ReturnType<typeof positionSizeReturn>['points'][number]
@@ -68,8 +69,8 @@ export default function PositionSizeReturnCard({ holdings, controls, onHoldingCl
               <YAxis type="number" dataKey="returnPercent" name="Unrealized return" unit="%" domain={y.domain} ticks={y.ticks}
                 stroke="var(--color-muted)" fontSize={11} width={55} />
               <ReferenceLine y={0} stroke="var(--color-border-control)" strokeDasharray="3 3" />
-              <Tooltip cursor={{ strokeDasharray: '3 3' }}
-                content={({ active, payload }) => {
+              <ItemTooltip cursor={{ strokeDasharray: '3 3' }}
+                render={({ active, payload }) => {
                   const point = payload?.[0]?.payload as Point | undefined
                   return active && point ? <HoldingTooltip title={point.ticker}
                     lines={[`Weight: ${point.weight.toFixed(1)}%`, `Unrealized return: ${point.returnPercent.toFixed(1)}%`]} /> : null

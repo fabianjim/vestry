@@ -16,6 +16,7 @@ import {
 import type { HoldingValueItem } from '../hooks/useHoldingGraphData'
 import { glidingRowTooltip, trackTooltipDrift } from '../utils/chartTooltip'
 import HoldingTooltip from './HoldingTooltip'
+import ItemTooltip from './ItemTooltip'
 
 type HoldingsValueChartProps = {
   data: HoldingValueItem[]
@@ -135,9 +136,7 @@ export default function HoldingsValueChart({ data, embedded = false, controls }:
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip
-                content={tooltipContent}
-              />
+              <ItemTooltip render={tooltipContent} />
             </PieChart>
           ) : (
             <BarChart
