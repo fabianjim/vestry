@@ -9,7 +9,7 @@ import LandingChart from '../components/landing/LandingChart'
 import LandingJournal from '../components/landing/LandingJournal'
 import LandingBehavior from '../components/landing/LandingBehavior'
 import LandingCTA from '../components/landing/LandingCTA'
-import { GithubIcon, EnvelopeIcon } from '../components/icons'
+import LandingFooter from '../components/landing/LandingFooter'
 
 const SECTIONS = ['track', 'reflect', 'analyze', 'improve']
 
@@ -167,10 +167,10 @@ export default function Landing() {
         >
           <RevealSection className="max-w-4xl mx-auto w-full">
             <div className="text-center mb-8">
-              <h2 className="text-3xl md:text-4xl font-90 tracking-tight text-foreground mb-4">Analyze the patterns behind your trades</h2>
+              <h2 className="text-3xl md:text-4xl font-90 tracking-tight text-foreground mb-4">Gain hindsight</h2>
               <p className="text-base text-secondary max-w-3xl mx-auto leading-relaxed">
-                AI reads your entries against your trades to find habits you’d only notice in hindsight.
-                <br />Vestry only observes and asks.
+                Discover and understand the patterns behind your trades.
+                <br />AI reads your entries alongside their outcomes and surfaces the habits they share.
               </p>
             </div>
 
@@ -191,29 +191,7 @@ export default function Landing() {
             </RevealSection>
           </div>
 
-          <footer className="py-8 px-6 text-center text-sm text-muted">
-            <p className="font-90 mb-3">
-              Vestry is open-source. If you would like to self-host please follow the instructions on the GitHub repository.
-            </p>
-            <div className="flex items-center justify-center gap-4">
-              <a
-                href="https://github.com/fabianjim/vestry"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground transition-colors"
-                aria-label="GitHub"
-              >
-                <GithubIcon className="w-4 h-4" />
-              </a>
-              <a
-                href="mailto:fabian.jim26@gmail.com"
-                className="hover:text-foreground transition-colors"
-                aria-label="Email"
-              >
-                <EnvelopeIcon className="w-4 h-4" />
-              </a>
-            </div>
-          </footer>
+          <LandingFooter />
         </section>
       </main>
     </div>

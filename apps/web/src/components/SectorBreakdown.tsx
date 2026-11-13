@@ -42,6 +42,27 @@ export default function SectorBreakdown({ data, embedded = false, controls }: Se
     }))
   }, [data, showEtfs])
 
+  // Recharts restarts the pie's animation whenever the Pie element re-renders, from wherever it had reached,
+  // so a parent re-rendering during it (the Product page story does, every step) makes it crawl to the end.
+  // Holding the element stable re-renders it only when the data changes.
+  const pie = useMemo(() => (
+    <Pie
+      data={filteredData}
+      dataKey="value"
+      nameKey="sector"
+      cx="50%"
+      cy="50%"
+      outerRadius={80}
+      innerRadius={45}
+      paddingAngle={2}
+      stroke="none"
+    >
+      {filteredData.map((entry, index) => (
+        <Cell key={`cell-${index}`} fill={entry.color} />
+      ))}
+    </Pie>
+  ), [filteredData])
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -143,21 +164,7 @@ export default function SectorBreakdown({ data, embedded = false, controls }: Se
         <ResponsiveContainer width="100%" height="100%">
           {chartType === 'pie' ? (
             <PieChart>
-              <Pie
-                data={filteredData}
-                dataKey="value"
-                nameKey="sector"
-                cx="50%"
-                cy="50%"
-                outerRadius={80}
-                innerRadius={45}
-                paddingAngle={2}
-                stroke="none"
-              >
-                {filteredData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
+              {pie}
               <Tooltip
                 content={({ active, payload }) => {
                   const item = payload?.[0]?.payload as SectorBreakdownItem | undefined

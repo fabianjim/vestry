@@ -26,7 +26,7 @@ const footerItems = [
     external: true,
   },
   {
-    href: 'mailto:fabian.jim26@gmail.com',
+    href: 'mailto:hello@vestry.me',
     label: 'Contact',
     icon: EnvelopeIcon,
     external: false,
