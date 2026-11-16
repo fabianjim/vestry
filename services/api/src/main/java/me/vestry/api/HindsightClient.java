@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** Calls hindsight, the AI service. Vestry must work without it, so nothing here throws. */
@@ -40,7 +41,7 @@ public class HindsightClient {
     static final Duration BREAKER_PAUSE = Duration.ofSeconds(30);
     /** A model call takes seconds and hindsight's own provider timeout is 30 s. */
     static final Duration AID_READ_TIMEOUT = Duration.ofSeconds(45);
-    /** Building a report is one model call plus citation checks; the contract allows up to 120 s. */
+    /** A report is one model call plus citation checks, a briefing a search then a draft; the contract allows 120 s. */
     static final Duration REPORT_READ_TIMEOUT = Duration.ofSeconds(120);
     /** Hindsight's code for a POST on a day whose attempt failed, then or earlier. */
     static final String ATTEMPTED_TODAY = "ATTEMPTED_TODAY";
@@ -123,6 +124,34 @@ public class HindsightClient {
     public record BehaviorReportResponse(ReportStatus status, BehaviorReport report) {
         static final BehaviorReportResponse UNAVAILABLE = new BehaviorReportResponse(ReportStatus.UNAVAILABLE, null);
         static final BehaviorReportResponse FAILED_TODAY = new BehaviorReportResponse(ReportStatus.FAILED_TODAY, null);
+    }
+
+    /**
+     * Briefings: vestry's portfolio facts, captured on the request thread. Hindsight reads the journal and its own
+     * earlier briefings itself. Values, {@code priceAsOf} and weights are null when unpriced.
+     */
+    public record BriefingRequest(@JsonFormat(shape = JsonFormat.Shape.STRING) Instant capturedAt, boolean demo,
+                                  Double portfolioValue, List<BriefingHolding> holdings, List<BriefingTrade> trades) {}
+    public record BriefingHolding(String ticker, double shares, Double marketValue,
+                                  @JsonFormat(shape = JsonFormat.Shape.STRING) Instant priceAsOf, Double weightPercent,
+                                  HoldingMetadata metadata) {}
+    public record HoldingMetadata(String name, String sector, String industry, String country) {}
+    public record BriefingTrade(String ticker, String type, double shares, double price,
+                                @JsonFormat(shape = JsonFormat.Shape.STRING) Instant timestamp) {}
+    /** {@code destination} and {@code newsStatus} stay strings, so a value hindsight adds later parses. */
+    public record BriefingQuestion(String text, String destination) {}
+    public record BriefingSource(String headline, String summary, LocalDate publishedOn, String url) {}
+    public record BriefingContent(String news, String reflection, List<BriefingQuestion> questions,
+                                  List<BriefingSource> sources, String newsStatus) {}
+    public record Briefing(UUID id, LocalDate day, Instant capturedAt, Instant generatedAt, BriefingContent content) {}
+    public enum BriefingAttemptStatus { RUNNING, SAVED, FAILED }
+    public record BriefingAttempt(LocalDate day, BriefingAttemptStatus status, Instant at) {}
+    /** {@code briefing} is the newest from any day; {@code today} is null before today's first attempt. */
+    public record LatestBriefing(Briefing briefing, BriefingAttempt today) {}
+    /** LIMITED: hindsight refused before the model (AI off or budget). ATTEMPTED_TODAY: today's attempt failed or runs. */
+    public enum BriefingStatus { READY, ATTEMPTED_TODAY, LIMITED, UNAVAILABLE }
+    public record BriefingResponse(BriefingStatus status, Briefing briefing) {
+        static BriefingResponse of(BriefingStatus status) { return new BriefingResponse(status, null); }
     }
 
     private final RestTemplate http;
@@ -295,6 +324,55 @@ public class HindsightClient {
             log.warn("Hindsight behavior report generation failed: {}", failure.getClass().getSimpleName());
         }
         return BehaviorReportResponse.UNAVAILABLE;
+    }
+
+    /** The newest briefing and today's attempt. A page read: 2 s and the breaker. Never generates. Empty on failure. */
+    public Optional<LatestBriefing> latestBriefing(int userId) {
+        if (!isEnabled() || paused()) return Optional.empty();
+        var uri = UriComponentsBuilder.fromUriString(url).path("/v1/users/{userId}/briefings/latest")
+                .buildAndExpand(userId).toUri();
+        try {
+            var latest = http.exchange(uri, HttpMethod.GET, new HttpEntity<>(readHeaders()), LatestBriefing.class).getBody();
+            if (latest == null) throw new IllegalStateException("empty response");
+            failures.set(0);
+            return Optional.of(latest);
+        } catch (RestClientResponseException failure) {
+            int status = failure.getStatusCode().value();
+            if (status == 401) log.warn("Hindsight rejected the service token (HTTP 401)");
+            else log.warn("Hindsight briefing read failed: HTTP {}", status);
+            failed();
+        } catch (RuntimeException failure) {
+            log.warn("Hindsight briefing read failed: {}", failure.getClass().getSimpleName());
+            failed();
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Generates today's briefing, or returns the one already saved. Runs in the background after a user's click or
+     * on the demo schedule, so it waits for the model and skips the breaker.
+     */
+    public BriefingResponse createBriefing(int userId, BriefingRequest facts) {
+        if (!isEnabled()) return BriefingResponse.of(BriefingStatus.UNAVAILABLE);
+        var uri = UriComponentsBuilder.fromUriString(url).path("/v1/users/{userId}/briefings")
+                .buildAndExpand(userId).toUri();
+        var headers = readHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        try {
+            var briefing = reportHttp.exchange(uri, HttpMethod.POST, new HttpEntity<>(facts, headers), Briefing.class).getBody();
+            if (briefing == null || briefing.content() == null) throw new IllegalStateException("empty response");
+            return new BriefingResponse(BriefingStatus.READY, briefing);
+        } catch (RestClientResponseException failure) {
+            int status = failure.getStatusCode().value();
+            if (status == 409 && ATTEMPTED_TODAY.equals(problemCode(failure))) return BriefingResponse.of(BriefingStatus.ATTEMPTED_TODAY);
+            if (status == 503) return BriefingResponse.of(BriefingStatus.LIMITED);
+            if (status == 401) log.warn("Hindsight rejected the service token (HTTP 401)");
+            else if (status == 422) log.error("Hindsight rejected vestry's briefing facts (HTTP 422); a row should have been left out");
+            else log.warn("Hindsight briefing generation failed: HTTP {}", status);
+        } catch (RuntimeException failure) {
+            log.warn("Hindsight briefing generation failed: {}", failure.getClass().getSimpleName());
+        }
+        return BriefingResponse.of(BriefingStatus.UNAVAILABLE);
     }
 
     private HttpHeaders readHeaders() {
