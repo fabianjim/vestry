@@ -21,6 +21,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
@@ -543,6 +544,133 @@ class HindsightClientTest {
         var client = client();
         server.stop(0);
         assertEquals(HindsightClient.BehaviorReportResponse.UNAVAILABLE, client.createBehaviorReport(4, FACTS));
+    }
+
+    private static final HindsightClient.BriefingRequest BRIEFING_FACTS = new HindsightClient.BriefingRequest(
+            Instant.parse("2026-11-13T15:02:11Z"), false, null,
+            List.of(new HindsightClient.BriefingHolding("MSFT", 10, 4120.5, Instant.parse("2026-11-13T15:00:00Z"), 100.0,
+                            new HindsightClient.HoldingMetadata("Microsoft", "Technology", "Software", "United States")),
+                    new HindsightClient.BriefingHolding("NEW", 1, null, null, null, null)),
+            List.of(new HindsightClient.BriefingTrade("MSFT", "BUY", 2, 410.2, Instant.parse("2026-11-12T16:30:00Z"))));
+    private static final String BRIEFING = """
+            {"id": "6f1c1f0e-8a52-4a3e-9d55-0b9e3c1a2b7d", "day": "2026-11-13",
+             "capturedAt": "2026-11-13T15:02:11Z", "generatedAt": "2026-11-13T15:02:40Z", "model": "added later",
+             "content": {"news": "Microsoft reported earnings.", "reflection": "You added to MSFT.",
+                         "questions": [{"text": "Record why you added", "destination": "NEW_VIEW"}],
+                         "sources": [{"headline": "MSFT earnings", "summary": "", "publishedOn": null,
+                                      "url": "https://example.com/msft"}],
+                         "newsStatus": "READY"}}
+            """;
+    private static final HindsightClient.Briefing PARSED_BRIEFING = new HindsightClient.Briefing(
+            java.util.UUID.fromString("6f1c1f0e-8a52-4a3e-9d55-0b9e3c1a2b7d"), LocalDate.of(2026, 11, 13),
+            Instant.parse("2026-11-13T15:02:11Z"), Instant.parse("2026-11-13T15:02:40Z"),
+            new HindsightClient.BriefingContent("Microsoft reported earnings.", "You added to MSFT.",
+                    List.of(new HindsightClient.BriefingQuestion("Record why you added", "NEW_VIEW")),
+                    List.of(new HindsightClient.BriefingSource("MSFT earnings", "", null, "https://example.com/msft")),
+                    "READY"));
+
+    @Test
+    void postsTheBriefingFactsWithTheContractFieldNames() throws Exception {
+        body = BRIEFING;
+
+        var response = client().createBriefing(4, BRIEFING_FACTS);
+
+        assertEquals(List.of("/v1/users/4/briefings?null"), requests);
+        assertEquals(List.of("null"), upgrades);
+        assertEquals(List.of("Bearer " + TOKEN), tokens);
+        var sent = new ObjectMapper().readTree(bodies.get(0).substring("POST ".length()));
+        assertEquals(List.of("capturedAt", "demo", "portfolioValue", "holdings", "trades"), fieldNames(sent));
+        assertEquals("2026-11-13T15:02:11Z", sent.get("capturedAt").asText());
+        assertTrue(sent.get("portfolioValue").isNull());
+        var priced = sent.get("holdings").get(0);
+        assertEquals(List.of("ticker", "shares", "marketValue", "priceAsOf", "weightPercent", "metadata"), fieldNames(priced));
+        assertEquals("2026-11-13T15:00:00Z", priced.get("priceAsOf").asText());
+        assertEquals("Software", priced.get("metadata").get("industry").asText());
+        var unpriced = sent.get("holdings").get(1);
+        assertTrue(unpriced.get("marketValue").isNull() && unpriced.get("priceAsOf").isNull(), "unpriced is null, not absent");
+        var trade = sent.get("trades").get(0);
+        assertEquals(List.of("ticker", "type", "shares", "price", "timestamp"), fieldNames(trade));
+        assertEquals("2026-11-12T16:30:00Z", trade.get("timestamp").asText());
+
+        assertEquals(new HindsightClient.BriefingResponse(HindsightClient.BriefingStatus.READY, PARSED_BRIEFING), response);
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "409 | {\"code\": \"ATTEMPTED_TODAY\", \"detail\": \"d\"} | ATTEMPTED_TODAY",
+            "409 | {\"detail\": \"no code\"}                          | UNAVAILABLE",
+            "503 | {\"code\": \"AI_OFF\", \"detail\": \"AI is off\"}    | LIMITED",
+            "404 | {\"detail\": \"Not Found\"}                        | UNAVAILABLE",
+            "422 | {\"detail\": [{\"loc\": [\"body\", \"holdings\"]}]}  | UNAVAILABLE",
+            "401 | {\"detail\": \"bad token\"}                        | UNAVAILABLE"})
+    void mapsBriefingGenerationErrors(int code, String problem, HindsightClient.BriefingStatus expected) {
+        status = code;
+        body = problem;
+        contentType = "application/problem+json";
+
+        assertEquals(HindsightClient.BriefingResponse.of(expected), client().createBriefing(4, BRIEFING_FACTS));
+    }
+
+    @Test
+    void briefingGenerationWaitsForTheModelIgnoresTheBreakerAndSurvivesOutages() {
+        var client = client();
+        status = 500;
+        for (int i = 0; i < HindsightClient.BREAKER_FAILURES; i++) client.latestBriefing(4);
+
+        status = 200;
+        body = BRIEFING;
+        delayMillis = 3_000;
+        assertEquals(HindsightClient.BriefingStatus.READY, client.createBriefing(4, BRIEFING_FACTS).status(),
+                "a paused breaker doesn't stop a POST, and the POST outlasts the page read timeout");
+
+        delayMillis = 0;
+        body = "{\"content\": [";
+        assertEquals(HindsightClient.BriefingStatus.UNAVAILABLE, client.createBriefing(4, BRIEFING_FACTS).status());
+        server.stop(0);
+        assertEquals(HindsightClient.BriefingStatus.UNAVAILABLE, client.createBriefing(4, BRIEFING_FACTS).status());
+    }
+
+    @Test
+    void readsTheLatestBriefingAndTodaysAttempt() {
+        body = "{\"briefing\": " + BRIEFING + ", \"today\": {\"day\": \"2026-11-13\", \"status\": \"RUNNING\","
+                + " \"at\": \"2026-11-13T15:02:12Z\"}}";
+
+        var latest = client().latestBriefing(4);
+
+        assertEquals(List.of("/v1/users/4/briefings/latest?null"), requests);
+        assertEquals("GET ", bodies.get(0));
+        assertEquals(Optional.of(new HindsightClient.LatestBriefing(PARSED_BRIEFING, new HindsightClient.BriefingAttempt(
+                LocalDate.of(2026, 11, 13), HindsightClient.BriefingAttemptStatus.RUNNING,
+                Instant.parse("2026-11-13T15:02:12Z")))), latest);
+    }
+
+    @Test
+    void noBriefingYetIsPresentAndEmpty() {
+        body = "{\"briefing\": null, \"today\": null}";
+
+        assertEquals(Optional.of(new HindsightClient.LatestBriefing(null, null)), client().latestBriefing(4));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"500", "malformed", "slow"})
+    void briefingReadFailuresAreEmptyAndShareTheBreaker(String failure) {
+        switch (failure) {
+            case "500" -> status = 500;
+            case "malformed" -> body = "{\"briefing\": [";
+            default -> {
+                body = "{\"briefing\": null, \"today\": null}";
+                delayMillis = 3_000;
+            }
+        }
+        var client = client();
+        for (int i = 0; i < HindsightClient.BREAKER_FAILURES; i++) assertEquals(Optional.empty(), client.latestBriefing(4));
+
+        status = 200;
+        delayMillis = 0;
+        body = "{\"briefing\": null, \"today\": null}";
+        assertEquals(Optional.empty(), client.latestBriefing(4));
+        assertEquals(HindsightClient.ReportListResponse.UNAVAILABLE, client.listBehaviorReports(4, null, 10));
+        assertEquals(HindsightClient.BREAKER_FAILURES, requests.size(), "paused calls never reach hindsight");
     }
 
     private static List<String> fieldNames(com.fasterxml.jackson.databind.JsonNode node) {

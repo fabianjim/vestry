@@ -18,14 +18,15 @@ public class DemoScheduler {
     private final ReflectionAidService reflectionAids;
     private final InsightsService insights;
 
-    // Retries within the hour: a user briefing running at 10:00 would otherwise skip the day.
-    // generateDemo starts at most one job per day.
+    // Retries within the hour after a budget refusal or outage. Hindsight keeps one attempt per day,
+    // so a run after the briefing is saved returns it without a model call.
     @Scheduled(cron = "0 0/10 10 * * MON-FRI", zone = "America/New_York")
     public void generateBriefings() {
         if (!briefings.available()) return;
         for (var user : users.findByDemoTrue()) {
             try {
-                briefings.generateDemo(user);
+                var status = briefings.generateDemo(user);
+                if (status != HindsightClient.BriefingStatus.READY) log.warn("Scheduled demo briefing: {}", status);
             } catch (RuntimeException failure) {
                 // Do not log private context, provider output, or credentials.
                 log.warn("Scheduled demo briefing could not be started");

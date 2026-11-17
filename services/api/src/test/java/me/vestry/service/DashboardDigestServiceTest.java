@@ -1,167 +1,188 @@
 package me.vestry.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import me.vestry.model.AiGeneration;
+import me.vestry.api.HindsightClient;
+import me.vestry.api.HindsightClient.BriefingAttempt;
+import me.vestry.api.HindsightClient.BriefingAttemptStatus;
+import me.vestry.api.HindsightClient.BriefingStatus;
+import me.vestry.api.HindsightClient.LatestBriefing;
+import me.vestry.dto.DigestContent;
+import me.vestry.dto.NewsBriefing;
 import me.vestry.model.DemoSession;
 import me.vestry.model.User;
-import me.vestry.repository.AiGenerationRepository;
-import me.vestry.repository.UserRepository;
+import me.vestry.service.DashboardDigestService.Status;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
-import java.time.*;
-import java.util.*;
-import java.util.function.Consumer;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.RejectedExecutionException;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class DashboardDigestServiceTest {
-    private final DigestService digests = mock(DigestService.class);
-    private final DigestContextService context = mock(DigestContextService.class);
-    private final AiGenerationService generations = mock(AiGenerationService.class);
-    private final AiGenerationRepository jobs = mock(AiGenerationRepository.class);
-    private final AiBudgetService budget = mock(AiBudgetService.class);
+    // 23:00 on Oct 1 in New York
+    private static final Instant NOW = Instant.parse("2026-10-02T03:00:00Z");
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 1);
+    private static final HindsightClient.BriefingRequest FACTS =
+            new HindsightClient.BriefingRequest(NOW, false, 0.0, List.of(), List.of());
+
+    private final HindsightClient hindsight = mock(HindsightClient.class);
+    private final BriefingFactsService facts = mock(BriefingFactsService.class);
     private final DashboardLayoutService layouts = mock(DashboardLayoutService.class);
     private final DemoSessionResolver users = mock(DemoSessionResolver.class);
-    private final UserRepository accounts = mock(UserRepository.class);
-    private final Instant now = Instant.parse("2026-10-02T03:00:00Z");
-    private final Clock clock = Clock.fixed(now, ZoneOffset.UTC);
-    private final DashboardDigestService service = new DashboardDigestService(digests, context, generations, jobs, budget, layouts, users, clock, accounts);
-    private final User user = new User();
-    private final Map<String, AiGeneration> stored = new HashMap<>();
+    private final List<Runnable> background = new ArrayList<>();
+    private final DashboardDigestService service = new DashboardDigestService(hindsight, facts, layouts, users,
+            background::add, Clock.fixed(NOW, ZoneOffset.UTC));
     private final ObjectMapper mapper = new ObjectMapper();
+    private final User user = new User();
 
     @BeforeEach
     void setup() {
         user.setId(7);
         when(users.getCurrentUser()).thenReturn(user);
-        when(digests.available()).thenReturn(true);
-        when(budget.canStart()).thenReturn(true);
-        when(budget.canStart(anyList())).thenReturn(true);
+        when(hindsight.isEnabled()).thenReturn(true);
         when(layouts.get(eq(user), any())).thenReturn(mapper.createObjectNode().put("showBriefing", true));
-        when(jobs.findByRequestKey(anyString())).thenAnswer(i -> Optional.ofNullable(stored.get(i.getArgument(0))));
-        when(context.capture()).thenReturn(new DigestContextService.Snapshot(7, false, now, List.of(), "{}"));
-        when(digests.allowance(any())).thenReturn(30000L);
-        when(generations.submit(anyString(), eq(30000L), any())).thenAnswer(i -> run(i.getArgument(0), i.getArgument(2)));
-        when(generations.submit(anyString(), eq(30000L), anyList(), any()))
-                .thenAnswer(i -> run(i.getArgument(0), i.getArgument(3)));
+        latest(null, null);
+        when(facts.capture(user)).thenReturn(FACTS);
+        when(hindsight.createBriefing(anyInt(), any())).thenReturn(new HindsightClient.BriefingResponse(BriefingStatus.READY, null));
     }
 
-    private UUID run(String key, Consumer<UUID> work) {
-        var job = new AiGeneration(key, now, LocalDate.of(2026, 10, 1), 30000);
-        stored.put(key, job);
-        work.accept(job.getId());
-        return job.getId();
+    private void latest(HindsightClient.Briefing briefing, BriefingAttempt today) {
+        when(hindsight.latestBriefing(7)).thenReturn(Optional.of(new LatestBriefing(briefing, today)));
     }
 
-    @Test
-    void readingPrivateStatusDoesNotCaptureOrGenerateAndPostDeduplicatesTheDailyJob() {
-        assertEquals(DashboardDigestService.Status.IDLE, service.get(null).status());
-        verifyNoInteractions(context, generations);
-        assertEquals(DashboardDigestService.Status.GENERATING, service.generate(null).status());
-        assertEquals(DashboardDigestService.Status.GENERATING, service.generate(null).status());
-        verify(context, times(1)).capture();
-        verify(generations, times(1)).submit(anyString(), anyLong(), anyList(), any());
-        verify(digests).generate(any(), any());
-        assertEquals(LocalDate.of(2026, 10, 1), service.get(null).day());
+    private static HindsightClient.Briefing briefing(LocalDate day, String destination, String newsStatus) {
+        return new HindsightClient.Briefing(UUID.fromString("6f1c1f0e-8a52-4a3e-9d55-0b9e3c1a2b7d"), day, NOW, NOW,
+                new HindsightClient.BriefingContent("Microsoft reported earnings.", "You added to MSFT.",
+                        List.of(new HindsightClient.BriefingQuestion("Record why you added", destination)),
+                        List.of(new HindsightClient.BriefingSource("MSFT earnings", "", null, "https://example.com/msft")),
+                        newsStatus));
+    }
+
+    private static BriefingAttempt attempt(LocalDate day, BriefingAttemptStatus status) {
+        return new BriefingAttempt(day, status, NOW);
     }
 
     @Test
-    void demoVisitorsCannotTriggerGenerationAndScheduleSharesOneDailyKey() {
-        user.setDemo(true);
-        when(context.captureDemo(user)).thenReturn(new DigestContextService.Snapshot(7, true, now, List.of(), "{}"));
-        service.generate(new DemoSession()); service.generate(new DemoSession());
-        verifyNoInteractions(context, generations);
-        service.generateDemo(user); service.generateDemo(user);
-        assertEquals(1, stored.size());
-        verify(context, times(1)).captureDemo(user);
-        verify(context, never()).capture();
-        user.setDemo(false);
-        user.setId(8);
-        assertThrows(IllegalArgumentException.class, () -> service.generateDemo(user));
-        service.generate(null);
-        assertEquals(2, stored.size());
+    void readsNeverCaptureAndAClickPostsOnceInTheBackground() {
+        assertEquals(new DashboardDigestService.State(Status.IDLE, TODAY, null), service.get(null));
+        verifyNoInteractions(facts);
+
+        assertEquals(Status.GENERATING, service.generate(null).status());
+        assertEquals(Status.GENERATING, service.generate(null).status());
+        assertEquals(Status.GENERATING, service.get(null).status());
+        verify(facts, times(1)).capture(user);
+        verify(hindsight, never()).createBriefing(anyInt(), any());
+
+        background.forEach(Runnable::run);
+        verify(hindsight).createBriefing(7, FACTS);
+        latest(briefing(TODAY, "JOURNAL", "READY"), attempt(TODAY, BriefingAttemptStatus.SAVED));
+        assertEquals(Status.READY, service.get(null).status());
+        assertEquals(1, background.size());
     }
 
     @Test
-    void scheduledDemoIgnoresVisitorVisibilityAndRetainsPreviousResultBeforeRefresh() {
-        user.setDemo(true);
-        var previous = new DigestService.Result(UUID.randomUUID(), now.minusSeconds(86400), now.minusSeconds(86400), null);
-        when(digests.latest()).thenReturn(Optional.of(previous));
-        assertEquals(previous, service.get(new DemoSession()).digest());
-        when(context.captureDemo(user)).thenReturn(new DigestContextService.Snapshot(7, true, now, List.of(), "{}"));
-        clearInvocations(layouts, users);
-        service.generateDemo(user);
-        verifyNoInteractions(layouts, users);
-        assertEquals(previous, service.get(new DemoSession()).digest());
+    void mapsTheBriefingAndFallsBackOnValuesItDoesNotKnow() {
+        latest(briefing(TODAY, "NEW_VIEW", "LATER"), null);
+
+        var digest = service.get(null).digest();
+
+        assertEquals(new DashboardDigestService.Digest(UUID.fromString("6f1c1f0e-8a52-4a3e-9d55-0b9e3c1a2b7d"), NOW, NOW,
+                new DigestContent("Microsoft reported earnings.", "You added to MSFT.",
+                        List.of(new DigestContent.Question("Record why you added", DigestContent.Destination.JOURNAL)),
+                        List.of(new NewsBriefing.Item("MSFT earnings", "", null, "https://example.com/msft")),
+                        NewsBriefing.Status.UNAVAILABLE, false)),
+                digest);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, RUNNING, , GENERATING",
+            "0, SAVED, 0, READY",
+            "0, FAILED, -1, FAILED",
+            "-1, FAILED, -1, IDLE",
+            ", , 0, READY",
+            ", , -1, IDLE"})
+    void followsHindsightsAttemptAndLatestBriefing(Integer attemptDay, BriefingAttemptStatus status, Integer briefingDay,
+                                                    Status expected) {
+        latest(briefingDay == null ? null : briefing(TODAY.plusDays(briefingDay), "JOURNAL", "READY"),
+                attemptDay == null ? null : attempt(TODAY.plusDays(attemptDay), status));
+
+        var state = service.get(null);
+
+        assertEquals(expected, state.status());
+        assertEquals(briefingDay != null, state.digest() != null, "the latest briefing shows in every state");
+        assertEquals(expected == Status.IDLE ? Status.GENERATING : expected, service.generate(null).status(),
+                "only IDLE starts a briefing");
+        verify(facts, times(expected == Status.IDLE ? 1 : 0)).capture(user);
     }
 
     @Test
-    void hiddenDisabledAndExhaustedStatesNeverReadContextOrSubmit() {
-        when(digests.available()).thenReturn(false);
-        assertEquals(DashboardDigestService.Status.DISABLED, service.generate(null).status());
-        verifyNoInteractions(layouts, jobs, context, generations);
-        when(digests.available()).thenReturn(true);
+    void offHiddenOrUnreachableNeverPost() {
+        when(hindsight.isEnabled()).thenReturn(false);
+        assertEquals(Status.DISABLED, service.generate(null).status());
+        verifyNoInteractions(layouts);
+
+        when(hindsight.isEnabled()).thenReturn(true);
         when(layouts.get(user, null)).thenReturn(mapper.createObjectNode().put("showBriefing", false));
-        assertEquals(DashboardDigestService.Status.HIDDEN, service.generate(null).status());
-        verifyNoInteractions(jobs, context, generations);
+        assertEquals(new DashboardDigestService.State(Status.HIDDEN, TODAY, null), service.generate(null));
+        verify(hindsight, never()).latestBriefing(anyInt());
+
         when(layouts.get(user, null)).thenReturn(mapper.createObjectNode().put("showBriefing", true));
-        when(budget.canStart(anyList())).thenReturn(false);
-        assertEquals(DashboardDigestService.Status.LIMITED, service.generate(null).status());
-        verifyNoInteractions(context, generations);
+        when(hindsight.latestBriefing(7)).thenReturn(Optional.empty());
+        assertEquals(new DashboardDigestService.State(Status.DISABLED, TODAY, null), service.generate(null));
+        verifyNoInteractions(facts);
+        assertTrue(background.isEmpty());
     }
 
     @Test
-    void successfulAndFailedJobsAreNotReplayedAndOldResultsRemainReadable() {
+    void aRefusedPostShowsLimitedOnceThenAllowsAnotherTry() {
+        when(hindsight.createBriefing(anyInt(), any())).thenReturn(new HindsightClient.BriefingResponse(BriefingStatus.LIMITED, null));
         service.generate(null);
-        var job = stored.values().iterator().next();
-        job.finish(AiGeneration.Status.SUCCEEDED, 1000);
-        var result = new DigestService.Result(job.getId(), now, now, null);
-        when(digests.latest()).thenReturn(Optional.of(result));
-        assertEquals(DashboardDigestService.Status.READY, service.generate(null).status());
-        when(digests.latest()).thenReturn(Optional.of(new DigestService.Result(UUID.randomUUID(), now.minusSeconds(86400), now.minusSeconds(86400), null)));
-        job.finish(AiGeneration.Status.UNKNOWN, 30000);
-        var failed = service.generate(null);
-        assertEquals(DashboardDigestService.Status.FAILED, failed.status());
-        assertNotNull(failed.digest());
-        verify(context, times(1)).capture();
+        background.forEach(Runnable::run);
+
+        assertEquals(Status.LIMITED, service.get(null).status());
+        assertEquals(Status.IDLE, service.get(null).status(), "check again");
+        assertEquals(Status.GENERATING, service.generate(null).status());
     }
 
     @Test
-    void newYorkDayChangeAllowsNewRequestAndExpiredJobsStopPolling() {
-        service.generate(null);
-        var later = new DashboardDigestService(digests, context, generations, jobs, budget, layouts, users,
-                Clock.fixed(now.plusSeconds(301), ZoneOffset.UTC), accounts);
-        assertEquals(DashboardDigestService.Status.FAILED, later.get(null).status());
-        later = new DashboardDigestService(digests, context, generations, jobs, budget, layouts, users,
-                Clock.fixed(Instant.parse("2026-10-02T04:00:00Z"), ZoneOffset.UTC), accounts);
-        assertEquals(DashboardDigestService.Status.IDLE, later.get(null).status());
+    void aBriefingThatCouldNotStartIsLimitedAndFreesTheUser() {
+        var rejecting = new DashboardDigestService(hindsight, facts, layouts, users,
+                task -> { throw new RejectedExecutionException("full"); }, Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertEquals(Status.LIMITED, rejecting.generate(null).status());
+        assertEquals(Status.IDLE, rejecting.get(null).status());
     }
 
     @Test
-    void rejectedReservationReturnsLimitedWithoutLeakingErrorText() {
-        when(generations.submit(anyString(), anyLong(), anyList(), any())).thenThrow(new IllegalStateException("provider details"));
-        assertEquals(DashboardDigestService.Status.LIMITED, service.generate(null).status());
-        verify(digests, never()).generate(any(), any());
-    }
+    void demoVisitorsOnlyReadAndTheScheduleUsesTheTemplatesFacts() {
+        user.setDemo(true);
+        latest(briefing(TODAY.minusDays(1), "JOURNAL", "READY"), null);
 
-    @Test
-    void weekdayUserBriefingsReserveTheDemoSlotButWeekendsAndTheDemoDoNot() {
-        var demo = new User(); demo.setId(3); demo.setDemo(true);
-        when(accounts.findByDemoTrue()).thenReturn(List.of(demo));
-        when(context.captureDemo(demo)).thenReturn(new DigestContextService.Snapshot(3, true, now, List.of(), "{}"));
+        var state = service.generate(new DemoSession());
 
-        service.generate(null); // Thursday in New York
-        var reserved = org.mockito.ArgumentCaptor.forClass(List.class);
-        verify(generations).submit(anyString(), anyLong(), reserved.capture(), any());
-        assertEquals(1, reserved.getValue().size());
-        service.generateDemo(demo);
-        assertTrue(stored.containsKey(reserved.getValue().get(0)));
+        assertEquals(Status.IDLE, state.status());
+        assertTrue(state.digest().content().demoTemplate());
+        verifyNoInteractions(facts);
+        assertTrue(background.isEmpty());
 
-        var saturday = new DashboardDigestService(digests, context, generations, jobs, budget, layouts, users,
-                Clock.fixed(Instant.parse("2026-10-03T16:00:00Z"), ZoneOffset.UTC), accounts);
-        saturday.get(null);
-        verify(budget).canStart(List.of());
+        var demoFacts = new HindsightClient.BriefingRequest(NOW, true, 0.0, List.of(), List.of());
+        when(facts.captureDemo(user)).thenReturn(demoFacts);
+        clearInvocations(layouts, users);
+        assertEquals(BriefingStatus.READY, service.generateDemo(user));
+        verify(hindsight).createBriefing(7, demoFacts);
+        verifyNoInteractions(layouts, users);
     }
 }
