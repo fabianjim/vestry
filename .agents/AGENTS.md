@@ -8,7 +8,7 @@ Vestry is a portfolio journal for casual, reflective investors. It connects port
 - Routine, reversible work inside the requested objective needs no extra approval. Briefly state the plan (what, where, why, how verified) before editing. Ask first for scope expansion, unresolved product decisions, destructive data changes, spending, publishing or deployment.
 - Make the smallest change that solves the task, using existing patterns and dependencies. Do not silently fix unrelated problems; report them.
 - Do not edit `README.md` unless asked.
-- Paid AI evaluations (`make eval-ai`, `./test-ai.sh`) need explicit approval for each run. Offline and mocked checks do not.
+- Paid AI calls and evaluations (hindsight's `--paid` evals, a real briefing) need explicit approval for each run. Offline and mocked checks do not.
 - Update this file only when you learn something significant for future agents. Keep it concise and free of contradictions. Do not log task history here.
 
 ## Layout and commands
@@ -52,10 +52,9 @@ Vestry is a portfolio journal for casual, reflective investors. It connects port
 **AI briefings**
 - Hindsight writes and stores the daily dashboard briefing (contract: `~/ves/briefing-integration.md`). `BriefingFactsService` captures the portfolio facts on the request thread; `DashboardDigestService` posts them on `briefingExecutor` and maps hindsight's latest briefing and today's attempt to the digest status.
 - Hindsight allows one attempt per user per New York day and owns the budget, so `LIMITED` only appears once after a refused POST. The demo's briefing is scheduled (weekdays from 10:00 New York, retried through the hour); demo visitors only read it.
-- The old OpenAI path (`DigestService`, `NewsService`, `OpenAiClient`, `AiBudgetService`, `BriefingTracing`) is unused and awaiting removal.
 
 **Hindsight (AI service)**
-- `HindsightClient` never throws; a blank `HINDSIGHT_URL` or `HINDSIGHT_SERVICE_TOKEN` turns it off. Page reads (`insights`) use a 2 s timeout and a circuit breaker. Reflect with AI (`reflectionAid`) runs on a click, so it waits up to 45 s and skips the breaker.
+- `HindsightClient` never throws; a blank `HINDSIGHT_URL` or `HINDSIGHT_SERVICE_TOKEN` turns it off. Page reads (`insights`, `latestBriefing`) use a 2 s timeout and a circuit breaker. Reflect with AI (`reflectionAid`) runs on a click, so it waits up to 45 s and skips the breaker.
 - `ReflectionAidService` computes the facts hindsight sees (latest price, shares from the ledger, trades since) and picks the later entries; hindsight enforces the daily limits. Demo visitors only read the template account's saved aids (`reflectDemo`, mapped through `DemoSession.templateEntryIds`) and never cause a model call; `DemoScheduler` refreshes them nightly within hindsight's daily limit.
 
 ## Frontend conventions
