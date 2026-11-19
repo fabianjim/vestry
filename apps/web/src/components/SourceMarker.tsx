@@ -5,7 +5,7 @@ import { faviconUrl, formatSourceDate, sourceHref, sourceInitial, sourceName } f
 
 const CLOSE_DELAY = 120
 
-/** A source's favicon in grayscale, or its initial when there is no URL or the icon fails to load. */
+/** A source's favicon, or its initial when there is no URL or the icon fails to load. */
 export function SourceIcon({ source, className = 'size-3 rounded-sm object-contain', letterClassName = 'text-[10px]' }: {
   source: Source; className?: string; letterClassName?: string
 }) {
@@ -15,7 +15,7 @@ export function SourceIcon({ source, className = 'size-3 rounded-sm object-conta
     return <span aria-hidden="true" className={`${letterClassName} leading-none font-130 text-secondary`}>{sourceInitial(source)}</span>
   }
   return <img src={src} alt="" aria-hidden="true" loading="lazy" referrerPolicy="no-referrer"
-    onError={() => setFailed(src)} className={`${className} shrink-0 grayscale`} />
+    onError={() => setFailed(src)} className={`${className} shrink-0`} />
 }
 
 function SourceRow({ source }: { source: Source }) {
