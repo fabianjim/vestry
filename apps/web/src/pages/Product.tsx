@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import LandingNav from '../components/landing/LandingNav'
 import LandingFooter from '../components/landing/LandingFooter'
@@ -9,17 +9,15 @@ import { useActiveSection } from '../hooks/useActiveSection'
 import { useDemoLogin } from '../hooks/useDemoLogin'
 import EntryKinds from '../components/product/visuals/EntryKinds'
 import HindsightFlow from '../components/product/visuals/HindsightFlow'
+import AnalysisStories from '../components/product/visuals/AnalysisStories'
 
 const SECTION_IDS = PRODUCT_SECTIONS.map((section) => section.id)
 // Must sit just below where a jumped-to section lands (scroll-mt-32 / lg:scroll-mt-24), so a jump makes it current.
 const ACTIVE_LINE = 140
 
-// The story renders real Holdings cards (Recharts and d3), so it loads only when the page needs it.
-const AnalysisStory = lazy(() => import('../components/product/visuals/AnalysisStory'))
-
 const VISUALS: Record<string, React.ComponentType> = {
   journal: EntryKinds,
-  analysis: AnalysisStory,
+  analysis: AnalysisStories,
   hindsight: HindsightFlow,
 }
 
@@ -28,7 +26,7 @@ const scrollBehavior = (): ScrollBehavior =>
 
 const CENTERED_LINE = 'xl:relative xl:left-1/2 xl:w-max xl:-translate-x-1/2 xl:whitespace-nowrap xl:text-center'
 
-// Visuals that already draw their own frame (the story is a full app window), so they sit on the page without the panel.
+// Visuals that already draw their own frame (the stories are full app windows), so they sit on the page without the panel.
 const BARE = new Set(['analysis'])
 
 function VisualPanel({ Visual, bare = false }: { Visual: React.ComponentType; bare?: boolean }) {

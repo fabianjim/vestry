@@ -46,13 +46,7 @@ export const PRODUCT_SECTIONS: ProductSection[] = [
     label: 'Analysis',
     headline: 'Shape your analysis around your own questions.',
     lede: 'Analysis runs through all of Vestry, not just one page. What each company is, how each position has done, how your portfolio has moved and how prices changed after you wrote, all rebuilt from your own trades so every number reflects what you actually owned.',
-    points: [
-      { title: 'Know what you own', body: 'Every stock shows its sector, industry, country and company size, and every fund its asset class, category and region. The same details link related holdings in a relationship graph.' },
-      { title: 'Every position in full', body: 'Shares, average cost, market value, realized and unrealized gain or loss, and price history with daily and weekly ranges.' },
-      { title: 'Your portfolio over time', body: 'Chart its value or gain over a week, a month, three months, all time or dates you choose, against the money you put in, with your journal entries marked where you wrote them.' },
-      { title: 'Results beside reasoning', body: 'Each entry keeps the price when you wrote it, so you can see how it has moved since and between an entry and your reflection on it.' },
-      { title: 'A Holdings page you arrange', body: 'Choose from eight cards, from sector allocation and concentration to position size against return. Reorder, resize or remove them, and your layout is saved.' },
-    ],
+    points: [],
   },
   {
     id: 'hindsight',
@@ -76,3 +70,10 @@ export const PRODUCT_SECTIONS: ProductSection[] = [
     link: { label: 'Read the privacy policy', to: '/privacy' },
   },
 ]
+
+/** Copy for the Analysis section's stories: a caption for the one with your own data, a heading and hint for the two with AI. */
+export const ANALYSIS_STORIES = {
+  own: { title: 'Check a plan against your numbers', body: 'Reread an old entry, set up Holdings to answer it, and write down what you found.' },
+  aiHeading: 'Or with the help of AI',
+  aiHint: 'Click one to follow it on its own.',
+} satisfies Record<string, ProductPoint | string>

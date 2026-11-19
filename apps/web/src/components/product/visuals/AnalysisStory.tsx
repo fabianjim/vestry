@@ -1,16 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import CustomizationToolbar from '../../CustomizationToolbar'
 import ConcentrationCard from '../../ConcentrationCard'
 import HoldingGraph from '../../HoldingGraph'
 import HoldingsCardHeader from '../../HoldingsCardHeader'
 import HoldingsValueChart from '../../HoldingsValueChart'
 import SectorBreakdown from '../../SectorBreakdown'
-import { Bars3Icon, BookOpenIcon, ChartPieIcon, DocumentCurrencyDollarIcon, DocumentMagnifyingGlassIcon, HomeIcon } from '../../icons'
 import LandingEntryCard from '../../landing/LandingEntryCard'
 import JournalSourceQuote from '../../JournalSourceQuote'
 import { JOURNAL_STYLES, journalBadge } from '../../../constants/journalStyles'
-import { useInView } from '../../../hooks/useInView'
-import { prefersReducedMotion } from '../../../hooks/useHeroPlayback'
 import { formatDateTime } from '../../../utils/dateUtils'
 import { formatCurrency } from '../../../utils/formatUtils'
 import { HOLDINGS_CARDS, type HoldingsCard, type HoldingsCardId } from '../../../utils/holdingsLayout'
@@ -18,6 +15,8 @@ import {
   AAPL_BUY, AAPL_BUY_SHARES, AAPL_PLAN, GRAPH_EDGES, GRAPH_NODES, HOLDINGS, JOURNAL_LIST, NEW_REFLECTION,
   REFLECTION_TEXT, SECTOR_DATA, VALUE_DATA,
 } from './analysisStoryData'
+import { Cursor, Row, Sidebar, StoryWindow } from './StoryParts'
+import { buildFrames, offsetWithin, useStoryFrames, useTyped } from './storyKit'
 
 /*
  * One investor's afternoon, played by a cursor in a scaled copy of the app: reread an old entry, rearrange
@@ -25,10 +24,6 @@ import {
  * journal list and detail panel reuse the app's markup. Plays only while on screen; reduced motion shows the
  * finished Holdings page.
  */
-
-// Design size of the app window; it is scaled to fit the panel.
-const W = 1040
-const H = 640
 
 type Frame = {
   ms: number
@@ -57,7 +52,6 @@ const REMOVED: HoldingsCard[] = ADDED.filter(([id]) => id !== 'value')
 const MOVED: HoldingsCard[] = [['concentration', 1], ...REMOVED.filter(([id]) => id !== 'concentration')]
 const TYPE_MS = 28
 
-// Each step changes only what it names; everything else carries over. `click` and `fade` never carry.
 const STEPS: Partial<Frame>[] = [
   { ms: 900, page: 'journal', cursor: 'start' },
   { ms: 1000, cursor: 'entry' },
@@ -96,95 +90,15 @@ const STEPS: Partial<Frame>[] = [
   { ms: 600, fade: true },
 ]
 
-const FRAMES: Frame[] = STEPS.reduce<Frame[]>((frames, step) => {
-  const previous = frames[frames.length - 1] ?? {
-    ms: 0, page: 'journal', cursor: null, click: false, detail: false, mark: false, editing: false,
-    menu: false, cardMenu: false, cards: START, removing: null, drag: false, camera: null, spot: false,
-    reflecting: false, typing: false, saved: false, fade: false,
-  }
-  return [...frames, { ...previous, click: false, fade: false, ...step }]
-}, [])
+const FRAMES = buildFrames<Frame>({
+  ms: 0, page: 'journal', cursor: null, click: false, detail: false, mark: false, editing: false,
+  menu: false, cardMenu: false, cards: START, removing: null, drag: false, camera: null, spot: false,
+  reflecting: false, typing: false, saved: false, fade: false,
+}, STEPS)
 
 const STILL: Frame = { ...FRAMES[FRAMES.length - 1], page: 'holdings', cards: MOVED, cursor: null, fade: false, editing: false }
 
 const control = 'rounded px-2 py-1.5 text-sm'
-
-function useScale(designWidth: number) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(0)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const observer = new ResizeObserver(([entry]) => setScale(entry.contentRect.width / designWidth))
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [designWidth])
-  return { ref, scale }
-}
-
-/** Offset of `el` inside `root`, ignoring transforms (so a moving camera or a card mid-FLIP doesn't skew it). */
-function offsetWithin(el: HTMLElement, root: HTMLElement) {
-  let x = 0
-  let y = 0
-  let node: HTMLElement | null = el
-  while (node && node !== root) {
-    x += node.offsetLeft
-    y += node.offsetTop
-    node = node.offsetParent as HTMLElement | null
-  }
-  return { x, y }
-}
-
-function Cursor({ x, y, click, visible }: { x: number; y: number; click: boolean; visible: boolean }) {
-  return (
-    <div
-      className={`pointer-events-none absolute left-0 top-0 z-50 transition-[transform,opacity] duration-700 ease-[cubic-bezier(0.45,0,0.2,1)] ${visible ? 'opacity-100' : 'opacity-0'}`}
-      style={{ transform: `translate(${x}px, ${y}px)` }}
-    >
-      {click && <span key={`${x}${y}`} className="absolute -left-4 -top-4 h-8 w-8 rounded-full border border-primary animate-click" />}
-      <svg width="22" height="22" viewBox="0 0 22 22" className="drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)]">
-        <path d="M3 2.5 18 10l-6.6 1.9L8.6 18.6Z" className="fill-foreground stroke-background" strokeWidth={1.4} strokeLinejoin="round" />
-      </svg>
-    </div>
-  )
-}
-
-function Sidebar({ page }: { page: Frame['page'] }) {
-  const items = [
-    { id: 'dashboard', icon: HomeIcon },
-    { id: 'holdings', icon: ChartPieIcon },
-    { id: 'transactions', icon: DocumentCurrencyDollarIcon },
-    { id: 'journal', icon: BookOpenIcon },
-    { id: 'insights', icon: DocumentMagnifyingGlassIcon },
-  ]
-  return (
-    <aside className="flex w-16 shrink-0 flex-col border-r border-border-subtle bg-background-sidebar">
-      <div className="flex items-center justify-center border-b border-border py-4">
-        <span className="p-2 text-secondary"><Bars3Icon className="h-5 w-5" /></span>
-      </div>
-      <nav className="flex-1 py-4">
-        {items.map(({ id, icon: Icon }) => (
-          <span
-            key={id}
-            data-cursor={`nav-${id}`}
-            className={`mx-2 flex justify-center rounded-md px-2 py-3 transition-colors duration-300 ${page === id ? 'bg-surface-active text-foreground' : 'text-secondary'}`}
-          >
-            <Icon className="h-5 w-5" />
-          </span>
-        ))}
-      </nav>
-    </aside>
-  )
-}
-
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex justify-between gap-3 text-sm">
-      <span className="text-muted">{label}</span>
-      <span className="text-foreground">{children}</span>
-    </div>
-  )
-}
 
 function JournalPage({ frame, typed }: { frame: Frame; typed: string }) {
   const [before, after] = AAPL_BUY.body.split(AAPL_PLAN)
@@ -371,12 +285,7 @@ function HoldingsPage({ frame, gridRef, cardRefs, dragDelta, camera }: {
 }
 
 export default function AnalysisStory() {
-  const { ref: viewRef, inView } = useInView<HTMLDivElement>(0.35)
-  const { ref: sizeRef, scale } = useScale(W)
-  const reduced = prefersReducedMotion()
-  const [index, setIndex] = useState(0)
-  const [typedCount, setTypedCount] = useState(0)
-  const frame = reduced ? STILL : FRAMES[index]
+  const { viewRef, reduced, frame } = useStoryFrames(FRAMES, STILL)
 
   const rootRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLDivElement>(null)
@@ -387,23 +296,6 @@ export default function AnalysisStory() {
   const [cursor, setCursor] = useState({ x: 40, y: 600 })
   const [camera, setCamera] = useState(0)
   const [dragDelta, setDragDelta] = useState({ x: 0, y: 0 })
-
-  // Advance while on screen.
-  useEffect(() => {
-    if (!inView || reduced) return
-    const timer = window.setTimeout(() => setIndex((value) => (value + 1) % FRAMES.length), FRAMES[index].ms)
-    return () => window.clearTimeout(timer)
-  }, [inView, reduced, index])
-
-  // Type the reflection; the text resets when the story starts over.
-  useEffect(() => {
-    if (!frame.typing) {
-      if (!frame.saved) setTypedCount(0)
-      return
-    }
-    const timer = window.setInterval(() => setTypedCount((count) => Math.min(REFLECTION_TEXT.length, count + 1)), TYPE_MS)
-    return () => window.clearInterval(timer)
-  }, [frame.typing, frame.saved])
 
   // Cards slide to new places (FLIP), measured inside the grid so the camera never reads as movement.
   useLayoutEffect(() => {
@@ -460,34 +352,23 @@ export default function AnalysisStory() {
     })
   }, [frame])
 
-  const typed = frame.saved ? REFLECTION_TEXT : REFLECTION_TEXT.slice(0, typedCount)
+  const typed = useTyped(REFLECTION_TEXT, frame.typing, frame.saved, TYPE_MS)
 
   return (
-    <div ref={viewRef} aria-hidden className="select-none">
-      <div ref={sizeRef} className="relative w-full" style={{ height: H * scale }}>
-        {scale > 0 && (
-          <div
-            ref={rootRef}
-            inert
-            className={`absolute left-0 top-0 flex overflow-hidden rounded-xl border border-border bg-background text-foreground shadow-floating transition-opacity duration-500 ${frame.fade ? 'opacity-0' : 'opacity-100'}`}
-            style={{ width: W, height: H, transform: `scale(${scale})`, transformOrigin: 'top left' }}
-          >
-            <Sidebar page={frame.page} />
-            <div ref={mainRef} className="relative min-w-0 flex-1">
-              <div className={`absolute inset-0 transition-opacity duration-500 ${frame.page === 'journal' ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
-                <JournalPage frame={frame} typed={typed} />
-              </div>
-              {frame.page === 'holdings' && (
-                <div className="absolute inset-0 animate-fade-up">
-                  <HoldingsPage frame={frame} gridRef={gridRef} cardRefs={cardRefs} dragDelta={dragDelta} camera={camera} />
-                </div>
-              )}
-              {spot && <span className="pointer-events-none absolute z-40 rounded-lg ring-2 ring-primary/70 animate-fade-up" style={spot} />}
-            </div>
-            {!reduced && <Cursor x={cursor.x} y={cursor.y} click={frame.click} visible={!!frame.cursor} />}
+    <StoryWindow viewRef={viewRef} rootRef={rootRef} fade={frame.fade}>
+      <Sidebar page={frame.page} />
+      <div ref={mainRef} className="relative min-w-0 flex-1">
+        <div className={`absolute inset-0 transition-opacity duration-500 ${frame.page === 'journal' ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
+          <JournalPage frame={frame} typed={typed} />
+        </div>
+        {frame.page === 'holdings' && (
+          <div className="absolute inset-0 animate-fade-up">
+            <HoldingsPage frame={frame} gridRef={gridRef} cardRefs={cardRefs} dragDelta={dragDelta} camera={camera} />
           </div>
         )}
+        {spot && <span className="pointer-events-none absolute z-40 rounded-lg ring-2 ring-primary/70 animate-fade-up" style={spot} />}
       </div>
-    </div>
+      {!reduced && <Cursor x={cursor.x} y={cursor.y} click={frame.click} visible={!!frame.cursor} />}
+    </StoryWindow>
   )
 }
