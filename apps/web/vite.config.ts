@@ -22,7 +22,12 @@ export default defineConfig(({ mode }) => ({
               { text: 'Review your portfolio performance', destination: 'DASHBOARD' },
               { text: 'Revisit your recent journal entries', destination: 'JOURNAL' },
             ],
-            sources: [], newsStatus: 'READY', demoTemplate: false,
+            sources: [
+              { headline: 'Sample article from Reuters', summary: '', publishedOn: null, url: 'https://www.reuters.com/' },
+              { headline: 'Sample article from Apple', summary: '', publishedOn: null, url: 'https://www.apple.com/newsroom/' },
+              { headline: 'Sample filing from the SEC', summary: '', publishedOn: '2026-11-03', url: 'https://www.sec.gov/' },
+            ],
+            newsStatus: 'READY', demoTemplate: false,
           },
         },
       }

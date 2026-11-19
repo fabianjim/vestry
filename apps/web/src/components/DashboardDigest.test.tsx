@@ -76,3 +76,13 @@ it('renders a news-only digest with one direct next step and no empty reflection
   expect(html.match(/<li /g)).toHaveLength(1)
   expect(html).not.toContain('<p class="text-sm leading-relaxed text-foreground"></p>')
 })
+
+it('shows one source as its icon and several as a count after the news', () => {
+  expect(render(ready)).toContain('aria-label="Source: news.example, Company report"')
+  expect(render(ready)).toContain('icons.duckduckgo.com/ip3/news.example.ico')
+  const digest = ready.digest!
+  const second = { headline: 'Filing', summary: '', publishedOn: null, url: 'https://www.sec.gov/filing' }
+  const html = render({ ...ready, digest: { ...digest, content: { ...digest.content, sources: [...digest.content.sources, second] } } })
+  expect(html).toMatch(/aria-label="2 sources"[^>]*>\+2</)
+  expect(html.indexOf('Company reported earnings.')).toBeLessThan(html.indexOf('2 sources'))
+})
