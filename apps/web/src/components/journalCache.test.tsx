@@ -35,9 +35,9 @@ describe('journal cache consumers', () => {
   it('uses a cached source quote when its entry is absent from the visible list', () => {
     client.setQueryData(journalQueries.entries().queryKey, [{ ...entry, id: 2, body: 'Reconsidering', entryType: 'REFLECTION', sourceEntryId: 1 }])
     client.setQueryData(journalQueries.entry(1).queryKey, entry)
-    expect(render(<JournalPanel />)).toContain(entry.body)
+    expect(render(<JournalPage />)).toContain(entry.body)
     client.setQueryData(journalQueries.entry(1).queryKey, { ...entry, body: 'Updated thesis' })
-    const html = render(<JournalPanel />)
+    const html = render(<JournalPage />)
     expect(html).toContain('Updated thesis')
     expect(html).not.toContain(entry.body)
   })

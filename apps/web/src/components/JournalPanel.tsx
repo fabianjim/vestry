@@ -11,6 +11,9 @@ import TagInput from './TagInput'
 import TagPills from './TagPills'
 import JournalSourceQuote from './JournalSourceQuote'
 import { useJournalSources } from '../hooks/useJournalSources'
+import { useEntryExpansion } from '../hooks/useEntryExpansion'
+import { EntryToggleButton, ExpandAllButton } from './EntryExpandControls'
+import { Collapsible, CollapsibleText } from './Collapsible'
 
 interface JournalPanelProps {
   onEntryClick?: (entry: JournalEntry) => void
@@ -25,6 +28,7 @@ export default function JournalPanel({ onEntryClick, onViewOnChart, onEntriesCha
   const entriesQuery = useQuery(journalQueries.entries())
   const entries = entriesQuery.data ?? EMPTY_ENTRIES
   const sources = useJournalSources(entries)
+  const expansion = useEntryExpansion(entries.map((entry) => entry.id), false)
   const [saving, setSaving] = useState(false)
   const loading = saving || entriesQuery.isPending
   const [error, setError] = useState('')
@@ -131,7 +135,12 @@ export default function JournalPanel({ onEntryClick, onViewOnChart, onEntriesCha
 
   return (
     <div ref={containerRef} className="p-5 bg-surface rounded-lg border border-border">
-      <h4 className="text-muted mt-0 mb-3">New Journal Entry</h4>
+      <div className="flex justify-between items-center mb-3">
+        <h4 className="text-muted m-0">New Journal Entry</h4>
+        {entries.length > 0 && (
+          <ExpandAllButton anyExpanded={expansion.anyExpanded} onClick={expansion.toggleAll} className="p-1.5 -m-1.5" />
+        )}
+      </div>
       <div className="flex gap-3 mb-3 flex-wrap">
         <select
           value={entryType}
@@ -177,100 +186,110 @@ export default function JournalPanel({ onEntryClick, onViewOnChart, onEntriesCha
         <div className="text-muted italic">No journal entries yet.</div>
       ) : (
         <div className="flex flex-col gap-3">
-          {entries.map((entry) => (
-            <div
-              key={entry.id}
-              onClick={() => onEntryClick?.(entry)}
-              className={`relative group p-3 rounded-md border border-border-subtle cursor-pointer bg-background hover:bg-surface-hover active:bg-surface-active transition-colors`}
-            >
-              <div className="flex justify-between items-start mb-1">
-                <div className="flex items-center gap-2">
-                  <span className={journalBadge(entry.entryType)}>
-                    {JOURNAL_STYLES[entry.entryType].label}
-                  </span>
-                  {entry.ticker && (
-                    <span className="text-xs font-130 text-foreground">{entry.ticker}</span>
-                  )}
-                </div>
-                <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
-              </div>
-              {(entry.priceSnapshot != null || entry.entryType === 'REFLECTION') && (
-                <div className="text-xs text-muted mb-1">
-                  Snapshot: {entry.priceSnapshot != null && entry.priceSnapshot > 0 ? `$${entry.priceSnapshot.toFixed(2)}` : '—'}
-                </div>
-              )}
-              {entry.entryType === 'REFLECTION' && entry.sourceEntryId != null && (
-                <JournalSourceQuote source={sources.get(entry.sourceEntryId)} />
-              )}
-              {editingEntryId === entry.id ? (
-                <div onClick={e => e.stopPropagation()}>
-                  <TagInput
-                    value={editBody}
-                    onChange={setEditBody}
-                    rows={3}
-                    className="bg-transparent text-sm text-foreground border-none focus:ring-0 resize-none"
-                  />
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      onClick={() => handleSaveEdit(entry.id)}
-                      disabled={loading}
-                      className="px-2 py-1 bg-primary text-primary-foreground text-xs rounded hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed pointer-coarse:min-h-[40px] pointer-coarse:px-3"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={handleCancelEdit}
-                      className="px-2 py-1 bg-surface border border-border text-foreground text-xs rounded hover:bg-surface-hover active:bg-surface-active transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                  {entryError && editingEntryId === entry.id && (
-                    <div className="text-error text-xs mt-1">{entryError}</div>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <div className="text-sm text-foreground whitespace-pre-wrap">{getDisplayBody(entry.body)}</div>
-                  <TagPills tags={entry.tags} />
-                  <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 pointer-coarse:static pointer-coarse:mt-3 pointer-coarse:justify-end transition-opacity">
-                    {onViewOnChart && (entry.entryType === 'BUY' || entry.entryType === 'SELL') && isTradingHours(entry.timestamp) && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onViewOnChart?.(entry)
-                        }}
-                        className="px-2 py-1 text-xs text-foreground bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
-                        title="View on chart"
-                      >
-                        View
-                      </button>
+          {entries.map((entry) => {
+            const expanded = expansion.isExpanded(entry.id) || editingEntryId === entry.id
+            return (
+              <div
+                key={entry.id}
+                onClick={() => onEntryClick?.(entry)}
+                className={`relative group p-3 rounded-md border border-border-subtle cursor-pointer bg-background hover:bg-surface-hover active:bg-surface-active transition-colors`}
+              >
+                <div className="flex justify-between items-start mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className={journalBadge(entry.entryType)}>
+                      {JOURNAL_STYLES[entry.entryType].label}
+                    </span>
+                    {entry.ticker && (
+                      <span className="text-xs font-130 text-foreground">{entry.ticker}</span>
                     )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleEditClick(entry)
-                      }}
-                      className="px-2 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
-                      title="Edit"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteClick(entry.id)
-                      }}
-                      className="px-2 py-1 text-xs text-error hover:text-error bg-surface border border-border rounded hover:bg-error/10 transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
-                      title="Delete"
-                    >
-                      Delete
-                    </button>
                   </div>
-                </>
-              )}
-            </div>
-          ))}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
+                    <EntryToggleButton expanded={expanded} onToggle={() => expansion.toggle(entry.id)} />
+                  </div>
+                </div>
+                {(entry.priceSnapshot != null || entry.entryType === 'REFLECTION') && (
+                  <Collapsible open={expanded}>
+                    <div className="text-xs text-muted mb-1">
+                      Snapshot: {entry.priceSnapshot != null && entry.priceSnapshot > 0 ? `$${entry.priceSnapshot.toFixed(2)}` : '—'}
+                    </div>
+                    {entry.entryType === 'REFLECTION' && entry.sourceEntryId != null && (
+                      <JournalSourceQuote source={sources.get(entry.sourceEntryId)} />
+                    )}
+                  </Collapsible>
+                )}
+                {editingEntryId === entry.id ? (
+                  <div onClick={e => e.stopPropagation()}>
+                    <TagInput
+                      value={editBody}
+                      onChange={setEditBody}
+                      rows={3}
+                      className="bg-transparent text-sm text-foreground border-none focus:ring-0 resize-none"
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => handleSaveEdit(entry.id)}
+                        disabled={loading}
+                        className="px-2 py-1 bg-primary text-primary-foreground text-xs rounded hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed pointer-coarse:min-h-[40px] pointer-coarse:px-3"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        className="px-2 py-1 bg-surface border border-border text-foreground text-xs rounded hover:bg-surface-hover active:bg-surface-active transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {entryError && editingEntryId === entry.id && (
+                      <div className="text-error text-xs mt-1">{entryError}</div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <CollapsibleText open={expanded} className="text-sm text-foreground whitespace-pre-wrap">{getDisplayBody(entry.body)}</CollapsibleText>
+                    <Collapsible open={expanded}>
+                      <TagPills tags={entry.tags} />
+                      <div className={`absolute bottom-2 right-2 flex gap-1 ${expanded ? '' : 'pointer-fine:invisible'} opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 pointer-coarse:static pointer-coarse:mt-3 pointer-coarse:justify-end transition-opacity`}>
+                        {onViewOnChart && (entry.entryType === 'BUY' || entry.entryType === 'SELL') && isTradingHours(entry.timestamp) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onViewOnChart?.(entry)
+                            }}
+                            className="px-2 py-1 text-xs text-foreground bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
+                            title="View on chart"
+                          >
+                            View
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleEditClick(entry)
+                          }}
+                          className="px-2 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
+                          title="Edit"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteClick(entry.id)
+                          }}
+                          className="px-2 py-1 text-xs text-error hover:text-error bg-surface border border-border rounded hover:bg-error/10 transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
+                          title="Delete"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </Collapsible>
+                  </>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 

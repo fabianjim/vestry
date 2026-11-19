@@ -96,6 +96,23 @@ export function ChevronRightIcon({ className = 'w-5 h-5' }: IconProps) {
   )
 }
 
+export function ChevronUpDownIcon({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
+    </svg>
+  )
+}
+
+// Not in heroicons: ChevronUpDownIcon mirrored so the chevrons point inward.
+export function ChevronDownUpIcon({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 5.25L12 9l3.75-3.75m-7.5 13.5L12 15l3.75 3.75" />
+    </svg>
+  )
+}
+
 export function Bars3Icon({ className = 'w-5 h-5' }: IconProps) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}>

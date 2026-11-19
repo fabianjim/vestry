@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import { Link, useOutletContext } from 'react-router-dom'
+import { useOutletContext } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { refreshAfterTrade, refreshJournal } from '../services/queryUpdates'
 import PortfolioChart from '../components/PortfolioChart'
@@ -341,12 +341,7 @@ export default function Dashboard() {
       {/* Holdings Table */}
       {/* Journal Section */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mt-4 mb-4">
-          <h3 className="text-xl font-130 m-0">Journal</h3>
-          <Link to="/journal" className="text-sm italic text-secondary hover:text-foreground transition-colors">
-            Expand
-          </Link>
-        </div>
+        <h3 className="text-xl font-130 mt-4 mb-4">Journal</h3>
         <JournalPanel
           onEntriesChange={handleJournalEntriesChange}
           onEntryClick={(entry) => {

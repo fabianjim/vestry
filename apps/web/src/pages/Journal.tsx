@@ -18,6 +18,9 @@ import JournalSourceQuote from '../components/JournalSourceQuote'
 import { useJournalSources } from '../hooks/useJournalSources'
 import { usePresenceList } from '../hooks/usePresenceList'
 import StackItem from '../components/StackItem'
+import { EntryToggleButton, ExpandAllButton } from '../components/EntryExpandControls'
+import { Collapsible, CollapsibleText } from '../components/Collapsible'
+import { useEntryExpansion } from '../hooks/useEntryExpansion'
 
 const EMPTY_ENTRIES: JournalEntry[] = []
 const EMPTY_TAGS: Tag[] = []
@@ -48,6 +51,7 @@ export default function JournalPage() {
   const entries = entriesQuery.data ?? EMPTY_ENTRIES
   const presence = usePresenceList(entries)
   const sources = useJournalSources(entries)
+  const expansion = useEntryExpansion(entries.map((entry) => entry.id), true)
   const tagsQuery = useQuery(journalQueries.tags())
   const allTags = tagsQuery.data ?? EMPTY_TAGS
   const [saving, setSaving] = useState(false)
@@ -189,12 +193,17 @@ export default function JournalPage() {
             <span className="text-sm text-muted">
               {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
             </span>
-            <button
-              onClick={() => setShowNewEntry((prev) => !prev)}
-              className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors text-sm"
-            >
-              {showNewEntry ? 'Cancel' : 'New Entry'}
-            </button>
+            <div className="flex items-center gap-2">
+              {entries.length > 0 && (
+                <ExpandAllButton anyExpanded={expansion.anyExpanded} onClick={expansion.toggleAll} className="p-2" />
+              )}
+              <button
+                onClick={() => setShowNewEntry((prev) => !prev)}
+                className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors text-sm"
+              >
+                {showNewEntry ? 'Cancel' : 'New Entry'}
+              </button>
+            </div>
           </div>
 
           {showNewEntry && (
@@ -248,95 +257,105 @@ export default function JournalPage() {
             )}
 
             <div>
-              {presence.map(({ item: entry, status }) => (
-                <StackItem key={entry.id} show={status === 'shown'} gap="pb-3">
-                  <div
-                    onClick={() => !editingEntryId && setSelectedEntry(entry)}
-                    className={`relative group p-4 bg-surface rounded-lg border border-border-subtle cursor-pointer hover:bg-surface-hover active:bg-surface-active transition-colors`}
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className={journalBadge(entry.entryType)}>
-                          {JOURNAL_STYLES[entry.entryType].label}
-                        </span>
-                        {entry.ticker && (
-                          <span className="text-xs font-130 text-foreground">{entry.ticker}</span>
-                        )}
+              {presence.map(({ item: entry, status }) => {
+                const expanded = expansion.isExpanded(entry.id) || editingEntryId === entry.id
+                return (
+                  <StackItem key={entry.id} show={status === 'shown'} gap="pb-3">
+                    <div
+                      onClick={() => !editingEntryId && setSelectedEntry(entry)}
+                      className={`relative group p-4 bg-surface rounded-lg border border-border-subtle cursor-pointer hover:bg-surface-hover active:bg-surface-active transition-colors`}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className={journalBadge(entry.entryType)}>
+                            {JOURNAL_STYLES[entry.entryType].label}
+                          </span>
+                          {entry.ticker && (
+                            <span className="text-xs font-130 text-foreground">{entry.ticker}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
+                          <EntryToggleButton expanded={expanded} onToggle={() => expansion.toggle(entry.id)} />
+                        </div>
                       </div>
-                      <span className="text-xs text-muted">{formatDateTime(entry.timestamp)}</span>
+                      {(entry.priceSnapshot != null || entry.entryType === 'REFLECTION') && (
+                        <Collapsible open={expanded}>
+                          <div className="text-xs text-muted mb-1">
+                            Snapshot: {entry.priceSnapshot != null && entry.priceSnapshot > 0 ? `$${entry.priceSnapshot.toFixed(2)}` : '—'}
+                          </div>
+                          {entry.entryType === 'REFLECTION' && entry.sourceEntryId != null && (
+                            <JournalSourceQuote source={sources.get(entry.sourceEntryId)} />
+                          )}
+                        </Collapsible>
+                      )}
+                      {editingEntryId === entry.id ? (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <TagInput
+                            value={editBody}
+                            onChange={setEditBody}
+                            rows={3}
+                            className="bg-transparent text-sm text-foreground border-none focus:ring-0 resize-none"
+                          />
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              onClick={() => handleSaveEdit(entry.id)}
+                              disabled={loading}
+                              className="px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
+                            >
+                              {loading ? 'Saving…' : 'Save'}
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="px-3 py-1.5 bg-surface border border-border text-foreground text-xs rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                          {editError && <div className="text-error text-xs mt-1">{editError}</div>}
+                        </div>
+                      ) : (
+                        <>
+                          <CollapsibleText open={expanded} className="text-sm text-foreground whitespace-pre-wrap">{getDisplayBody(entry.body)}</CollapsibleText>
+                          <Collapsible open={expanded}>
+                            <TagPills
+                              tags={entry.tags}
+                              onTagClick={(tag) => {
+                                const current = filters.tagIds || []
+                                if (!current.includes(tag.id)) {
+                                  updateFilters({ ...filters, tagIds: [...current, tag.id] })
+                                }
+                              }}
+                            />
+                            <div className={`absolute bottom-2 right-2 flex gap-1.5 ${expanded ? '' : 'pointer-fine:invisible'} opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 pointer-coarse:static pointer-coarse:mt-3 pointer-coarse:justify-end transition-opacity`}>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleEditClick(entry)
+                                }}
+                                className="px-2.5 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
+                                title="Edit"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDelete(entry.id)
+                                }}
+                                className="px-2.5 py-1 text-xs text-error hover:text-error bg-surface border border-border rounded hover:bg-error/10 transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
+                                title="Delete"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </Collapsible>
+                        </>
+                      )}
                     </div>
-                    {(entry.priceSnapshot != null || entry.entryType === 'REFLECTION') && (
-                      <div className="text-xs text-muted mb-1">
-                        Snapshot: {entry.priceSnapshot != null && entry.priceSnapshot > 0 ? `$${entry.priceSnapshot.toFixed(2)}` : '—'}
-                      </div>
-                    )}
-                    {entry.entryType === 'REFLECTION' && entry.sourceEntryId != null && (
-                      <JournalSourceQuote source={sources.get(entry.sourceEntryId)} />
-                    )}
-                    {editingEntryId === entry.id ? (
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <TagInput
-                          value={editBody}
-                          onChange={setEditBody}
-                          rows={3}
-                          className="bg-transparent text-sm text-foreground border-none focus:ring-0 resize-none"
-                        />
-                        <div className="flex gap-2 mt-2">
-                          <button
-                            onClick={() => handleSaveEdit(entry.id)}
-                            disabled={loading}
-                            className="px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded-md hover:bg-primary-hover active:bg-primary-active transition-colors disabled:bg-disabled-background disabled:text-disabled-foreground disabled:cursor-not-allowed"
-                          >
-                            {loading ? 'Saving…' : 'Save'}
-                          </button>
-                          <button
-                            onClick={handleCancelEdit}
-                            className="px-3 py-1.5 bg-surface border border-border text-foreground text-xs rounded-md hover:bg-surface-hover active:bg-surface-active transition-colors"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                        {editError && <div className="text-error text-xs mt-1">{editError}</div>}
-                      </div>
-                    ) : (
-                      <>
-                        <div className="text-sm text-foreground whitespace-pre-wrap">{getDisplayBody(entry.body)}</div>
-                        <TagPills
-                          tags={entry.tags}
-                          onTagClick={(tag) => {
-                            const current = filters.tagIds || []
-                            if (!current.includes(tag.id)) {
-                              updateFilters({ ...filters, tagIds: [...current, tag.id] })
-                            }
-                          }}
-                        />
-                        <div className="absolute bottom-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 pointer-coarse:static pointer-coarse:mt-3 pointer-coarse:justify-end transition-opacity">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleEditClick(entry)
-                            }}
-                            className="px-2.5 py-1 text-xs text-primary hover:text-primary-hover bg-surface border border-border rounded hover:bg-surface-hover active:bg-surface-active transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
-                            title="Edit"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDelete(entry.id)
-                            }}
-                            className="px-2.5 py-1 text-xs text-error hover:text-error bg-surface border border-border rounded hover:bg-error/10 transition-colors pointer-coarse:min-h-[40px] pointer-coarse:px-3"
-                            title="Delete"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </StackItem>
-              ))}
+                  </StackItem>
+                )
+              })}
             </div>
           </div>
         </div>
